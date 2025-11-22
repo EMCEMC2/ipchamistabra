@@ -285,10 +285,6 @@ function App() {
           {/* Left Column: Main View + Intel */}
           <div className="col-span-12 lg:col-span-9 flex flex-col gap-2 h-full min-h-0">
 
-            import {ErrorBoundary} from './components/ErrorBoundary';
-
-            // ... (inside return)
-
             {/* Main View (Chart/Swarm/Cortex) - Flex 1 to take available space */}
             <div className="flex-[3] bg-black/40 border border-white/10 rounded-sm overflow-hidden relative min-h-0 flex flex-col">
               <ErrorBoundary>
