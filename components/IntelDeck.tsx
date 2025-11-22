@@ -67,40 +67,40 @@ export const IntelDeck: React.FC<IntelDeckProps> = ({ latestAnalysis, items = []
   };
 
   return (
-    <div className="bg-terminal-card border border-terminal-border rounded-lg p-4 h-full flex flex-col relative overflow-hidden">
+    <div className="bg-terminal-card border border-terminal-border rounded-lg p-2 h-full flex flex-col relative overflow-hidden">
       {/* Header Tabs */}
-      <div className="flex items-center justify-between mb-4 shrink-0 z-10">
-        <div className="flex bg-terminal-bg rounded p-1 border border-terminal-border">
+      <div className="flex items-center justify-between mb-2 shrink-0 z-10">
+        <div className="flex bg-terminal-bg rounded p-0.5 border border-terminal-border">
           <button
             onClick={() => setActiveTab('INTEL')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded text-xs font-mono font-bold transition-all ${activeTab === 'INTEL'
-                ? 'bg-terminal-card text-terminal-accent shadow-sm border border-terminal-border/50'
-                : 'text-terminal-muted hover:text-terminal-text'
+            className={`flex items-center gap-2 px-2 py-1 rounded text-[10px] font-mono font-bold transition-all ${activeTab === 'INTEL'
+              ? 'bg-terminal-card text-terminal-accent shadow-sm border border-terminal-border/50'
+              : 'text-terminal-muted hover:text-terminal-text'
               }`}
           >
-            <Radio size={14} className={loadingIntel ? "animate-pulse" : ""} />
+            <Radio size={12} className={loadingIntel ? "animate-pulse" : ""} />
             GLOBAL INTEL
           </button>
           <button
             onClick={() => setActiveTab('TACTICAL')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded text-xs font-mono font-bold transition-all ${activeTab === 'TACTICAL'
-                ? 'bg-terminal-card text-terminal-warn shadow-sm border border-terminal-border/50'
-                : 'text-terminal-muted hover:text-terminal-text'
+            className={`flex items-center gap-2 px-2 py-1 rounded text-[10px] font-mono font-bold transition-all ${activeTab === 'TACTICAL'
+              ? 'bg-terminal-card text-terminal-warn shadow-sm border border-terminal-border/50'
+              : 'text-terminal-muted hover:text-terminal-text'
               }`}
           >
-            <Crosshair size={14} />
+            <Crosshair size={12} />
             TACTICAL SETUP
           </button>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-1">
           {activeTab === 'TACTICAL' && (
             <button
               onClick={generateSetup}
               disabled={loadingSetup || !latestAnalysis}
-              className="text-xs flex items-center gap-1 bg-terminal-border hover:bg-terminal-text hover:text-terminal-bg px-2 py-1 rounded transition-colors disabled:opacity-50"
+              className="text-[10px] flex items-center gap-1 bg-terminal-border hover:bg-terminal-text hover:text-terminal-bg px-2 py-0.5 rounded transition-colors disabled:opacity-50"
             >
-              <RefreshCw size={12} className={loadingSetup ? "animate-spin" : ""} />
+              <RefreshCw size={10} className={loadingSetup ? "animate-spin" : ""} />
               GENERATE PLAN
             </button>
           )}
@@ -108,9 +108,9 @@ export const IntelDeck: React.FC<IntelDeckProps> = ({ latestAnalysis, items = []
             <button
               onClick={refreshIntel}
               disabled={loadingIntel}
-              className="text-xs flex items-center gap-1 bg-terminal-border hover:bg-terminal-accent hover:text-terminal-bg px-2 py-1 rounded transition-colors disabled:opacity-50"
+              className="text-[10px] flex items-center gap-1 bg-terminal-border hover:bg-terminal-accent hover:text-terminal-bg px-2 py-0.5 rounded transition-colors disabled:opacity-50"
             >
-              <RefreshCw size={12} className={loadingIntel ? "animate-spin" : ""} />
+              <RefreshCw size={10} className={loadingIntel ? "animate-spin" : ""} />
               SCAN NET
             </button>
           )}
@@ -118,7 +118,7 @@ export const IntelDeck: React.FC<IntelDeckProps> = ({ latestAnalysis, items = []
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto border border-terminal-border/50 bg-terminal-bg/30 rounded p-1 relative scrollbar-hide">
+      <div className="flex-1 overflow-y-auto border border-terminal-border/50 bg-terminal-bg/30 rounded p-1 relative scrollbar-hide min-h-0">
 
         {/* INTEL FEED */}
         {activeTab === 'INTEL' && (

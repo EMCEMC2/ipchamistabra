@@ -260,7 +260,7 @@ function App() {
             </div>
 
             {/* Intel Deck - Fixed height or Flex 1 */}
-            <div className="flex-1 bg-black/40 border border-white/10 rounded-sm overflow-hidden min-h-[150px] max-h-[200px]">
+            <div className="flex-1 bg-black/40 border border-white/10 rounded-sm overflow-hidden min-h-[200px]">
               <IntelDeck items={intel} latestAnalysis={latestAnalysis} />
             </div>
           </div>
