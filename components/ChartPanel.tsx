@@ -178,6 +178,12 @@ export const ChartPanel: React.FC<ChartPanelProps> = ({ data, timeframe, onTimef
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
+    // Clean up previous chart if exists
+    if (chartRef.current) {
+      chartRef.current.remove();
+      chartRef.current = null;
+    }
+
     const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: '#18181b' },
@@ -188,8 +194,8 @@ export const ChartPanel: React.FC<ChartPanelProps> = ({ data, timeframe, onTimef
         vertLines: { color: '#27272a' },
         horzLines: { color: '#27272a' },
       },
-      width: chartContainerRef.current.clientWidth,
-      height: chartContainerRef.current.clientHeight,
+      width: chartContainerRef.current.clientWidth || 800, // Fallback width
+      height: chartContainerRef.current.clientHeight || 400, // Fallback height
       crosshair: { mode: CrosshairMode.Normal },
       timeScale: { borderColor: '#27272a', timeVisible: true },
       rightPriceScale: { borderColor: '#27272a' },
@@ -214,18 +220,21 @@ export const ChartPanel: React.FC<ChartPanelProps> = ({ data, timeframe, onTimef
 
     const resizeObserver = new ResizeObserver((entries) => {
       if (!entries[0].contentRect || !chartRef.current) return;
-      chartRef.current.applyOptions({
-        width: entries[0].contentRect.width,
-        height: entries[0].contentRect.height
-      });
+      const { width, height } = entries[0].contentRect;
+      if (width > 0 && height > 0) {
+        chartRef.current.applyOptions({ width, height });
+      }
     });
     resizeObserver.observe(chartContainerRef.current);
 
     return () => {
       resizeObserver.disconnect();
-      chart.remove();
+      if (chartRef.current) {
+        chartRef.current.remove();
+        chartRef.current = null;
+      }
     };
-  }, []);
+  }, []); // Run once on mount
 
   // --- TACTICAL ENGINE & DATA UPDATE ---
   useEffect(() => {

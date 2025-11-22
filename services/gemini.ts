@@ -509,6 +509,50 @@ export const runAgentSimulation = async (role: AgentRole, context: any): Promise
 }
 
 // --- GLOBAL INTEL SCANNER: BTC-FOCUSED WITH SENTIMENT ANALYSIS ---
+// --- FALLBACK MOCK DATA ---
+const MOCK_INTEL: IntelItem[] = [
+  {
+    id: 'mock-1',
+    title: 'Bitcoin Reclaims $84k Amidst Strong Institutional Inflows',
+    severity: 'HIGH',
+    category: 'NEWS',
+    timestamp: Date.now() - 1000 * 60 * 30,
+    source: 'MarketWire (Fallback)',
+    summary: 'BTC price action shows strength as ETF inflows hit weekly highs.',
+    btcSentiment: 'BULLISH'
+  },
+  {
+    id: 'mock-2',
+    title: 'Fed Signals Potential Rate Pause in Upcoming Meeting',
+    severity: 'MEDIUM',
+    category: 'MACRO',
+    timestamp: Date.now() - 1000 * 60 * 120,
+    source: 'MacroInsider (Fallback)',
+    summary: 'Jerome Powell hints at data-dependent approach, markets react positively.',
+    btcSentiment: 'NEUTRAL'
+  },
+  {
+    id: 'mock-3',
+    title: 'Large Whale Movement: 5,000 BTC Moved to Cold Storage',
+    severity: 'MEDIUM',
+    category: 'WHALE',
+    timestamp: Date.now() - 1000 * 60 * 240,
+    source: 'WhaleAlert (Fallback)',
+    summary: 'Significant outflow from exchanges suggests accumulation phase.',
+    btcSentiment: 'BULLISH'
+  },
+  {
+    id: 'mock-4',
+    title: 'Regulatory Uncertainty in EU regarding Self-Custody Wallets',
+    severity: 'LOW',
+    category: 'NEWS',
+    timestamp: Date.now() - 1000 * 60 * 360,
+    source: 'CryptoLaw (Fallback)',
+    summary: 'New EU vote could impact non-custodial wallet providers.',
+    btcSentiment: 'BEARISH'
+  }
+];
+
 export const scanGlobalIntel = async (): Promise<IntelItem[]> => {
   try {
     const client = getAiClient();
@@ -562,16 +606,16 @@ export const scanGlobalIntel = async (): Promise<IntelItem[]> => {
         return validated.data as IntelItem[];
       } else {
         console.error("Intel Validation Failed:", validated.error);
-        return [];
+        return MOCK_INTEL; // Fallback on validation failure
       }
     } catch (validationError) {
       console.error("Zod Validation Error:", validationError);
-      return [];
+      return MOCK_INTEL; // Fallback on validation error
     }
 
   } catch (e) {
-    console.error("Intel Scan Error:", e);
-    return [];
+    console.error("Intel Scan Error (Using Fallback):", e);
+    return MOCK_INTEL; // Fallback on API error
   }
 };
 
