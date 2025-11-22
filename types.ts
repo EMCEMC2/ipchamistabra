@@ -9,15 +9,6 @@ export const ChartDataPointSchema = z.object({
   volume: z.number()
 });
 
-export const IntelItemSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  severity: z.enum(['HIGH', 'MEDIUM', 'LOW', 'CRITICAL']).or(z.string()),
-  category: z.enum(['NEWS', 'ONCHAIN', 'MACRO', 'WHALE', 'SOCIAL']).or(z.string()),
-  timestamp: z.number(),
-  source: z.string(),
-  summary: z.string()
-});
 export enum Timeframe {
   H1 = '1H',
   H4 = '4H',
