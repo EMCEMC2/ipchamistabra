@@ -139,8 +139,13 @@ function App() {
     </button>
   );
 
+  // Scroll to top on view change
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [activeView]);
+
   return (
-    <div className="min-h-screen bg-black text-gray-200 font-mono selection:bg-green-900 selection:text-white overflow-hidden flex flex-col">
+    <div className="h-screen bg-black text-gray-200 font-mono selection:bg-green-900 selection:text-white overflow-hidden flex flex-col">
       {/* Header */}
       <header className="h-12 border-b border-white/10 flex items-center justify-between px-4 bg-black/50 backdrop-blur-md sticky top-0 z-50 shrink-0">
         <div className="flex items-center gap-6">
@@ -173,7 +178,7 @@ function App() {
       </header>
 
       {/* Main Grid */}
-      <main className="flex-1 p-2 overflow-hidden flex flex-col gap-2">
+      <main className="flex-1 p-2 overflow-hidden flex flex-col gap-2 min-h-0">
 
         {/* Top Row: Metrics */}
         <div className="shrink-0 grid grid-cols-2 lg:grid-cols-7 gap-2 h-[80px]">
@@ -235,7 +240,7 @@ function App() {
           <div className="col-span-12 lg:col-span-9 flex flex-col gap-2 h-full min-h-0">
 
             {/* Main View (Chart/Swarm/Cortex) - Flex 1 to take available space */}
-            <div className="flex-[2] bg-black/40 border border-white/10 rounded-sm overflow-hidden relative min-h-0">
+            <div className="flex-[3] bg-black/40 border border-white/10 rounded-sm overflow-hidden relative min-h-0 flex flex-col">
               {activeView === 'TERMINAL' && (
                 <ChartPanel
                   data={chartData}
@@ -255,7 +260,7 @@ function App() {
             </div>
 
             {/* Intel Deck - Fixed height or Flex 1 */}
-            <div className="flex-1 bg-black/40 border border-white/10 rounded-sm overflow-hidden min-h-[200px]">
+            <div className="flex-1 bg-black/40 border border-white/10 rounded-sm overflow-hidden min-h-[150px] max-h-[200px]">
               <IntelDeck items={intel} latestAnalysis={latestAnalysis} />
             </div>
           </div>
