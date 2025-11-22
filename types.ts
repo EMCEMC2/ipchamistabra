@@ -141,7 +141,19 @@ export interface IntelItem {
   timestamp: number; // Unix ms
   source: string;
   summary: string;
+  btcSentiment: 'BULLISH' | 'BEARISH' | 'NEUTRAL'; // New field for BTC impact
 }
+
+export const IntelItemSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  severity: z.enum(['HIGH', 'MEDIUM', 'LOW', 'CRITICAL']).or(z.string()),
+  category: z.enum(['NEWS', 'ONCHAIN', 'MACRO', 'WHALE', 'SOCIAL']).or(z.string()),
+  timestamp: z.number(),
+  source: z.string(),
+  summary: z.string(),
+  btcSentiment: z.enum(['BULLISH', 'BEARISH', 'NEUTRAL'])
+});
 
 // --- NEW: AGENT SWARM TYPES ---
 

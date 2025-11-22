@@ -508,33 +508,47 @@ export const runAgentSimulation = async (role: AgentRole, context: any): Promise
   }
 }
 
-// --- NEW: GLOBAL INTEL SCANNER WITH GROUNDING ---
-// --- NEW: GLOBAL INTEL SCANNER WITH REAL API ---
+// --- GLOBAL INTEL SCANNER: BTC-FOCUSED WITH SENTIMENT ANALYSIS ---
 export const scanGlobalIntel = async (): Promise<IntelItem[]> => {
   try {
     const client = getAiClient();
     const model = client.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
 
     const prompt = `
-      Scan for high-impact crypto market intelligence from the last 24 hours.
-      Focus on:
-      1. Major protocol exploits or security incidents.
-      2. Regulatory announcements (SEC, EU, etc.).
-      3. Large whale movements (> $50M).
-      4. Macroeconomic shocks (CPI, Rates).
+      You are a Bitcoin market analyst. Scan for high-impact news from the last 24 hours that DIRECTLY affects Bitcoin price.
 
-      Return a JSON array of 3-5 items with this structure:
+      **STRICT FILTERING RULES:**
+      - ONLY include news with DIRECT Bitcoin relevance
+      - Filter out:  generic crypto news, altcoin-only news, unrelated tech news
+      - Focus on: BTC price drivers, macro events affecting BTC, regulatory news impacting BTC, major exchange events
+
+      **CATEGORIES:**
+      1. MACRO: Fed policy, interest rates, inflation, DXY, geopolitical events
+      2. NEWS: Exchange listings, ETF flows, institutional adoption, regulations
+      3. ONCHAIN: Large BTC transfers, miner activity, exchange reserves
+      4. WHALE: Major BTC purchases/sales (>$50M)
+
+      **SENTIMENT ANALYSIS (Critical):**
+      Analyze if the news is BULLISH, BEARISH, or NEUTRAL for Bitcoin price:
+      - BULLISH examples: Fed rate cuts, positive ETF flows, institutional adoption, bullish whale buys
+      - BEARISH examples: Fed rate hikes, exchange hacks, negative regulations, whale dumps
+      - NEUTRAL: Informative updates without clear directional bias
+
+      Return a JSON array of 4-6 items:
       [
         {
           "id": "unique_id",
-          "title": "Short headline",
+          "title": "Concise headline (BTC-specific)",
           "severity": "HIGH" | "MEDIUM" | "LOW",
           "category": "NEWS" | "ONCHAIN" | "MACRO" | "WHALE",
-          "timestamp": unix_ms,
+          "timestamp": ${Date.now()},
           "source": "Source name",
-          "summary": "One sentence summary"
+          "summary": "One sentence explaining BTC impact",
+          "btcSentiment": "BULLISH" | "BEARISH" | "NEUTRAL"
         }
       ]
+
+      Use real-time search to find ACTUAL current events. Do NOT fabricate news.
     `;
 
     const result = await model.generateContent(prompt);
@@ -544,6 +558,7 @@ export const scanGlobalIntel = async (): Promise<IntelItem[]> => {
     try {
       const validated = z.array(IntelItemSchema).safeParse(parsed);
       if (validated.success) {
+        console.log("✅ Intel fetched:", validated.data.length, "BTC-related items");
         return validated.data as IntelItem[];
       } else {
         console.error("Intel Validation Failed:", validated.error);

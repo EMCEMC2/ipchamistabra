@@ -49,11 +49,19 @@ export const IntelDeck: React.FC<IntelDeckProps> = ({ latestAnalysis, items = []
     if (items.length === 0) refreshIntel();
   }, []);
 
-  const getSeverityColor = (sev: string) => {
-    switch (sev) {
-      case 'HIGH': return 'text-red-500 border-red-500/30 bg-red-500/10';
-      case 'MEDIUM': return 'text-amber-500 border-amber-500/30 bg-amber-500/10';
-      default: return 'text-blue-400 border-blue-400/30 bg-blue-400/10';
+  const getSentimentColor = (sentiment: string) => {
+    switch (sentiment) {
+      case 'BULLISH': return 'text-green-500 border-green-500/30 bg-green-500/10';
+      case 'BEARISH': return 'text-red-500 border-red-500/30 bg-red-500/10';
+      default: return 'text-orange-500 border-orange-500/30 bg-orange-500/10';
+    }
+  };
+
+  const getSentimentBorder = (sentiment: string) => {
+    switch (sentiment) {
+      case 'BULLISH': return 'bg-green-500';
+      case 'BEARISH': return 'bg-red-500';
+      default: return 'bg-orange-500';
     }
   };
 
@@ -132,14 +140,19 @@ export const IntelDeck: React.FC<IntelDeckProps> = ({ latestAnalysis, items = []
 
             {intelItems.map((item) => (
               <div key={item.id} className="bg-terminal-bg/80 border border-terminal-border p-3 rounded hover:border-terminal-muted transition-colors group relative overflow-hidden">
-                {/* Severity Line */}
-                <div className={`absolute left-0 top-0 bottom-0 w-1 ${item.severity === 'HIGH' ? 'bg-red-500' : item.severity === 'MEDIUM' ? 'bg-amber-500' : 'bg-blue-500'}`} />
+                {/* Sentiment Border - Left Side */}
+                <div className={`absolute left-0 top-0 bottom-0 w-1 ${getSentimentBorder(item.btcSentiment)}`} />
 
                 <div className="flex justify-between items-start mb-1 pl-2">
                   <span className="font-mono font-bold text-xs text-terminal-text leading-tight">{item.title}</span>
-                  <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border flex items-center gap-1 ${getSeverityColor(item.severity)}`}>
-                    {getCategoryIcon(item.category)} {item.category}
-                  </span>
+                  <div className="flex items-center gap-1">
+                    <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${getSentimentColor(item.btcSentiment)}`}>
+                      {item.btcSentiment}
+                    </span>
+                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded border border-terminal-border text-terminal-muted flex items-center gap-1">
+                      {getCategoryIcon(item.category)} {item.category}
+                    </span>
+                  </div>
                 </div>
 
                 <p className="text-[10px] text-terminal-muted font-mono pl-2 leading-relaxed mb-2">
