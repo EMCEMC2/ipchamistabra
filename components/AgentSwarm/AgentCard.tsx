@@ -26,7 +26,7 @@ export const AgentCard: React.FC<AgentCardProps> = ({ agent, isActive }) => {
         <motion.div
             layout
             className={clsx(
-                "relative p-4 rounded-xl border backdrop-blur-md transition-all duration-500 overflow-hidden group",
+                "relative p-4 rounded-xl border backdrop-blur-md transition-all duration-500 overflow-hidden group min-h-[140px]",
                 isActive
                     ? "bg-terminal-accent/10 border-terminal-accent shadow-[0_0_30px_rgba(16,185,129,0.2)]"
                     : "bg-terminal-card/50 border-terminal-border hover:border-terminal-muted/50"
