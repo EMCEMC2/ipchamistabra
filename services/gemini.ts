@@ -502,56 +502,23 @@ export const runAgentSimulation = async (role: AgentRole, context: any): Promise
 }
 
 // --- NEW: GLOBAL INTEL SCANNER WITH GROUNDING ---
+// --- NEW: GLOBAL INTEL SCANNER WITH REAL API ---
 export const scanGlobalIntel = async (): Promise<IntelItem[]> => {
-  const ai = getAiClient();
   try {
-    const response = await ai.models.generateContent({
-      model: FAST_MODEL_ID,
-      contents: `
-            Perform a targeted Google Search for "Crypto News Last Hour" and "Bitcoin Breaking News".
-            
-            **STRICT SOURCES ONLY:** CoinDesk, Cointelegraph, The Block, Decrypt, Reuters, Bloomberg Crypto.
-            **TIME WINDOW:** MUST be from the last 6 hours. Ignore anything older.
-            
-            **Task:**
-            Find exactly 4-6 critical headlines.
-            
-            **Format:**
-            Return a JSON Array of objects with:
-            - title: (String) The headline.
-            - severity: "HIGH" | "MEDIUM" | "LOW"
-            - category: "NEWS" | "ONCHAIN" | "MACRO" | "WHALE"
-            - source: (String) The domain name (e.g. "CoinDesk").
-            - summary: (String) A 1-sentence summary.
-            `,
-      config: {
-        tools: [{ googleSearch: {} }],
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING },
-              severity: { type: Type.STRING, enum: ["HIGH", "MEDIUM", "LOW"] },
-              category: { type: Type.STRING, enum: ["NEWS", "ONCHAIN", "MACRO", "WHALE"] },
-              source: { type: Type.STRING },
-              summary: { type: Type.STRING }
-            },
-            required: ["title", "severity", "category", "source", "summary"]
-          }
-        }
-      }
-    });
+    // Use CryptoCompare News API (Free, no key needed for basic)
+    const response = await fetch('https://min-api.cryptocompare.com/data/v2/news/?lang=EN');
+    const data = await response.json();
 
-    const text = response.text;
-    if (!text) return [];
+    if (!data.Data || data.Data.length === 0) return [];
 
-    const items = JSON.parse(text) as any[];
-    return items.map((item, index) => ({
-      id: `intel-${Date.now()}-${index}`,
-      timestamp: Date.now(),
-      ...item
+    return data.Data.slice(0, 6).map((item: any, index: number) => ({
+      id: `intel-${item.id}`,
+      timestamp: item.published_on * 1000,
+      title: item.title,
+      severity: index < 2 ? 'HIGH' : 'MEDIUM', // Top news is high severity
+      category: 'NEWS',
+      source: item.source_info.name,
+      summary: item.body.length > 100 ? item.body.substring(0, 100) + '...' : item.body
     }));
   } catch (error) {
     console.error("Intel Scan Error:", error);

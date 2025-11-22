@@ -173,85 +173,96 @@ function App() {
       </header>
 
       {/* Main Grid */}
-      <main className="flex-1 p-2 overflow-hidden">
-        <div className="grid grid-cols-1 lg:grid-cols-12 grid-rows-8 gap-2 h-full">
+      <main className="flex-1 p-2 overflow-hidden flex flex-col gap-2">
 
-          {/* Row 1: Metrics (Always Visible) */}
-          <div className="col-span-12 row-span-1 grid grid-cols-2 lg:grid-cols-7 gap-2 min-h-[80px]">
-            <MetricCard
-              title="BITCOIN PRICE"
-              value={`$${price.toLocaleString()}`}
-              subValue={`${priceChange > 0 ? '+' : ''}${priceChange}% (24h)`}
-              color={priceChange >= 0 ? 'text-green-400' : 'text-red-400'}
-              trend={priceChange > 0 ? 'BULLISH' : 'BEARISH'}
-            />
-            <MetricCard
-              title="SENTIMENT"
-              value={sentiment.label}
-              subValue={`Score: ${sentiment.score}`}
-              color={sentiment.score > 50 ? 'text-green-400' : 'text-red-400'}
-              trend={sentiment.score > 60 ? 'BULLISH' : sentiment.score < 40 ? 'BEARISH' : 'NEUTRAL'}
-            />
-            <MetricCard
-              title="VIX (VOLATILITY)"
-              value={macro.vix.toFixed(2)}
-              subValue="Market Fear Index"
-              color={macro.vix > 20 ? 'text-red-400' : 'text-green-400'}
-              trend={getTrend('VIX', macro.vix)}
-            />
-            <MetricCard
-              title="BTC DOMINANCE"
-              value={`${macro.btcd.toFixed(1)}%`}
-              subValue="Market Cap %"
-              color="text-yellow-400"
-              trend="NEUTRAL"
-            />
-            <MetricCard
-              title="OPEN INTEREST"
-              value={derivatives.openInterest}
-              subValue="Total Active Positions"
-              color="text-blue-400"
-              trend="BULLISH"
-            />
-            <MetricCard
-              title="FUNDING RATE"
-              value={derivatives.fundingRate}
-              subValue="Weighted Avg (8h)"
-              color={parseFloat(derivatives.fundingRate) > 0 ? 'text-green-400' : 'text-red-400'}
-              trend={getTrend('FUNDING', parseFloat(derivatives.fundingRate))}
-            />
-            <MetricCard
-              title="LONG/SHORT RATIO"
-              value={derivatives.longShortRatio.toFixed(2)}
-              subValue="Global Sentiment"
-              color={derivatives.longShortRatio > 1 ? 'text-green-400' : 'text-red-400'}
-              trend={getTrend('LS', derivatives.longShortRatio)}
-            />
+        {/* Top Row: Metrics */}
+        <div className="shrink-0 grid grid-cols-2 lg:grid-cols-7 gap-2 h-[80px]">
+          <MetricCard
+            title="BITCOIN PRICE"
+            value={`$${price.toLocaleString()}`}
+            subValue={`${priceChange > 0 ? '+' : ''}${priceChange}% (24h)`}
+            color={priceChange >= 0 ? 'text-green-400' : 'text-red-400'}
+            trend={priceChange > 0 ? 'BULLISH' : 'BEARISH'}
+          />
+          <MetricCard
+            title="SENTIMENT"
+            value={sentiment.label}
+            subValue={`Score: ${sentiment.score}`}
+            color={sentiment.score > 50 ? 'text-green-400' : 'text-red-400'}
+            trend={sentiment.score > 60 ? 'BULLISH' : sentiment.score < 40 ? 'BEARISH' : 'NEUTRAL'}
+          />
+          <MetricCard
+            title="VIX (VOLATILITY)"
+            value={macro.vix.toFixed(2)}
+            subValue="Market Fear Index"
+            color={macro.vix > 20 ? 'text-red-400' : 'text-green-400'}
+            trend={getTrend('VIX', macro.vix)}
+          />
+          <MetricCard
+            title="BTC DOMINANCE"
+            value={`${macro.btcd.toFixed(1)}%`}
+            subValue="Market Cap %"
+            color="text-yellow-400"
+            trend="NEUTRAL"
+          />
+          <MetricCard
+            title="OPEN INTEREST"
+            value={derivatives.openInterest}
+            subValue="Total Active Positions"
+            color="text-blue-400"
+            trend="BULLISH"
+          />
+          <MetricCard
+            title="FUNDING RATE"
+            value={derivatives.fundingRate}
+            subValue="Weighted Avg (8h)"
+            color={parseFloat(derivatives.fundingRate) > 0 ? 'text-green-400' : 'text-red-400'}
+            trend={getTrend('FUNDING', parseFloat(derivatives.fundingRate))}
+          />
+          <MetricCard
+            title="LONG/SHORT RATIO"
+            value={derivatives.longShortRatio.toFixed(2)}
+            subValue="Global Sentiment"
+            color={derivatives.longShortRatio > 1 ? 'text-green-400' : 'text-red-400'}
+            trend={getTrend('LS', derivatives.longShortRatio)}
+          />
+        </div>
+
+        {/* Main Content Area */}
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-2 min-h-0">
+
+          {/* Left Column: Main View + Intel */}
+          <div className="col-span-12 lg:col-span-9 flex flex-col gap-2 h-full min-h-0">
+
+            {/* Main View (Chart/Swarm/Cortex) - Flex 1 to take available space */}
+            <div className="flex-[2] bg-black/40 border border-white/10 rounded-sm overflow-hidden relative min-h-0">
+              {activeView === 'TERMINAL' && (
+                <ChartPanel
+                  data={chartData}
+                  timeframe={timeframe}
+                  onTimeframeChange={setTimeframe}
+                  signals={signals}
+                />
+              )}
+              {activeView === 'SWARM' && <AgentSwarm />}
+              {activeView === 'CORTEX' && <MLCortex />}
+              {activeView === 'JOURNAL' && (
+                <TradeJournal
+                  entries={journal}
+                  onAddEntry={addJournalEntry}
+                />
+              )}
+            </div>
+
+            {/* Intel Deck - Fixed height or Flex 1 */}
+            <div className="flex-1 bg-black/40 border border-white/10 rounded-sm overflow-hidden min-h-[200px]">
+              <IntelDeck items={intel} latestAnalysis={latestAnalysis} />
+            </div>
           </div>
 
-          {/* Row 2-5: Main Content Area (Switchable) */}
-          <div className="col-span-12 lg:col-span-9 row-span-5 bg-black/40 border border-white/10 rounded-sm overflow-hidden relative">
-            {activeView === 'TERMINAL' && (
-              <ChartPanel
-                data={chartData}
-                timeframe={timeframe}
-                onTimeframeChange={setTimeframe}
-                signals={signals}
-              />
-            )}
-            {activeView === 'SWARM' && <AgentSwarm />}
-            {activeView === 'CORTEX' && <MLCortex />}
-            {activeView === 'JOURNAL' && (
-              <TradeJournal
-                entries={journal}
-                onAddEntry={addJournalEntry}
-              />
-            )}
-          </div>
-
-          {/* Sidebar: AI & Signals (Always Visible) */}
-          <div className="col-span-12 lg:col-span-3 row-span-7 flex flex-col gap-2">
-            <div className="flex-1 bg-black/40 border border-white/10 rounded-sm overflow-hidden">
+          {/* Right Column: AI Command Center */}
+          <div className="col-span-12 lg:col-span-3 h-full min-h-0">
+            <div className="h-full bg-black/40 border border-white/10 rounded-sm overflow-hidden">
               <AiCommandCenter
                 onNewAnalysis={handleNewAnalysis}
                 marketData={{
@@ -265,11 +276,6 @@ function App() {
                 chartData={chartData}
               />
             </div>
-          </div>
-
-          {/* Row 6-8: Intel & Logs (Always Visible) */}
-          <div className="col-span-12 lg:col-span-9 row-span-2 bg-black/40 border border-white/10 rounded-sm overflow-hidden">
-            <IntelDeck items={intel} latestAnalysis={latestAnalysis} />
           </div>
 
         </div>
