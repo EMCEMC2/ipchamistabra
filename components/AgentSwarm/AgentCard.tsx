@@ -72,10 +72,10 @@ export const AgentCard: React.FC<AgentCardProps> = ({ agent, isActive }) => {
                     </div>
 
                     {/* Live Thought Log */}
-                    <div className="mt-3 font-mono text-xs h-12 overflow-hidden relative">
+                    <div className="mt-3 font-mono text-xs relative">
                         <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-terminal-border"></div>
                         <p className={clsx(
-                            "pl-3 leading-relaxed line-clamp-2",
+                            "pl-3 leading-relaxed whitespace-pre-wrap break-words",
                             isActive ? "text-terminal-text" : "text-terminal-muted/60"
                         )}>
                             <span className="text-terminal-accent/50 mr-2">{'>'}</span>
