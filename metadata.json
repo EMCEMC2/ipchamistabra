@@ -1,0 +1,7 @@
+{
+  "name": "IPCHA MISTABRA",
+  "description": "An elite, AI-powered trading dashboard for Bitcoin traders featuring real-time market intelligence, technical analysis synthesis, and strategic trade planning powered by Gemini.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
