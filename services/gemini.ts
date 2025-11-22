@@ -511,7 +511,14 @@ export const scanGlobalIntel = async (): Promise<IntelItem[]> => {
 
     if (!data.Data || data.Data.length === 0) return [];
 
-    return data.Data.slice(0, 6).map((item: any, index: number) => ({
+    // Filter for BTC/Market relevance
+    const relevantNews = data.Data.filter((item: any) => {
+      const text = (item.title + " " + item.body).toLowerCase();
+      const keywords = ['bitcoin', 'btc', 'crypto', 'market', 'fed', 'sec', 'regulation', 'etf', 'binance', 'coinbase'];
+      return keywords.some(k => text.includes(k));
+    });
+
+    return relevantNews.slice(0, 6).map((item: any, index: number) => ({
       id: `intel-${item.id}`,
       timestamp: item.published_on * 1000,
       title: item.title,

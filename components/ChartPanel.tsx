@@ -505,7 +505,7 @@ export const ChartPanel: React.FC<ChartPanelProps> = ({ data, timeframe, onTimef
           </button>
         </div>
       </div>
-      <div className="flex-grow relative w-full h-full overflow-hidden" ref={chartContainerRef} />
+      <div className="flex-1 w-full relative overflow-hidden" ref={chartContainerRef} />
 
       <PineScriptModal
         isOpen={isScriptModalOpen}
