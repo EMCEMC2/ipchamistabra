@@ -1,6 +1,7 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { ChatMessage, GroundingSource, TradeSignal, JournalEntry, IntelItem, AgentRole, AgentTaskResult } from "../types";
+import { ChatMessage, GroundingSource, TradeSignal, JournalEntry, IntelItem, AgentRole, AgentTaskResult, IntelItemSchema, TradeSignalSchema } from "../types";
+import { z } from 'zod';
 
 const getAiClient = () => {
   const fromProcessEnv = process.env.API_KEY;
@@ -10,7 +11,8 @@ const getAiClient = () => {
   console.log('  - process.env.API_KEY:', fromProcessEnv ? `Present (${fromProcessEnv.length} chars, starts with: ${fromProcessEnv.substring(0, 10)})` : 'MISSING');
   console.log('  - import.meta.env.VITE_GEMINI_API_KEY:', fromImportMeta ? `Present (${fromImportMeta.length} chars, starts with: ${fromImportMeta.substring(0, 10)})` : 'MISSING');
 
-  const apiKey = (fromProcessEnv || fromImportMeta || "").trim();
+  const fromStorage = typeof window !== 'undefined' ? localStorage.getItem('GEMINI_API_KEY') : null;
+  const apiKey = (fromProcessEnv || fromImportMeta || fromStorage || "").trim();
 
   if (!apiKey) {
     console.error("[Gemini Service] ERROR: API_KEY is missing from both sources!");
@@ -378,53 +380,51 @@ export const getMacroMarketMetrics = async (): Promise<MacroMetrics> => {
 };
 
 export const getDerivativesMetrics = async (): Promise<{ openInterest: string; fundingRate: string; longShortRatio: number }> => {
-  const ai = getAiClient();
   try {
-    const response = await ai.models.generateContent({
-      model: FAST_MODEL_ID,
-      contents: `
-        Perform a targeted search for **Bitcoin Derivatives Data** (Live/Real-time).
-        
-        **Targets:**
-        1. **Open Interest (OI)**: Total BTC Open Interest (e.g., "$18.5B").
-        2. **Funding Rate**: Current weighted funding rate (e.g., "0.0100%").
-        3. **Long/Short Ratio**: Global L/S Ratio (e.g., 1.25).
+    // Fetch derivatives data from CoinGecko
+    const response = await fetch('https://api.coingecko.com/api/v3/derivatives');
+    if (!response.ok) throw new Error('CoinGecko Derivatives API failed');
 
-        **Sources:** Coinglass, Bybit, Binance.
+    const data = await response.json();
 
-        **Output JSON:**
-        {
-          "openInterest": "string (e.g. $19.2B)",
-          "fundingRate": "string (e.g. 0.008%)",
-          "longShortRatio": number (e.g. 1.12)
-        }
-      `,
-      config: {
-        tools: [{ googleSearch: {} }],
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            openInterest: { type: Type.STRING },
-            fundingRate: { type: Type.STRING },
-            longShortRatio: { type: Type.NUMBER }
-          },
-          required: ["openInterest", "fundingRate", "longShortRatio"]
-        }
-      }
-    });
+    // Filter for BTC perpetuals/futures
+    const btcDerivatives = data.filter((d: any) =>
+      (d.index_id === 'BTC' || d.symbol.includes('BTC')) &&
+      d.open_interest > 0
+    );
 
-    const text = response.text || "";
-    const data = cleanAndParseJSON<any>(text);
+    if (btcDerivatives.length === 0) throw new Error('No BTC derivatives data found');
+
+    // 1. Calculate Total Open Interest
+    // Sum up open interest from all exchanges
+    const totalOI = btcDerivatives.reduce((acc: number, curr: any) => acc + (curr.open_interest || 0), 0);
+
+    // Format to Billions (e.g., "$15.2B")
+    const formattedOI = `$${(totalOI / 1_000_000_000).toFixed(2)}B`;
+
+    // 2. Get Funding Rate from largest exchange (usually Binance or Bybit) by OI
+    const topExchange = btcDerivatives.sort((a: any, b: any) => b.open_interest - a.open_interest)[0];
+    const fundingRateVal = topExchange.funding_rate || 0;
+    const formattedFunding = `${(fundingRateVal * 100).toFixed(4)}%`;
+
+    // 3. Long/Short Ratio (Hard to get real global ratio from free API, using a proxy or default)
+    // Some exchanges provide this, but not in the main list. 
+    // We will use a randomized fluctuation around 1.0 for "liveness" if not available, 
+    // or stick to a neutral 1.0 if we want to be strict. 
+    // Let's use a slight random variance to simulate market noise if we can't get it.
+    // Actually, let's try to be honest. If we can't get it, return 1.0.
+    const longShortRatio = 1.0;
 
     return {
-      openInterest: data?.openInterest || "$15.0B",
-      fundingRate: data?.fundingRate || "0.01%",
-      longShortRatio: Number(data?.longShortRatio) || 1.0
+      openInterest: formattedOI,
+      fundingRate: formattedFunding,
+      longShortRatio: longShortRatio
     };
+
   } catch (error) {
     console.error("Derivatives Fetch Error:", error);
-    return { openInterest: "$15.0B", fundingRate: "0.01%", longShortRatio: 1.05 };
+    // Fallback to "N/A" to indicate data failure rather than hallucinating
+    return { openInterest: "N/A", fundingRate: "N/A", longShortRatio: 1.0 };
   }
 };
 
@@ -512,35 +512,54 @@ export const runAgentSimulation = async (role: AgentRole, context: any): Promise
 // --- NEW: GLOBAL INTEL SCANNER WITH REAL API ---
 export const scanGlobalIntel = async (): Promise<IntelItem[]> => {
   try {
-    // Use CryptoCompare News API (Free, no key needed for basic)
-    const response = await fetch('https://min-api.cryptocompare.com/data/v2/news/?lang=EN');
-    const data = await response.json();
+    const client = getAiClient();
+    const model = client.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
 
-    if (!data.Data || data.Data.length === 0) return [];
+    const prompt = `
+      Scan for high-impact crypto market intelligence from the last 24 hours.
+      Focus on:
+      1. Major protocol exploits or security incidents.
+      2. Regulatory announcements (SEC, EU, etc.).
+      3. Large whale movements (> $50M).
+      4. Macroeconomic shocks (CPI, Rates).
 
-    // Filter for BTC/Market relevance
-    const relevantNews = data.Data.filter((item: any) => {
-      const text = (item.title + " " + item.body).toLowerCase();
-      const keywords = ['bitcoin', 'btc', 'crypto', 'market', 'fed', 'sec', 'regulation', 'etf', 'binance', 'coinbase'];
-      return keywords.some(k => text.includes(k));
-    });
+      Return a JSON array of 3-5 items with this structure:
+      [
+        {
+          "id": "unique_id",
+          "title": "Short headline",
+          "severity": "HIGH" | "MEDIUM" | "LOW",
+          "category": "NEWS" | "ONCHAIN" | "MACRO" | "WHALE",
+          "timestamp": unix_ms,
+          "source": "Source name",
+          "summary": "One sentence summary"
+        }
+      ]
+    `;
 
-    return relevantNews.slice(0, 6).map((item: any, index: number) => ({
-      id: `intel-${item.id}`,
-      timestamp: item.published_on * 1000,
-      title: item.title,
-      severity: index < 2 ? 'HIGH' : 'MEDIUM', // Top news is high severity
-      category: 'NEWS',
-      source: item.source_info.name,
-      summary: item.body.length > 100 ? item.body.substring(0, 100) + '...' : item.body
-    }));
-  } catch (error) {
-    console.error("Intel Scan Error:", error);
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
+    const parsed = cleanAndParseJSON(text);
+
+    try {
+      const validated = z.array(IntelItemSchema).safeParse(parsed);
+      if (validated.success) {
+        return validated.data as IntelItem[];
+      } else {
+        console.error("Intel Validation Failed:", validated.error);
+        return [];
+      }
+    } catch (validationError) {
+      console.error("Zod Validation Error:", validationError);
+      return [];
+    }
+
+  } catch (e) {
+    console.error("Intel Scan Error:", e);
     return [];
   }
 };
 
-// --- NEW: ML OPTIMIZATION AGENT ---
 export const optimizeMLModel = async (currentParams: string): Promise<string> => {
   const ai = getAiClient();
 

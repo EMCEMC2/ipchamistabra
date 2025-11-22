@@ -16,9 +16,12 @@ import {
   TradeSignal,
   IntelItem
 } from './services/gemini';
+import { calculateRSI, calculateATR, calculateADX, calculateEMA, calculateMACD } from './utils/technicalAnalysis';
 import { BinancePriceFeed } from './services/websocket';
 import { useStore } from './store/useStore';
 import { ChartDataPoint } from './types';
+import { ApiKeyModal } from './components/ApiKeyModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 type ViewMode = 'TERMINAL' | 'SWARM' | 'CORTEX' | 'JOURNAL';
 
@@ -40,13 +43,44 @@ function App() {
   const [intel, setIntel] = useState<IntelItem[]>([]);
   const [timeframe, setTimeframe] = useState('15m');
   const [latestAnalysis, setLatestAnalysis] = useState<string>("");
+  const [isApiKeyMissing, setIsApiKeyMissing] = useState(false);
+
+  // Technical Analysis State
+  const [technicalIndicators, setTechnicalIndicators] = useState({
+    rsi: 0,
+    macd: { histogram: 0, signal: 0, macd: 0 },
+    adx: 0,
+    atr: 0,
+    trend: 'NEUTRAL'
+  });
 
   // Refs
   const binanceWS = useRef(new BinancePriceFeed());
 
-  // --- Data Fetching ---
+  // Check for API Key on Mount
+  useEffect(() => {
+    const fromProcessEnv = import.meta.env.VITE_GEMINI_API_KEY;
+    const fromStorage = localStorage.getItem('GEMINI_API_KEY');
 
-  // 1. Chart History (Binance API)
+    if (!fromProcessEnv && !fromStorage) {
+      setIsApiKeyMissing(true);
+    }
+  }, []);
+
+  // Global Market Data (Non-blocking)
+  useEffect(() => {
+    const fetchGlobalData = () => {
+      getMacroMarketMetrics().then(data => setMacro(data)).catch(e => console.error("Macro Fetch Error:", e));
+      getDerivativesMetrics().then(data => setDerivatives(data)).catch(e => console.error("Deriv Fetch Error:", e));
+      getSentimentAnalysis().then(data => setSentiment(data)).catch(e => console.error("Sentiment Fetch Error:", e));
+      scanGlobalIntel().then(data => setIntel(data)).catch(e => console.error("Intel Fetch Error:", e));
+    };
+
+    fetchGlobalData();
+    const interval = setInterval(fetchGlobalData, 300000);
+    return () => clearInterval(interval);
+  }, []);
+
   const fetchChartHistory = useCallback(async () => {
     try {
       // Map timeframe to Binance interval
@@ -73,38 +107,7 @@ function App() {
     }
   }, [timeframe, setChartData]);
 
-  // 2. Global Data Loop
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const macroData = await getMacroMarketMetrics();
-        setMacro(macroData);
 
-        const derivData = await getDerivativesMetrics();
-        setDerivatives(derivData);
-
-        const sent = await getSentimentAnalysis();
-        setSentiment(sent);
-
-        const intelData = await scanGlobalIntel();
-        setIntel(intelData);
-
-      } catch (e) {
-        console.error("Data Fetch Error:", e);
-      }
-    };
-
-    fetchData();
-    fetchChartHistory(); // Initial chart fetch
-
-    const interval = setInterval(fetchData, 300000); // 5 minutes for macro
-    const chartInterval = setInterval(fetchChartHistory, 60000); // 1 minute for chart
-
-    return () => {
-      clearInterval(interval);
-      clearInterval(chartInterval);
-    };
-  }, [fetchChartHistory]);
 
   // WebSocket Connection
   useEffect(() => {
@@ -144,8 +147,51 @@ function App() {
     window.scrollTo(0, 0);
   }, [activeView]);
 
+
+
+  // Calculate Technicals when Chart Data updates
+  useEffect(() => {
+    if (chartData.length < 50) return;
+
+    const closes = chartData.map(c => c.close);
+    const highs = chartData.map(c => c.high);
+    const lows = chartData.map(c => c.low);
+
+    // Calculate Indicators
+    const rsiArray = calculateRSI(closes, 14);
+    const rsi = rsiArray[rsiArray.length - 1] || 50;
+
+    const macdData = calculateMACD(closes, 12, 26, 9);
+    const macdHist = macdData.histogram[macdData.histogram.length - 1] || 0;
+    const macdSignal = macdData.signalLine[macdData.signalLine.length - 1] || 0;
+    const macdVal = macdData.macdLine[macdData.macdLine.length - 1] || 0;
+
+    const adxData = calculateADX(highs, lows, closes, 14);
+    const adx = adxData.adx[adxData.adx.length - 1] || 0;
+
+    const atrArray = calculateATR(highs, lows, closes, 14);
+    const atr = atrArray[atrArray.length - 1] || 0;
+
+    // Trend Detection (EMA 21 vs 55)
+    const ema21 = calculateEMA(closes, 21);
+    const ema55 = calculateEMA(closes, 55);
+    const last21 = ema21[ema21.length - 1];
+    const last55 = ema55[ema55.length - 1];
+    const trend = last21 > last55 ? 'BULLISH' : 'BEARISH';
+
+    setTechnicalIndicators({
+      rsi,
+      macd: { histogram: macdHist, signal: macdSignal, macd: macdVal },
+      adx,
+      atr,
+      trend
+    });
+  }, [chartData]);
+
   return (
     <div className="h-screen bg-black text-gray-200 font-mono selection:bg-green-900 selection:text-white overflow-hidden flex flex-col">
+      {isApiKeyMissing && <ApiKeyModal />}
+
       {/* Header */}
       <header className="h-12 border-b border-white/10 flex items-center justify-between px-4 bg-black/50 backdrop-blur-md sticky top-0 z-50 shrink-0">
         <div className="flex items-center gap-6">
@@ -239,47 +285,58 @@ function App() {
           {/* Left Column: Main View + Intel */}
           <div className="col-span-12 lg:col-span-9 flex flex-col gap-2 h-full min-h-0">
 
+            import {ErrorBoundary} from './components/ErrorBoundary';
+
+            // ... (inside return)
+
             {/* Main View (Chart/Swarm/Cortex) - Flex 1 to take available space */}
             <div className="flex-[3] bg-black/40 border border-white/10 rounded-sm overflow-hidden relative min-h-0 flex flex-col">
-              {activeView === 'TERMINAL' && (
-                <ChartPanel
-                  data={chartData}
-                  timeframe={timeframe}
-                  onTimeframeChange={setTimeframe}
-                  signals={signals}
-                />
-              )}
-              {activeView === 'SWARM' && <AgentSwarm />}
-              {activeView === 'CORTEX' && <MLCortex />}
-              {activeView === 'JOURNAL' && (
-                <TradeJournal
-                  entries={journal}
-                  onAddEntry={addJournalEntry}
-                />
-              )}
+              <ErrorBoundary>
+                {activeView === 'TERMINAL' && (
+                  <ChartPanel
+                    data={chartData}
+                    timeframe={timeframe}
+                    onTimeframeChange={setTimeframe}
+                    signals={signals}
+                  />
+                )}
+                {activeView === 'SWARM' && <AgentSwarm />}
+                {activeView === 'CORTEX' && <MLCortex />}
+                {activeView === 'JOURNAL' && (
+                  <TradeJournal
+                    entries={journal}
+                    onAddEntry={addJournalEntry}
+                  />
+                )}
+              </ErrorBoundary>
             </div>
 
             {/* Intel Deck - Fixed height or Flex 1 */}
             <div className="flex-1 bg-black/40 border border-white/10 rounded-sm overflow-hidden min-h-[200px]">
-              <IntelDeck items={intel} latestAnalysis={latestAnalysis} />
+              <ErrorBoundary>
+                <IntelDeck items={intel} latestAnalysis={latestAnalysis} />
+              </ErrorBoundary>
             </div>
           </div>
 
           {/* Right Column: AI Command Center */}
           <div className="col-span-12 lg:col-span-3 h-full min-h-0">
             <div className="h-full bg-black/40 border border-white/10 rounded-sm overflow-hidden">
-              <AiCommandCenter
-                onNewAnalysis={handleNewAnalysis}
-                marketData={{
-                  price,
-                  change: priceChange,
-                  vix: macro.vix,
-                  btcd: macro.btcd,
-                  sentiment: sentiment.score
-                }}
-                signals={signals}
-                chartData={chartData}
-              />
+              <ErrorBoundary>
+                <AiCommandCenter
+                  onNewAnalysis={handleNewAnalysis}
+                  marketData={{
+                    price,
+                    change: priceChange,
+                    vix: macro.vix,
+                    btcd: macro.btcd,
+                    sentiment: sentiment.score
+                  }}
+                  signals={signals}
+                  chartData={chartData}
+                  technicalIndicators={technicalIndicators}
+                />
+              </ErrorBoundary>
             </div>
           </div>
 

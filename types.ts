@@ -1,4 +1,23 @@
+import { z } from 'zod';
 
+export const ChartDataPointSchema = z.object({
+  time: z.number(),
+  open: z.number(),
+  high: z.number(),
+  low: z.number(),
+  close: z.number(),
+  volume: z.number()
+});
+
+export const IntelItemSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  severity: z.enum(['HIGH', 'MEDIUM', 'LOW', 'CRITICAL']).or(z.string()),
+  category: z.enum(['NEWS', 'ONCHAIN', 'MACRO', 'WHALE', 'SOCIAL']).or(z.string()),
+  timestamp: z.number(),
+  source: z.string(),
+  summary: z.string()
+});
 export enum Timeframe {
   H1 = '1H',
   H4 = '4H',
@@ -27,9 +46,24 @@ export interface TradeSignal {
   confidence: number; // 0-100
   regime: 'LOW_VOL' | 'NORMAL' | 'HIGH_VOL' | 'TRENDING'; // New Field: Aligns with Pine Script
   reasoning: string;
-  status: 'SCANNING' | 'ACTIVE' | 'FILLED' | 'CLOSED';
+  status: 'SCANNING' | 'ACTIVE' | 'COMPLETED' | 'STOPPED';
   timestamp: number;
 }
+
+export const TradeSignalSchema = z.object({
+  id: z.string().optional(),
+  pair: z.string(),
+  type: z.enum(['LONG', 'SHORT']),
+  entryZone: z.string(),
+  invalidation: z.string(),
+  targets: z.array(z.string()),
+  riskRewardRatio: z.number(),
+  confidence: z.number(),
+  regime: z.enum(['LOW_VOL', 'NORMAL', 'HIGH_VOL', 'TRENDING']),
+  reasoning: z.string(),
+  timestamp: z.number().optional(),
+  status: z.enum(['SCANNING', 'ACTIVE', 'COMPLETED', 'STOPPED'])
+});
 
 export interface GroundingSource {
   title: string;
@@ -116,15 +150,15 @@ export type AgentRole = 'ORCHESTRATOR' | 'INSPECTOR' | 'STRATEGIST' | 'QUANT_RES
 export type AgentStatus = 'IDLE' | 'WORKING' | 'SUCCESS' | 'FAILURE' | 'WAITING';
 
 export interface AgentState {
-    role: AgentRole;
-    name: string;
-    description: string;
-    status: AgentStatus;
-    lastLog: string;
+  role: AgentRole;
+  name: string;
+  description: string;
+  status: AgentStatus;
+  lastLog: string;
 }
 
 export interface AgentTaskResult {
-    success: boolean;
-    message: string;
-    data?: any;
+  success: boolean;
+  message: string;
+  data?: any;
 }

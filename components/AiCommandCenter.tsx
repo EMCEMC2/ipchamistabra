@@ -18,12 +18,19 @@ interface AiCommandCenterProps {
   marketData: DashboardData;
   signals: TradeSignal[];
   chartData: ChartDataPoint[];
+  technicalIndicators?: {
+    rsi: number;
+    macd: { histogram: number; signal: number; macd: number };
+    adx: number;
+    atr: number;
+    trend: string;
+  };
 }
 
 // Polyfill for SpeechRecognition
 const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
-export const AiCommandCenter: React.FC<AiCommandCenterProps> = ({ onNewAnalysis, marketData, signals, chartData }) => {
+export const AiCommandCenter: React.FC<AiCommandCenterProps> = ({ onNewAnalysis, marketData, signals, chartData, technicalIndicators }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'init',
@@ -116,6 +123,16 @@ export const AiCommandCenter: React.FC<AiCommandCenterProps> = ({ onNewAnalysis,
       `[${new Date(c.time * 1000).toLocaleTimeString()}] O:${c.open} H:${c.high} L:${c.low} C:${c.close}`
     ).join('\n');
 
+    // Format Technical Indicators
+    const techContext = technicalIndicators ? `
+    TECHNICAL INDICATORS (Live):
+    - RSI (14): ${technicalIndicators.rsi.toFixed(2)}
+    - MACD: Hist: ${technicalIndicators.macd.histogram.toFixed(4)}, Signal: ${technicalIndicators.macd.signal.toFixed(4)}
+    - ADX (14): ${technicalIndicators.adx.toFixed(2)}
+    - ATR (14): ${technicalIndicators.atr.toFixed(2)}
+    - Trend (EMA 21/55): ${technicalIndicators.trend}
+    ` : 'Technical data unavailable.';
+
     const marketContext = `
     MARKET DATA SNAPSHOT:
     - Price: $${marketData.price.toLocaleString()} (${marketData.change >= 0 ? '+' : ''}${marketData.change.toFixed(2)}%)
@@ -123,6 +140,8 @@ export const AiCommandCenter: React.FC<AiCommandCenterProps> = ({ onNewAnalysis,
     - Sentiment: ${marketData.sentiment}
     - BTC Dominance: ${marketData.btcd.toFixed(1)}%
     
+    ${techContext}
+
     RECENT PRICE ACTION (Last 5 Candles):
     ${recentCandles}
     

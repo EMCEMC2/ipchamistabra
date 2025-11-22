@@ -7,7 +7,9 @@ import {
   LineStyle,
   ColorType,
   SeriesMarker,
-  Time
+  Time,
+  ISeriesApi,
+  IPriceLine
 } from 'lightweight-charts';
 import { ChartDataPoint, TradeSignal } from '../types';
 import { Code, Eye, EyeOff, Activity, Layers } from 'lucide-react';
@@ -150,15 +152,15 @@ export const ChartPanel: React.FC<ChartPanelProps> = ({ data, timeframe, onTimef
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
 
-  // Series Refs - using any to bypass strict generic checks on setMarkers which varies by version
-  const candleSeriesRef = useRef<any>(null);
-  const emaFastSeriesRef = useRef<any>(null);
-  const emaSlowSeriesRef = useRef<any>(null);
-  const ema200SeriesRef = useRef<any>(null);
+  // Series Refs
+  const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const emaFastSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const emaSlowSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const ema200SeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
 
   // Overlay Refs
-  const activePriceLinesRef = useRef<any[]>([]);
-  const clusterLinesRef = useRef<any[]>([]);
+  const activePriceLinesRef = useRef<IPriceLine[]>([]);
+  const clusterLinesRef = useRef<IPriceLine[]>([]);
 
   // UI State
   const [isScriptModalOpen, setIsScriptModalOpen] = useState(false);
