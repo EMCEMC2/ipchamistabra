@@ -12,6 +12,14 @@ export default defineConfig(({ mode }) => {
       port: 3002,
       host: '0.0.0.0',
     },
+    preview: {
+      allowedHosts: [
+        'ipchamistabra-production.up.railway.app',
+        '.railway.app'
+      ],
+      host: '0.0.0.0',
+      port: 8080,
+    },
     plugins: [react()],
     define: {
       'process.env.API_KEY': JSON.stringify(apiKey),
