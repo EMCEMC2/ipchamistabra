@@ -41,8 +41,63 @@ export default {
                     '0%': { backgroundPosition: '0% 0%' },
                     '100%': { backgroundPosition: '0% 100%' },
                 }
-            }
+            },
+            typography: (theme) => ({
+                DEFAULT: {
+                    css: {
+                        color: theme('colors.terminal.text'),
+                        maxWidth: 'none',
+                        h1: {
+                            color: theme('colors.terminal.accent'),
+                            fontFamily: theme('fontFamily.mono'),
+                        },
+                        h2: {
+                            color: theme('colors.terminal.accent'),
+                            fontFamily: theme('fontFamily.mono'),
+                            marginTop: '1.5em',
+                            marginBottom: '0.5em',
+                        },
+                        h3: {
+                            color: theme('colors.terminal.text'),
+                            fontFamily: theme('fontFamily.mono'),
+                            marginTop: '1.5em',
+                        },
+                        strong: {
+                            color: theme('colors.terminal.accent'),
+                        },
+                        a: {
+                            color: theme('colors.terminal.accent'),
+                            '&:hover': {
+                                color: theme('colors.terminal.text'),
+                            },
+                        },
+                        code: {
+                            color: theme('colors.terminal.warn'),
+                            backgroundColor: theme('colors.terminal.card'),
+                            padding: '0.2em 0.4em',
+                            borderRadius: '0.25rem',
+                            fontWeight: '400',
+                        },
+                        'code::before': {
+                            content: '""',
+                        },
+                        'code::after': {
+                            content: '""',
+                        },
+                        ul: {
+                            listStyleType: 'disc',
+                            paddingLeft: '1.5em',
+                        },
+                        ol: {
+                            listStyleType: 'decimal',
+                            paddingLeft: '1.5em',
+                        },
+                    },
+                },
+            }),
         },
     },
-    plugins: [],
+    plugins: [
+        require('@tailwindcss/typography'),
+    ],
 }

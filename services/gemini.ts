@@ -101,6 +101,13 @@ You are BitMind, an elite algorithmic trading assistant running the "Tactical v2
    - Take Profit: 3.0x ATR.
    
 When analyzing, always reference these specific mechanics. Interpret signals based on the detected regime.
+
+**FORMATTING INSTRUCTIONS:**
+- Use Markdown headers (##) for main sections.
+- Use bullet points for lists.
+- Use **bold** for key metrics and emphasis.
+- Keep paragraphs short and readable.
+- Do NOT use code blocks for normal text.
 `;
 
 export const generateMarketAnalysis = async (query: string, activeSignals?: TradeSignal[]): Promise<AiResponse> => {

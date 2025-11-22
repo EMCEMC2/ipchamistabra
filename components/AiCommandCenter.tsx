@@ -222,7 +222,7 @@ export const AiCommandCenter: React.FC<AiCommandCenterProps> = ({ onNewAnalysis,
               </div>
               <div className={`p-3 rounded-lg text-xs leading-relaxed shadow-sm ${msg.role === 'model' ? 'bg-terminal-bg border border-terminal-border/50' : 'bg-terminal-border text-terminal-text'
                 }`}>
-                <div className="prose prose-invert prose-xs max-w-none font-mono">
+                <div className="prose prose-invert prose-sm max-w-none font-mono prose-p:leading-relaxed prose-headings:font-bold prose-a:text-terminal-accent">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                 </div>
 
