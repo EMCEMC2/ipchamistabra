@@ -6,6 +6,8 @@ import { MetricCard } from './components/MetricCard';
 import { AiCommandCenter } from './components/AiCommandCenter';
 import { MLCortex } from './components/MLCortex';
 import { AgentSwarm } from './components/AgentSwarm/SwarmCore';
+import { ActiveSignals } from './components/ActiveSignals';
+import { TradeSetupPanel } from './components/TradeSetupPanel';
 import { TradeJournal } from './components/TradeJournal';
 import {
   getSentimentAnalysis,
@@ -13,7 +15,7 @@ import {
   getDerivativesMetrics,
   MacroMetrics,
 } from './services/gemini';
-import { startMarketDataSync, fetchChartData } from './services/marketData';
+import { startMarketDataSync, fetchChartData, fetchSignals } from './services/marketData';
 import { calculateRSI, calculateATR, calculateADX, calculateEMA, calculateMACD } from './utils/technicalAnalysis';
 import { BinancePriceFeed } from './services/websocket';
 import { useStore } from './store/useStore';
@@ -21,7 +23,7 @@ import { ChartDataPoint } from './types';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
-type ViewMode = 'TERMINAL' | 'SWARM' | 'CORTEX' | 'JOURNAL';
+type ViewMode = 'TERMINAL' | 'SIGNALS' | 'SWARM' | 'CORTEX' | 'JOURNAL';
 
 function App() {
   // Global State
@@ -33,23 +35,16 @@ function App() {
     journal, addJournalEntry,
     // New Global State
     vix, dxy, btcd, sentimentScore, sentimentLabel,
-    derivatives, intel, trends, // Added trends
-    timeframe, setTimeframe
+    derivatives, intel, trends,
+    timeframe, setTimeframe,
+    technicals, setTechnicals, // Global technicals
+    isScanning // Scanning state
   } = useStore();
 
   // Local State for Dashboard
   const [activeView, setActiveView] = useState<ViewMode>('TERMINAL');
   const [latestAnalysis, setLatestAnalysis] = useState<string>("");
   const [isApiKeyMissing, setIsApiKeyMissing] = useState(false);
-
-  // Technical Analysis State
-  const [technicalIndicators, setTechnicalIndicators] = useState({
-    rsi: 0,
-    macd: { histogram: 0, signal: 0, macd: 0 },
-    adx: 0,
-    atr: 0,
-    trend: 'NEUTRAL'
-  });
 
   // Refs
   const binanceWS = useRef(new BinancePriceFeed());
@@ -74,8 +69,6 @@ function App() {
   useEffect(() => {
     fetchChartData();
   }, [timeframe]);
-
-
 
   // WebSocket Connection
   useEffect(() => {
@@ -115,8 +108,6 @@ function App() {
     window.scrollTo(0, 0);
   }, [activeView]);
 
-
-
   // Calculate Technicals when Chart Data updates
   useEffect(() => {
     if (chartData.length < 50) return;
@@ -147,7 +138,7 @@ function App() {
     const last55 = ema55[ema55.length - 1];
     const trend = last21 > last55 ? 'BULLISH' : 'BEARISH';
 
-    setTechnicalIndicators({
+    setTechnicals({
       rsi,
       macd: { histogram: macdHist, signal: macdSignal, macd: macdVal },
       adx,
@@ -171,6 +162,7 @@ function App() {
           {/* Navigation Tabs */}
           <div className="flex items-center gap-2 border-l border-white/10 pl-6 h-8">
             <NavButton id="TERMINAL" label="TERMINAL" icon={Layout} />
+            <NavButton id="SIGNALS" label="SIGNALS" icon={Activity} />
             <NavButton id="SWARM" label="SWARM COUNCIL" icon={Users} />
             <NavButton id="CORTEX" label="ML CORTEX" icon={Brain} />
             <NavButton id="JOURNAL" label="JOURNAL" icon={BookOpen} />
@@ -264,6 +256,16 @@ function App() {
                     signals={signals}
                   />
                 )}
+                {activeView === 'SIGNALS' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 h-full">
+                    <ActiveSignals
+                      signals={signals}
+                      onScan={fetchSignals}
+                      isScanning={isScanning}
+                    />
+                    <TradeSetupPanel latestAnalysis={latestAnalysis} />
+                  </div>
+                )}
                 {activeView === 'SWARM' && <AgentSwarm />}
                 {activeView === 'CORTEX' && (
                   <MLCortex
@@ -304,7 +306,7 @@ function App() {
                   }}
                   signals={signals}
                   chartData={chartData}
-                  technicalIndicators={technicalIndicators}
+                  technicalIndicators={technicals}
                 />
               </ErrorBoundary>
             </div>

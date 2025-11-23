@@ -37,7 +37,7 @@ export interface TradeSignal {
   confidence: number; // 0-100
   regime: 'LOW_VOL' | 'NORMAL' | 'HIGH_VOL' | 'TRENDING'; // New Field: Aligns with Pine Script
   reasoning: string;
-  status: 'SCANNING' | 'ACTIVE' | 'COMPLETED' | 'STOPPED';
+  status: 'SCANNING' | 'ACTIVE' | 'FILLED' | 'COMPLETED' | 'STOPPED' | 'CLOSED';
   timestamp: number;
 }
 
@@ -53,7 +53,7 @@ export const TradeSignalSchema = z.object({
   regime: z.enum(['LOW_VOL', 'NORMAL', 'HIGH_VOL', 'TRENDING']),
   reasoning: z.string(),
   timestamp: z.number().optional(),
-  status: z.enum(['SCANNING', 'ACTIVE', 'COMPLETED', 'STOPPED'])
+  status: z.enum(['SCANNING', 'ACTIVE', 'FILLED', 'COMPLETED', 'STOPPED', 'CLOSED'])
 });
 
 export interface GroundingSource {

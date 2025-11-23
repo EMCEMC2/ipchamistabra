@@ -4,7 +4,8 @@ import {
     getMacroMarketMetrics,
     getDerivativesMetrics,
     getSentimentAnalysis,
-    scanGlobalIntel
+    scanGlobalIntel,
+    scanMarketForSignals
 } from './gemini';
 
 export const fetchGlobalData = async () => {
@@ -68,6 +69,35 @@ export const fetchChartData = async () => {
         console.log("Chart Data Synced");
     } catch (e) {
         console.error("Chart Fetch Error:", e);
+    }
+};
+
+export const fetchSignals = async () => {
+    try {
+        useStore.setState({ isScanning: true });
+        const { price, vix, btcd, sentimentScore, technicals } = useStore.getState();
+
+        // Construct context for the AI
+        const context = `
+            Price: ${price}
+            VIX: ${vix}
+            BTC.D: ${btcd}
+            Sentiment: ${sentimentScore}
+            Technicals: ${JSON.stringify(technicals || {})}
+        `;
+
+        const rawSignals = await scanMarketForSignals(context);
+        const signals = rawSignals.map(s => ({
+            ...s,
+            id: Math.random().toString(36).substr(2, 9),
+            timestamp: Date.now()
+        }));
+
+        useStore.setState({ signals, isScanning: false });
+        console.log("Signals Synced:", signals.length);
+    } catch (e) {
+        console.error("Signal Fetch Error:", e);
+        useStore.setState({ isScanning: false });
     }
 };
 
