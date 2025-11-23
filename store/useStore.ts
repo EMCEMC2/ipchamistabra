@@ -1,12 +1,20 @@
 import { create } from 'zustand';
-import { ChartDataPoint, TradeSignal, Position, JournalEntry, AgentState, AgentRole } from '../types';
+import { ChartDataPoint, TradeSignal, Position, JournalEntry, AgentState, AgentRole, IntelItem } from '../types';
 
 interface MarketState {
   price: number;
   priceChange: number;
   vix: number;
+  dxy: number;
   btcd: number;
   sentimentScore: number;
+  sentimentLabel: string;
+  derivatives: {
+    openInterest: string;
+    fundingRate: string;
+    longShortRatio: number;
+  };
+  intel: IntelItem[];
   trends: {
     price: 'up' | 'down' | 'neutral';
     vix: 'up' | 'down' | 'neutral';
@@ -16,6 +24,7 @@ interface MarketState {
   chartData: ChartDataPoint[];
   signals: TradeSignal[];
   isScanning: boolean;
+  timeframe: string;
 }
 
 interface UserState {
@@ -30,7 +39,7 @@ interface AgentSwarmState {
   councilLogs: { id: string; agentName: string; message: string; timestamp: number }[];
 }
 
-interface AppState extends MarketState, UserState, AgentSwarmState {
+export interface AppState extends MarketState, UserState, AgentSwarmState {
   // Actions
   setMarketMetrics: (metrics: Partial<MarketState>) => void;
   setPrice: (price: number) => void;
@@ -38,6 +47,7 @@ interface AppState extends MarketState, UserState, AgentSwarmState {
   setChartData: (data: ChartDataPoint[]) => void;
   setSignals: (signals: TradeSignal[]) => void;
   setIsScanning: (isScanning: boolean) => void;
+  setTimeframe: (timeframe: string) => void;
 
   updateBalance: (amount: number) => void;
   addPosition: (position: Position) => void;
@@ -54,12 +64,17 @@ export const useStore = create<AppState>((set) => ({
   price: 0,
   priceChange: 0,
   vix: 0,
+  dxy: 0,
   btcd: 0,
   sentimentScore: 50,
+  sentimentLabel: 'Neutral',
+  derivatives: { openInterest: '-', fundingRate: '-', longShortRatio: 1.0 },
+  intel: [],
   trends: { price: 'neutral', vix: 'neutral', btcd: 'neutral', sentiment: 'neutral' },
   chartData: [],
   signals: [],
   isScanning: false,
+  timeframe: '15m',
 
   // User State
   balance: 50000,
@@ -84,6 +99,7 @@ export const useStore = create<AppState>((set) => ({
   setChartData: (data) => set({ chartData: data }),
   setSignals: (signals) => set({ signals }),
   setIsScanning: (isScanning) => set({ isScanning }),
+  setTimeframe: (timeframe) => set({ timeframe }),
 
   updateBalance: (amount) => set((state) => ({ balance: state.balance + amount })),
   addPosition: (position) => set((state) => ({ positions: [position, ...state.positions] })),

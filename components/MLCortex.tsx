@@ -2,41 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Brain, TrendingUp, TrendingDown, Minus, Activity } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { ChartDataPoint } from '../types';
+import { LinearRegression, KMeans } from '../utils/ml';
+import { analyzeMarketRegime, calculateVolatility, calculateTrendStrength } from '../services/mlService';
 
-// Calculate real volatility from chart data
-const calculateVolatility = (data: ChartDataPoint[], window = 20): number => {
-    if (data.length < window) return 0;
-    const recent = data.slice(-window);
-    const returns = recent.map((d, i) => {
-        if (i === 0) return 0;
-        return (d.close - recent[i - 1].close) / recent[i - 1].close;
-    });
-    const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-    const variance = returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / returns.length;
-    return Math.sqrt(variance) * Math.sqrt(252) * 100; // Annualized vol %
-};
+// Local helper functions removed in favor of shared mlService
 
-// Calculate trend strength from chart data
-const calculateTrendStrength = (data: ChartDataPoint[], window = 20): number => {
-    if (data.length < window) return 0;
-    const recent = data.slice(-window);
-    const prices = recent.map(d => d.close);
-    const firstPrice = prices[0];
-    const lastPrice = prices[prices.length - 1];
-    const priceChange = ((lastPrice - firstPrice) / firstPrice) * 100;
-    return priceChange;
-};
-
-// Real-time regime detection using actual market data
-const detectMarketRegime = (vol: number, trend: number): { regime: string; color: string } => {
-    if (vol < 20 && Math.abs(trend) < 2) return { regime: 'LOW VOL RANGING', color: '#3b82f6' };
-    if (vol < 20 && trend > 2) return { regime: 'LOW VOL UPTREND', color: '#10b981' };
-    if (vol < 20 && trend < -2) return { regime: 'LOW VOL DOWNTREND', color: '#ef4444' };
-    if (vol >= 20 && Math.abs(trend) < 2) return { regime: 'HIGH VOL CHOP', color: '#f59e0b' };
-    if (vol >= 20 && trend > 2) return { regime: 'HIGH VOL BULL', color: '#22c55e' };
-    if (vol >= 20 && trend < -2) return { regime: 'HIGH VOL BEAR', color: '#dc2626' };
-    return { regime: 'NEUTRAL', color: '#6b7280' };
-};
 
 // Scatter plot component for regime clusters
 const RegimeScatter: React.FC<{ data: { vol: number; trend: number; regime: string; color: string }[] }> = ({ data }) => {
@@ -144,31 +114,62 @@ const VolatilityChart: React.FC<{ data: number[] }> = ({ data }) => {
     return <canvas ref={canvasRef} width={600} height={200} className="w-full h-full" />;
 };
 
-export const MLCortex: React.FC = () => {
-    const chartData = useStore(state => state.chartData);
+interface MLCortexProps {
+    data?: ChartDataPoint[];
+    macro?: { vix: number; dxy: number; btcd: number };
+    sentiment?: { score: number; label: string };
+}
+
+export const MLCortex: React.FC<MLCortexProps> = ({ data, macro, sentiment }) => {
+    const storeChartData = useStore(state => state.chartData);
+    const chartData = data || storeChartData;
     const [volHistory, setVolHistory] = useState<number[]>([]);
     const [regimeHistory, setRegimeHistory] = useState<{ vol: number; trend: number; regime: string; color: string }[]>([]);
     const [currentRegime, setCurrentRegime] = useState({ regime: 'LOADING...', color: '#6b7280' });
     const [currentStats, setCurrentStats] = useState({ vol: 0, trend: 0 });
 
     useEffect(() => {
-        if (chartData.length < 20) return;
+        if (chartData.length < 50) return;
 
-        // Calculate metrics from real chart data
-        const vol = calculateVolatility(chartData, 20);
-        const trend = calculateTrendStrength(chartData, 20);
-        const regime = detectMarketRegime(vol, trend);
+        // Use shared ML Service for analysis
+        const analysis = analyzeMarketRegime(chartData, macro?.vix);
 
-        setCurrentRegime(regime);
-        setCurrentStats({ vol, trend });
+        setCurrentRegime({ regime: analysis.regime, color: analysis.regimeColor });
+        setCurrentStats({ vol: analysis.volatility, trend: analysis.predictedTrend });
 
-        // Update histories
-        setVolHistory(prev => [...prev.slice(-49), vol]);
-        setRegimeHistory(prev => [
-            ...prev.slice(-49),
-            { vol, trend, regime: regime.regime, color: regime.color }
-        ]);
-    }, [chartData]);
+        // Reconstruct history for the scatter plot (using shared helpers)
+        // We do this locally for the UI visualization
+        const history: { vol: number; trend: number; regime: string; color: string }[] = [];
+        const volHist: number[] = [];
+
+        for (let i = 50; i < chartData.length; i++) {
+            const slice = chartData.slice(0, i + 1);
+            // We run a "light" analysis for history to avoid re-training KMeans 100 times
+            // Just calculate metrics and use the *current* model's classification logic (simplified)
+            const v = calculateVolatility(slice, 20);
+            const t = calculateTrendStrength(slice, 20);
+
+            // Simple heuristic for history coloring (matching the ML service logic roughly)
+            let color = '#6b7280';
+            let label = 'NEUTRAL';
+            if (v > 25) {
+                if (t > 1) { label = 'HIGH VOL BULL'; color = '#22c55e'; }
+                else if (t < -1) { label = 'HIGH VOL BEAR'; color = '#dc2626'; }
+                else { label = 'HIGH VOL CHOP'; color = '#f59e0b'; }
+            } else {
+                if (t > 1) { label = 'STEADY UPTREND'; color = '#10b981'; }
+                else if (t < -1) { label = 'STEADY DOWNTREND'; color = '#ef4444'; }
+                else { label = 'RANGING'; color = '#3b82f6'; }
+            }
+
+            history.push({ vol: v, trend: t, regime: label, color });
+            volHist.push(v);
+        }
+
+        setVolHistory(volHist);
+        setRegimeHistory(history);
+
+    }, [chartData, macro]);
 
     const getTrendIcon = () => {
         if (currentStats.trend > 2) return <TrendingUp className="text-green-500" size={24} />;

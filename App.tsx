@@ -10,12 +10,10 @@ import { TradeJournal } from './components/TradeJournal';
 import {
   getSentimentAnalysis,
   getMacroMarketMetrics,
-  scanGlobalIntel,
   getDerivativesMetrics,
   MacroMetrics,
-  TradeSignal,
-  IntelItem
 } from './services/gemini';
+import { startMarketDataSync, fetchChartData } from './services/marketData';
 import { calculateRSI, calculateATR, calculateADX, calculateEMA, calculateMACD } from './utils/technicalAnalysis';
 import { BinancePriceFeed } from './services/websocket';
 import { useStore } from './store/useStore';
@@ -32,16 +30,15 @@ function App() {
     setPrice, setPriceChange,
     chartData, setChartData,
     signals, setSignals,
-    journal, addJournalEntry
+    journal, addJournalEntry,
+    // New Global State
+    vix, dxy, btcd, sentimentScore, sentimentLabel,
+    derivatives, intel, trends, // Added trends
+    timeframe, setTimeframe
   } = useStore();
 
   // Local State for Dashboard
   const [activeView, setActiveView] = useState<ViewMode>('TERMINAL');
-  const [sentiment, setSentiment] = useState({ score: 50, label: 'Neutral' });
-  const [macro, setMacro] = useState<MacroMetrics>({ vix: 0, dxy: 0, btcd: 0 });
-  const [derivatives, setDerivatives] = useState({ openInterest: '-', fundingRate: '-', longShortRatio: 1.0 });
-  const [intel, setIntel] = useState<IntelItem[]>([]);
-  const [timeframe, setTimeframe] = useState('15m');
   const [latestAnalysis, setLatestAnalysis] = useState<string>("");
   const [isApiKeyMissing, setIsApiKeyMissing] = useState(false);
 
@@ -67,45 +64,16 @@ function App() {
     }
   }, []);
 
-  // Global Market Data (Non-blocking)
+  // Start Market Data Sync
   useEffect(() => {
-    const fetchGlobalData = () => {
-      getMacroMarketMetrics().then(data => setMacro(data)).catch(e => console.error("Macro Fetch Error:", e));
-      getDerivativesMetrics().then(data => setDerivatives(data)).catch(e => console.error("Deriv Fetch Error:", e));
-      getSentimentAnalysis().then(data => setSentiment(data)).catch(e => console.error("Sentiment Fetch Error:", e));
-      scanGlobalIntel().then(data => setIntel(data)).catch(e => console.error("Intel Fetch Error:", e));
-    };
-
-    fetchGlobalData();
-    const interval = setInterval(fetchGlobalData, 300000);
-    return () => clearInterval(interval);
+    const cleanup = startMarketDataSync();
+    return cleanup;
   }, []);
 
-  const fetchChartHistory = useCallback(async () => {
-    try {
-      // Map timeframe to Binance interval
-      const intervalMap: Record<string, string> = {
-        '1m': '1m', '5m': '5m', '15m': '15m', '1h': '1h', '4h': '4h', '1d': '1d'
-      };
-      const interval = intervalMap[timeframe] || '15m';
-
-      const response = await fetch(`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${interval}&limit=200`);
-      const data = await response.json();
-
-      const formattedData: ChartDataPoint[] = data.map((d: any[]) => ({
-        time: d[0] / 1000,
-        open: parseFloat(d[1]),
-        high: parseFloat(d[2]),
-        low: parseFloat(d[3]),
-        close: parseFloat(d[4]),
-        volume: parseFloat(d[5])
-      }));
-
-      setChartData(formattedData);
-    } catch (e) {
-      console.error("Chart Fetch Error:", e);
-    }
-  }, [timeframe, setChartData]);
+  // Fetch Chart Data when timeframe changes
+  useEffect(() => {
+    fetchChartData();
+  }, [timeframe]);
 
 
 
@@ -237,24 +205,24 @@ function App() {
           />
           <MetricCard
             title="SENTIMENT"
-            value={sentiment.label}
-            subValue={`Score: ${sentiment.score}`}
-            color={sentiment.score > 50 ? 'text-green-400' : 'text-red-400'}
-            trend={sentiment.score > 60 ? 'BULLISH' : sentiment.score < 40 ? 'BEARISH' : 'NEUTRAL'}
+            value={sentimentLabel}
+            subValue={`Score: ${sentimentScore}`}
+            color={sentimentScore > 60 ? 'text-green-400' : sentimentScore < 40 ? 'text-red-400' : 'text-yellow-400'}
+            trend={sentimentScore > 60 ? 'BULLISH' : sentimentScore < 40 ? 'BEARISH' : 'NEUTRAL'}
           />
           <MetricCard
             title="VIX (VOLATILITY)"
-            value={macro.vix.toFixed(2)}
+            value={vix.toFixed(2)}
             subValue="Market Fear Index"
-            color={macro.vix > 20 ? 'text-red-400' : 'text-green-400'}
-            trend={getTrend('VIX', macro.vix)}
+            trend={trends.vix}
+            color={vix > 20 ? 'red' : 'green'}
           />
           <MetricCard
             title="BTC DOMINANCE"
-            value={`${macro.btcd.toFixed(1)}%`}
+            value={`${btcd.toFixed(1)}%`}
             subValue="Market Cap %"
-            color="text-yellow-400"
-            trend="NEUTRAL"
+            trend={trends.btcd}
+            color="yellow"
           />
           <MetricCard
             title="OPEN INTEREST"
@@ -297,7 +265,13 @@ function App() {
                   />
                 )}
                 {activeView === 'SWARM' && <AgentSwarm />}
-                {activeView === 'CORTEX' && <MLCortex />}
+                {activeView === 'CORTEX' && (
+                  <MLCortex
+                    data={chartData}
+                    macro={{ vix, dxy, btcd }}
+                    sentiment={{ score: sentimentScore, label: sentimentLabel }}
+                  />
+                )}
                 {activeView === 'JOURNAL' && (
                   <TradeJournal
                     entries={journal}
@@ -324,9 +298,9 @@ function App() {
                   marketData={{
                     price,
                     change: priceChange,
-                    vix: macro.vix,
-                    btcd: macro.btcd,
-                    sentiment: sentiment.score
+                    vix: vix,
+                    btcd: btcd,
+                    sentiment: sentimentScore
                   }}
                   signals={signals}
                   chartData={chartData}

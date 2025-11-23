@@ -4,6 +4,7 @@ import { AgentCard } from './AgentCard';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Square, Terminal, Cpu, Activity } from 'lucide-react';
 import { runAgentSimulation } from '../../services/gemini';
+import { analyzeMarketRegime } from '../../services/mlService';
 import { AgentRole } from '../../types';
 import clsx from 'clsx';
 
@@ -19,6 +20,7 @@ export const AgentSwarm: React.FC = () => {
     const price = useStore((state) => state.price);
     const vix = useStore((state) => state.vix);
     const sentimentScore = useStore((state) => state.sentimentScore);
+    const chartData = useStore((state) => state.chartData);
 
     const marketMetrics = {
         price,
@@ -51,7 +53,19 @@ export const AgentSwarm: React.FC = () => {
 
             // 2. Quant Research
             updateAgentStatus('QUANT_RESEARCHER', 'WORKING', 'Analyzing market regime features...');
-            const quantRes = await runAgentSimulation('QUANT_RESEARCHER', marketMetrics);
+
+            // Run ML Analysis
+            const mlAnalysis = analyzeMarketRegime(chartData, vix);
+            const quantContext = {
+                ...marketMetrics,
+                mlAnalysis: {
+                    regime: mlAnalysis.regime,
+                    volatility: mlAnalysis.volatility.toFixed(2),
+                    trend: mlAnalysis.predictedTrend.toFixed(2)
+                }
+            };
+
+            const quantRes = await runAgentSimulation('QUANT_RESEARCHER', quantContext);
             updateAgentStatus('QUANT_RESEARCHER', 'SUCCESS', quantRes.message);
             addCouncilLog('DATAMIND', quantRes.message);
 
@@ -65,7 +79,21 @@ export const AgentSwarm: React.FC = () => {
 
             // 4. Strategy Formulation
             updateAgentStatus('STRATEGIST', 'WORKING', 'Synthesizing alpha signals...');
-            const stratRes = await runAgentSimulation('STRATEGIST', marketMetrics);
+
+            // Combine insights for the Strategist
+            const strategistContext = {
+                marketMetrics,
+                mlAnalysis: {
+                    regime: mlAnalysis.regime,
+                    volatility: mlAnalysis.volatility,
+                    trend: mlAnalysis.predictedTrend
+                },
+                quantInsight: quantRes.message,
+                riskAssessment: riskRes.message,
+                inspectorStatus: inspectRes.message
+            };
+
+            const stratRes = await runAgentSimulation('STRATEGIST', strategistContext);
             updateAgentStatus('STRATEGIST', 'SUCCESS', stratRes.message);
             addCouncilLog('VANGUARD', stratRes.message);
 

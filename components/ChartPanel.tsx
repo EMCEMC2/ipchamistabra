@@ -14,6 +14,14 @@ import {
 import { ChartDataPoint, TradeSignal } from '../types';
 import { Code, Eye, EyeOff, Activity, Layers } from 'lucide-react';
 import { PineScriptModal } from './PineScriptModal';
+import {
+  calculateSMA,
+  calculateEMA,
+  calculateRSI,
+  calculateTR,
+  calculateRMA,
+  calculateStdev
+} from '../utils/technicalAnalysis';
 
 interface ChartPanelProps {
   data: ChartDataPoint[];
@@ -21,125 +29,6 @@ interface ChartPanelProps {
   onTimeframeChange: (tf: string) => void;
   signals?: TradeSignal[];
 }
-
-// --- TACTICAL V2 ENGINE (Ported from Pine Script) ---
-
-// Helper: Simple Moving Average
-const calculateSMA = (data: number[], period: number) => {
-  const sma = [];
-  for (let i = 0; i < data.length; i++) {
-    if (i < period - 1) {
-      sma.push(NaN);
-      continue;
-    }
-    let sum = 0;
-    for (let j = 0; j < period; j++) sum += data[i - j];
-    sma.push(sum / period);
-  }
-  return sma;
-};
-
-// Helper: True Range
-const calculateTR = (data: ChartDataPoint[]) => {
-  const tr = [0]; // First TR is 0 or high-low
-  for (let i = 1; i < data.length; i++) {
-    const h = data[i].high;
-    const l = data[i].low;
-    const pc = data[i - 1].close;
-    tr.push(Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc)));
-  }
-  return tr;
-};
-
-// Helper: Wilder's Smoothing (RMA)
-const calculateRMA = (src: number[], length: number) => {
-  const rma = [];
-  let alpha = 1 / length;
-  let sum = 0;
-
-  // Initialize with SMA for first value
-  for (let i = 0; i < length; i++) sum += src[i] || 0;
-  let prev = sum / length;
-  rma[length - 1] = prev;
-
-  for (let i = 0; i < length - 1; i++) rma.push(NaN); // pad
-
-  for (let i = length; i < src.length; i++) {
-    const val = alpha * src[i] + (1 - alpha) * prev;
-    rma.push(val);
-    prev = val;
-  }
-  return rma;
-};
-
-// Helper: RSI
-const calculateRSI = (prices: number[], period: number) => {
-  const rsi = [];
-  const changes = [];
-  for (let i = 1; i < prices.length; i++) changes.push(prices[i] - prices[i - 1]);
-
-  // We need to align indexes. changes[0] corresponds to prices[1]
-  // Simple implementation for visualization
-  let gains = 0;
-  let losses = 0;
-
-  for (let i = 0; i < period; i++) {
-    if (changes[i] > 0) gains += changes[i];
-    else losses += Math.abs(changes[i]);
-  }
-
-  let avgGain = gains / period;
-  let avgLoss = losses / period;
-
-  for (let i = 0; i < prices.length; i++) {
-    if (i <= period) { rsi.push(NaN); continue; }
-    const change = changes[i - 1];
-
-    const gain = change > 0 ? change : 0;
-    const loss = change < 0 ? Math.abs(change) : 0;
-
-    avgGain = (avgGain * (period - 1) + gain) / period;
-    avgLoss = (avgLoss * (period - 1) + loss) / period;
-
-    if (avgLoss === 0) rsi.push(100);
-    else {
-      const rs = avgGain / avgLoss;
-      rsi.push(100 - (100 / (1 + rs)));
-    }
-  }
-  return rsi;
-};
-
-// Helper: Standard Deviation
-const calculateStdev = (data: number[], period: number) => {
-  const stdev = [];
-  const sma = calculateSMA(data, period);
-  for (let i = 0; i < data.length; i++) {
-    if (i < period - 1) { stdev.push(NaN); continue; }
-    let sumSqDiff = 0;
-    const avg = sma[i];
-    for (let j = 0; j < period; j++) {
-      sumSqDiff += Math.pow(data[i - j] - avg, 2);
-    }
-    stdev.push(Math.sqrt(sumSqDiff / period));
-  }
-  return stdev;
-};
-
-// Refactored Stable EMA
-const calculateEMA = (data: number[], count: number) => {
-  if (data.length === 0) return [];
-  const k = 2 / (count + 1);
-  const emaData = [];
-  let ema = data[0];
-  emaData.push(ema);
-
-  for (let i = 1; i < data.length; i++) {
-    ema = ema + k * (data[i] - ema);
-    emaData.push(ema);
-  }
-  return emaData;
-};
 
 // Helper: Parse Price
 const parsePrice = (priceStr: string): number | null => {

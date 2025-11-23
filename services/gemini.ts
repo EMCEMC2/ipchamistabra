@@ -7,20 +7,14 @@ const getAiClient = () => {
   const fromProcessEnv = process.env.API_KEY;
   const fromImportMeta = import.meta.env.VITE_GEMINI_API_KEY;
 
-  console.log('[Gemini Service] Debug Info:');
-  console.log('  - process.env.API_KEY:', fromProcessEnv ? `Present (${fromProcessEnv.length} chars, starts with: ${fromProcessEnv.substring(0, 10)})` : 'MISSING');
-  console.log('  - import.meta.env.VITE_GEMINI_API_KEY:', fromImportMeta ? `Present (${fromImportMeta.length} chars, starts with: ${fromImportMeta.substring(0, 10)})` : 'MISSING');
-
   const fromStorage = typeof window !== 'undefined' ? localStorage.getItem('GEMINI_API_KEY') : null;
   const apiKey = (fromProcessEnv || fromImportMeta || fromStorage || "").trim();
 
   if (!apiKey) {
     console.error("[Gemini Service] ERROR: API_KEY is missing from both sources!");
-    console.error("Please check .env.local file has: VITE_GEMINI_API_KEY=your_key");
     throw new Error("API_KEY is not defined in the environment.");
   }
 
-  console.log('[Gemini Service] Using API key (length:', apiKey.length, ')');
   return new GoogleGenAI({ apiKey });
 };
 
@@ -408,11 +402,6 @@ export const getDerivativesMetrics = async (): Promise<{ openInterest: string; f
     const formattedFunding = `${(fundingRateVal * 100).toFixed(4)}%`;
 
     // 3. Long/Short Ratio (Hard to get real global ratio from free API, using a proxy or default)
-    // Some exchanges provide this, but not in the main list. 
-    // We will use a randomized fluctuation around 1.0 for "liveness" if not available, 
-    // or stick to a neutral 1.0 if we want to be strict. 
-    // Let's use a slight random variance to simulate market noise if we can't get it.
-    // Actually, let's try to be honest. If we can't get it, return 1.0.
     const longShortRatio = 1.0;
 
     return {
@@ -548,29 +537,24 @@ const MOCK_INTEL: IntelItem[] = [
     category: 'NEWS',
     timestamp: Date.now() - 1000 * 60 * 360,
     source: 'CryptoLaw (Fallback)',
-    summary: 'New EU vote could impact non-custodial wallet providers.',
+    summary: 'EU parliament discussing new AML rules for crypto wallets.',
     btcSentiment: 'BEARISH'
   }
 ];
 
 export const scanGlobalIntel = async (): Promise<IntelItem[]> => {
+  const ai = getAiClient();
+
   try {
-    const client = getAiClient();
-    const model = client.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
-
     const prompt = `
-      You are a Bitcoin market analyst. Scan for high-impact news from the last 24 hours that DIRECTLY affects Bitcoin price.
-
-      **STRICT FILTERING RULES:**
-      - ONLY include news with DIRECT Bitcoin relevance
-      - Filter out:  generic crypto news, altcoin-only news, unrelated tech news
-      - Focus on: BTC price drivers, macro events affecting BTC, regulatory news impacting BTC, major exchange events
-
-      **CATEGORIES:**
-      1. MACRO: Fed policy, interest rates, inflation, DXY, geopolitical events
-      2. NEWS: Exchange listings, ETF flows, institutional adoption, regulations
+      ROLE: Global Intelligence Officer (WATCHDOG)
+      TASK: Scan for REAL-TIME crypto market news, specifically affecting Bitcoin (BTC).
+      
+      SOURCES TO SIMULATE/SEARCH:
+      1. NEWS: Coindesk, Cointelegraph, Bloomberg Crypto
+      2. MACRO: Fed meetings, CPI data, Interest rates
       3. ONCHAIN: Large BTC transfers, miner activity, exchange reserves
-      4. WHALE: Major BTC purchases/sales (>$50M)
+      4. WHALE: Major BTC purchases/sales (> $50M)
 
       **SENTIMENT ANALYSIS (Critical):**
       Analyze if the news is BULLISH, BEARISH, or NEUTRAL for Bitcoin price:
@@ -595,8 +579,18 @@ export const scanGlobalIntel = async (): Promise<IntelItem[]> => {
       Use real-time search to find ACTUAL current events. Do NOT fabricate news.
     `;
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
+    const response = await ai.models.generateContent({
+      model: FAST_MODEL_ID,
+      contents: prompt,
+      config: {
+        tools: [{ googleSearch: {} }],
+        responseMimeType: "application/json",
+      }
+    });
+
+    const text = response.text;
+    if (!text) return MOCK_INTEL;
+
     const parsed = cleanAndParseJSON(text);
 
     try {

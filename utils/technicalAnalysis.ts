@@ -148,3 +148,63 @@ export const calculateADX = (high: number[], low: number[], close: number[], per
 
     return { adx, plusDI, minusDI };
 };
+
+export const calculateSMA = (data: number[], period: number): number[] => {
+    const sma: number[] = [];
+    for (let i = 0; i < data.length; i++) {
+        if (i < period - 1) {
+            sma.push(NaN);
+            continue;
+        }
+        let sum = 0;
+        for (let j = 0; j < period; j++) sum += data[i - j];
+        sma.push(sum / period);
+    }
+    return sma;
+};
+
+export const calculateTR = (data: ChartDataPoint[]): number[] => {
+    const tr = [0]; // First TR is 0 or high-low
+    for (let i = 1; i < data.length; i++) {
+        const h = data[i].high;
+        const l = data[i].low;
+        const pc = data[i - 1].close;
+        tr.push(Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc)));
+    }
+    return tr;
+};
+
+export const calculateRMA = (src: number[], length: number): number[] => {
+    const rma: number[] = [];
+    let alpha = 1 / length;
+    let sum = 0;
+
+    // Initialize with SMA for first value
+    for (let i = 0; i < length; i++) sum += src[i] || 0;
+    let prev = sum / length;
+    rma[length - 1] = prev;
+
+    for (let i = 0; i < length - 1; i++) rma.push(NaN); // pad
+
+    for (let i = length; i < src.length; i++) {
+        const val = alpha * src[i] + (1 - alpha) * prev;
+        rma.push(val);
+        prev = val;
+    }
+    return rma;
+};
+
+export const calculateStdev = (data: number[], period: number): number[] => {
+    const stdev: number[] = [];
+    const sma = calculateSMA(data, period);
+    for (let i = 0; i < data.length; i++) {
+        if (i < period - 1) { stdev.push(NaN); continue; }
+        let sumSqDiff = 0;
+        const avg = sma[i];
+        for (let j = 0; j < period; j++) {
+            sumSqDiff += Math.pow(data[i - j] - avg, 2);
+        }
+        stdev.push(Math.sqrt(sumSqDiff / period));
+    }
+    return stdev;
+};
