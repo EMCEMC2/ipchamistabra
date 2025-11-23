@@ -1,36 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Search, Cpu, ExternalLink, Mic, Volume2, VolumeX } from 'lucide-react';
-import { ChatMessage, TradeSignal, ChartDataPoint } from '../types';
+import { ChatMessage } from '../types';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { generateMarketAnalysis } from '../services/gemini';
-
-export interface DashboardData {
-  price: number;
-  change: number;
-  vix: number;
-  btcd: number;
-  sentiment: number;
-}
-
-interface AiCommandCenterProps {
-  onNewAnalysis: (text: string) => void;
-  marketData: DashboardData;
-  signals: TradeSignal[];
-  chartData: ChartDataPoint[];
-  technicalIndicators?: {
-    rsi: number;
-    macd: { histogram: number; signal: number; macd: number };
-    adx: number;
-    atr: number;
-    trend: string;
-  };
-}
+import { useStore } from '../store/useStore';
 
 // Polyfill for SpeechRecognition
 const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
-export const AiCommandCenter: React.FC<AiCommandCenterProps> = ({ onNewAnalysis, marketData, signals, chartData, technicalIndicators }) => {
+export const AiCommandCenter: React.FC = () => {
+  const {
+    price, priceChange, vix, btcd, sentimentScore: sentiment,
+    signals, chartData, technicals: technicalIndicators,
+    setLatestAnalysis
+  } = useStore();
+
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'init',
@@ -135,10 +120,10 @@ export const AiCommandCenter: React.FC<AiCommandCenterProps> = ({ onNewAnalysis,
 
     const marketContext = `
     MARKET DATA SNAPSHOT:
-    - Price: $${marketData.price.toLocaleString()} (${marketData.change >= 0 ? '+' : ''}${marketData.change.toFixed(2)}%)
-    - VIX: ${marketData.vix.toFixed(2)}
-    - Sentiment: ${marketData.sentiment}
-    - BTC Dominance: ${marketData.btcd.toFixed(1)}%
+    - Price: $${price.toLocaleString()} (${priceChange >= 0 ? '+' : ''}${priceChange.toFixed(2)}%)
+    - VIX: ${vix.toFixed(2)}
+    - Sentiment: ${sentiment}
+    - BTC Dominance: ${btcd.toFixed(1)}%
     
     ${techContext}
 
@@ -161,7 +146,7 @@ export const AiCommandCenter: React.FC<AiCommandCenterProps> = ({ onNewAnalysis,
       };
 
       setMessages(prev => [...prev, aiMsg]);
-      onNewAnalysis(response.text);
+      setLatestAnalysis(response.text);
       speakText(response.text);
     } catch (err) {
       const errorMsg: ChatMessage = {

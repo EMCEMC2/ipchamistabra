@@ -114,15 +114,8 @@ const VolatilityChart: React.FC<{ data: number[] }> = ({ data }) => {
     return <canvas ref={canvasRef} width={600} height={200} className="w-full h-full" />;
 };
 
-interface MLCortexProps {
-    data?: ChartDataPoint[];
-    macro?: { vix: number; dxy: number; btcd: number };
-    sentiment?: { score: number; label: string };
-}
-
-export const MLCortex: React.FC<MLCortexProps> = ({ data, macro, sentiment }) => {
-    const storeChartData = useStore(state => state.chartData);
-    const chartData = data || storeChartData;
+export const MLCortex: React.FC = () => {
+    const { chartData, vix } = useStore();
     const [volHistory, setVolHistory] = useState<number[]>([]);
     const [regimeHistory, setRegimeHistory] = useState<{ vol: number; trend: number; regime: string; color: string }[]>([]);
     const [currentRegime, setCurrentRegime] = useState({ regime: 'LOADING...', color: '#6b7280' });
@@ -132,7 +125,7 @@ export const MLCortex: React.FC<MLCortexProps> = ({ data, macro, sentiment }) =>
         if (chartData.length < 50) return;
 
         // Use shared ML Service for analysis
-        const analysis = analyzeMarketRegime(chartData, macro?.vix);
+        const analysis = analyzeMarketRegime(chartData, vix);
 
         setCurrentRegime({ regime: analysis.regime, color: analysis.regimeColor });
         setCurrentStats({ vol: analysis.volatility, trend: analysis.predictedTrend });
@@ -169,7 +162,7 @@ export const MLCortex: React.FC<MLCortexProps> = ({ data, macro, sentiment }) =>
         setVolHistory(volHist);
         setRegimeHistory(history);
 
-    }, [chartData, macro]);
+    }, [chartData, vix]);
 
     const getTrendIcon = () => {
         if (currentStats.trend > 2) return <TrendingUp className="text-green-500" size={24} />;

@@ -2,15 +2,16 @@
 import React from 'react';
 import { Activity, ArrowUpRight, ArrowDownRight, Clock, Target, Shield, RefreshCw, Zap, Scale, PlayCircle } from 'lucide-react';
 import { TradeSignal } from '../types';
+import { useStore } from '../store/useStore';
+import { fetchSignals } from '../services/marketData';
 
 interface ActiveSignalsProps {
-  signals: TradeSignal[];
-  onScan?: () => void;
-  isScanning?: boolean;
   onTrade?: (signal: TradeSignal) => void;
 }
 
-export const ActiveSignals: React.FC<ActiveSignalsProps> = ({ signals, onScan, isScanning = false, onTrade }) => {
+export const ActiveSignals: React.FC<ActiveSignalsProps> = ({ onTrade }) => {
+  const { signals, isScanning } = useStore();
+
   const getStatusBadge = (status: TradeSignal['status']) => {
     const baseClasses = "text-[10px] px-2 py-0.5 rounded font-mono border";
     switch (status) {
@@ -62,16 +63,14 @@ export const ActiveSignals: React.FC<ActiveSignalsProps> = ({ signals, onScan, i
                  </span>
                  <span className="text-[10px] text-terminal-muted font-mono ml-1">{isScanning ? 'SCANNING...' : 'LIVE'}</span>
             </div>
-            {onScan && (
-                <button 
-                    onClick={onScan} 
-                    disabled={isScanning}
-                    className="text-xs flex items-center gap-1 bg-terminal-border hover:bg-terminal-text hover:text-terminal-bg px-2 py-1 rounded transition-colors disabled:opacity-50 ml-2"
-                >
-                    <RefreshCw size={12} className={isScanning ? "animate-spin" : ""} />
-                    {isScanning ? "SCAN" : "SCAN"}
-                </button>
-            )}
+            <button 
+                onClick={fetchSignals} 
+                disabled={isScanning}
+                className="text-xs flex items-center gap-1 bg-terminal-border hover:bg-terminal-text hover:text-terminal-bg px-2 py-1 rounded transition-colors disabled:opacity-50 ml-2"
+            >
+                <RefreshCw size={12} className={isScanning ? "animate-spin" : ""} />
+                {isScanning ? "SCAN" : "SCAN"}
+            </button>
         </div>
       </div>
 

@@ -97,16 +97,21 @@ export interface Position {
 
 export interface JournalEntry {
   id: string;
+  date: number; // Added date
   pair: string;
   type: 'LONG' | 'SHORT';
   entryPrice: number;
   exitPrice: number;
-  size: number;
+  size?: number;
+  leverage?: number;
   pnl: number; // Realized
   pnlPercent: number;
   entryTime: number;
   exitTime: number;
   notes: string;
+  tags: string[]; // Added tags
+  mood?: string; // Added mood
+  result?: 'WIN' | 'LOSS' | 'BE'; // Added result
   aiFeedback?: string;
 }
 

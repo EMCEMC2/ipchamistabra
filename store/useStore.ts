@@ -32,12 +32,14 @@ interface MarketState {
     atr: number;
     trend: string;
   };
+  latestAnalysis: string;
 }
 
 interface UserState {
   balance: number;
   positions: Position[];
   journal: JournalEntry[];
+  activeTradeSetup: Partial<Position> | null;
 }
 
 interface AgentSwarmState {
@@ -56,6 +58,8 @@ export interface AppState extends MarketState, UserState, AgentSwarmState {
   setIsScanning: (isScanning: boolean) => void;
   setTimeframe: (timeframe: string) => void;
   setTechnicals: (technicals: AppState['technicals']) => void;
+  setLatestAnalysis: (analysis: string) => void;
+  setActiveTradeSetup: (setup: Partial<Position> | null) => void;
 
   updateBalance: (amount: number) => void;
   addPosition: (position: Position) => void;
@@ -84,11 +88,13 @@ export const useStore = create<AppState>((set) => ({
   isScanning: false,
   timeframe: '15m',
   technicals: { rsi: 0, macd: { histogram: 0, signal: 0, macd: 0 }, adx: 0, atr: 0, trend: 'NEUTRAL' },
+  latestAnalysis: "",
 
   // User State
   balance: 50000,
   positions: [],
   journal: [],
+  activeTradeSetup: null,
 
   // Agent Swarm State
   agents: [
@@ -110,6 +116,8 @@ export const useStore = create<AppState>((set) => ({
   setIsScanning: (isScanning) => set({ isScanning }),
   setTimeframe: (timeframe) => set({ timeframe }),
   setTechnicals: (technicals) => set({ technicals }),
+  setLatestAnalysis: (latestAnalysis) => set({ latestAnalysis }),
+  setActiveTradeSetup: (setup) => set({ activeTradeSetup: setup }),
 
   updateBalance: (amount) => set((state) => ({ balance: state.balance + amount })),
   addPosition: (position) => set((state) => ({ positions: [position, ...state.positions] })),

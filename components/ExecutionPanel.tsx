@@ -1,16 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
-import { DollarSign, Percent, Activity, Shield, PlayCircle, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Shield, PlayCircle, ArrowRight } from 'lucide-react';
+import { useStore } from '../store/useStore';
 import { Position } from '../types';
 
-interface ExecutionPanelProps {
-    currentPrice: number;
-    balance: number;
-    onExecute: (pos: Omit<Position, 'id' | 'timestamp' | 'pnl' | 'pnlPercent' | 'liquidationPrice'>) => void;
-    initialValues?: Partial<Position> | null;
-}
-
-export const ExecutionPanel: React.FC<ExecutionPanelProps> = ({ currentPrice, balance, onExecute, initialValues }) => {
+export const ExecutionPanel: React.FC = () => {
+    const { price: currentPrice, balance, addPosition: onExecute, activeTradeSetup: initialValues } = useStore();
     const [side, setSide] = useState<'LONG' | 'SHORT'>('LONG');
     const [orderType, setOrderType] = useState<'MARKET' | 'LIMIT'>('MARKET');
     const [leverage, setLeverage] = useState(5);
@@ -60,7 +55,8 @@ export const ExecutionPanel: React.FC<ExecutionPanelProps> = ({ currentPrice, ba
     const handleExecute = () => {
         if (currentPrice === 0) return;
 
-        onExecute({
+        const position: Position = {
+            id: Date.now().toString(),
             pair: 'BTC/USD',
             type: side,
             entryPrice: currentPrice,
@@ -68,7 +64,13 @@ export const ExecutionPanel: React.FC<ExecutionPanelProps> = ({ currentPrice, ba
             leverage: leverage,
             stopLoss: parseFloat(stopLoss) || (side === 'LONG' ? currentPrice * 0.95 : currentPrice * 1.05),
             takeProfit: parseFloat(takeProfit) || (side === 'LONG' ? currentPrice * 1.05 : currentPrice * 0.95),
-        });
+            timestamp: Date.now(),
+            pnl: 0,
+            pnlPercent: 0,
+            liquidationPrice: side === 'LONG' ? currentPrice * (1 - 1 / leverage) : currentPrice * (1 + 1 / leverage)
+        };
+
+        onExecute(position);
     };
 
     return (

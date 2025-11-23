@@ -22,13 +22,7 @@ import {
   calculateRMA,
   calculateStdev
 } from '../utils/technicalAnalysis';
-
-interface ChartPanelProps {
-  data: ChartDataPoint[];
-  timeframe: string;
-  onTimeframeChange: (tf: string) => void;
-  signals?: TradeSignal[];
-}
+import { useStore } from '../store/useStore';
 
 // Helper: Parse Price
 const parsePrice = (priceStr: string): number | null => {
@@ -37,7 +31,9 @@ const parsePrice = (priceStr: string): number | null => {
   return isNaN(val) ? null : val;
 };
 
-export const ChartPanel: React.FC<ChartPanelProps> = ({ data, timeframe, onTimeframeChange, signals = [] }) => {
+export const ChartPanel: React.FC = () => {
+  const { chartData: data, timeframe, setTimeframe: onTimeframeChange, signals } = useStore();
+
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
 

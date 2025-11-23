@@ -2,12 +2,10 @@ import React, { useState } from 'react';
 import { Crosshair, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
 import { generateTradeSetup } from '../services/gemini';
 import ReactMarkdown from 'react-markdown';
+import { useStore } from '../store/useStore';
 
-interface TradeSetupPanelProps {
-  latestAnalysis: string;
-}
-
-export const TradeSetupPanel: React.FC<TradeSetupPanelProps> = ({ latestAnalysis }) => {
+export const TradeSetupPanel: React.FC = () => {
+  const latestAnalysis = useStore(state => state.latestAnalysis);
   const [setup, setSetup] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 

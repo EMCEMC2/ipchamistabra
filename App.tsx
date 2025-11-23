@@ -43,7 +43,6 @@ function App() {
 
   // Local State for Dashboard
   const [activeView, setActiveView] = useState<ViewMode>('TERMINAL');
-  const [latestAnalysis, setLatestAnalysis] = useState<string>("");
   const [isApiKeyMissing, setIsApiKeyMissing] = useState(false);
 
   // Refs
@@ -85,9 +84,7 @@ function App() {
     return 'NEUTRAL';
   };
 
-  const handleNewAnalysis = (text: string) => {
-    setLatestAnalysis(text);
-  };
+
 
   // Navigation Button Component
   const NavButton = ({ id, label, icon: Icon }: { id: ViewMode, label: string, icon: any }) => (
@@ -227,7 +224,7 @@ function App() {
               />
             </div>
             <div className="h-2/3 flex-1 min-h-0">
-              <IntelDeck items={intel} />
+              <IntelDeck />
             </div>
           </div>
 
@@ -236,54 +233,26 @@ function App() {
             {activeView === 'TERMINAL' && (
               <>
                 <div className="h-[60%] min-h-[300px]">
-                  <ChartPanel
-                    data={chartData}
-                    timeframe={timeframe}
-                    onTimeframeChange={setTimeframe}
-                    signals={signals}
-                  />
+                  <ChartPanel />
                 </div>
                 <div className="h-[40%] flex-1 min-h-0 grid grid-cols-2 gap-2">
-                  <ActiveSignals
-                    signals={signals}
-                    onScan={fetchSignals}
-                    isScanning={isScanning}
-                  />
-                  <TradeSetupPanel latestAnalysis={latestAnalysis} />
+                  <ActiveSignals />
+                  <TradeSetupPanel />
                 </div>
               </>
             )}
             {activeView === 'SWARM' && <AgentSwarm />}
             {activeView === 'CORTEX' && (
-              <MLCortex
-                data={chartData}
-                macro={{ vix, dxy, btcd }}
-                sentiment={{ score: sentimentScore, label: sentimentLabel }}
-              />
+              <MLCortex />
             )}
             {activeView === 'JOURNAL' && (
-              <TradeJournal
-                entries={journal}
-                onAddEntry={addJournalEntry}
-              />
+              <TradeJournal />
             )}
           </div>
 
           {/* Right Column: AI Command Center (3 cols) */}
           <div className="col-span-3 h-full overflow-hidden">
-            <AiCommandCenter
-              onNewAnalysis={handleNewAnalysis}
-              marketData={{
-                price,
-                change: priceChange,
-                vix: vix,
-                btcd: btcd,
-                sentiment: sentimentScore
-              }}
-              signals={signals}
-              chartData={chartData}
-              technicalIndicators={technicals}
-            />
+            <AiCommandCenter />
           </div>
         </div>
       </main>
