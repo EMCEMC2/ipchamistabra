@@ -214,14 +214,14 @@ function App() {
             title="VIX (VOLATILITY)"
             value={vix.toFixed(2)}
             subValue="Market Fear Index"
-            trend={trends.vix}
+            trend={trends.vix === 'up' ? 'BEARISH' : trends.vix === 'down' ? 'BULLISH' : 'NEUTRAL'}
             color={vix > 20 ? 'red' : 'green'}
           />
           <MetricCard
             title="BTC DOMINANCE"
             value={`${btcd.toFixed(1)}%`}
             subValue="Market Cap %"
-            trend={trends.btcd}
+            trend={trends.btcd === 'up' ? 'BULLISH' : trends.btcd === 'down' ? 'BEARISH' : 'NEUTRAL'}
             color="yellow"
           />
           <MetricCard
