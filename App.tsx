@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Activity, Terminal, Layout, Users, Brain, BookOpen } from 'lucide-react';
+import { Activity, Terminal, Layout, Users, Brain, BookOpen, LineChart } from 'lucide-react';
 import { ChartPanel } from './components/ChartPanel';
 import { IntelDeck } from './components/IntelDeck';
 import { MetricCard } from './components/MetricCard';
@@ -9,6 +9,8 @@ import { AgentSwarm } from './components/AgentSwarm/SwarmCore';
 import { ActiveSignals } from './components/ActiveSignals';
 import { TradeSetupPanel } from './components/TradeSetupPanel';
 import { TradeJournal } from './components/TradeJournal';
+import { BacktestPanel } from './components/BacktestPanel';
+import { AggrOrderFlow } from './components/AggrOrderFlow';
 import {
   getSentimentAnalysis,
   getMacroMarketMetrics,
@@ -22,8 +24,9 @@ import { useStore } from './store/useStore';
 import { ChartDataPoint } from './types';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { usePositionMonitor } from './hooks/usePositionMonitor';
 
-type ViewMode = 'TERMINAL' | 'SWARM' | 'CORTEX' | 'JOURNAL';
+type ViewMode = 'TERMINAL' | 'SWARM' | 'CORTEX' | 'JOURNAL' | 'BACKTEST';
 
 function App() {
   // Global State
@@ -75,6 +78,9 @@ function App() {
     ws.connect();
     return () => ws.disconnect();
   }, []);
+
+  // CRITICAL: Position Monitoring (The Engine Heartbeat)
+  usePositionMonitor();
 
   // Helper for Trend Logic
   const getTrend = (metric: string, value: number): 'BULLISH' | 'BEARISH' | 'NEUTRAL' => {
@@ -166,8 +172,9 @@ function App() {
           {/* Navigation Tabs */}
           <div className="flex items-center gap-2 border-l border-white/10 pl-6 h-8">
             <NavButton id="TERMINAL" label="TERMINAL" icon={Layout} />
-            <NavButton id="SWARM" label="SWARM COUNCIL" icon={Users} />
+            <NavButton id="SWARM" label="SWARM" icon={Users} />
             <NavButton id="CORTEX" label="ML CORTEX" icon={Brain} />
+            <NavButton id="BACKTEST" label="BACKTEST" icon={LineChart} />
             <NavButton id="JOURNAL" label="JOURNAL" icon={BookOpen} />
           </div>
         </div>
@@ -235,19 +242,17 @@ function App() {
                 <div className="h-[60%] min-h-[300px]">
                   <ChartPanel />
                 </div>
-                <div className="h-[40%] flex-1 min-h-0 grid grid-cols-2 gap-2">
+                <div className="h-[40%] flex-1 min-h-0 grid grid-cols-3 gap-2">
                   <ActiveSignals />
+                  <AggrOrderFlow />
                   <TradeSetupPanel />
                 </div>
               </>
             )}
             {activeView === 'SWARM' && <AgentSwarm />}
-            {activeView === 'CORTEX' && (
-              <MLCortex />
-            )}
-            {activeView === 'JOURNAL' && (
-              <TradeJournal />
-            )}
+            {activeView === 'CORTEX' && <MLCortex />}
+            {activeView === 'BACKTEST' && <BacktestPanel />}
+            {activeView === 'JOURNAL' && <TradeJournal />}
           </div>
 
           {/* Right Column: AI Command Center (3 cols) */}

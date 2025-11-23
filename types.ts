@@ -133,7 +133,7 @@ export interface IntelItem {
   id: string;
   title: string;
   severity: 'HIGH' | 'MEDIUM' | 'LOW';
-  category: 'NEWS' | 'ONCHAIN' | 'MACRO' | 'WHALE';
+  category: 'NEWS' | 'ONCHAIN' | 'MACRO' | 'WHALE' | 'ORDERFLOW' | 'LIQUIDATION';
   timestamp: number; // Unix ms
   source: string;
   summary: string;

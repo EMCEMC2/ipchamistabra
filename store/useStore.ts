@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { ChartDataPoint, TradeSignal, Position, JournalEntry, AgentState, AgentRole, IntelItem } from '../types';
 
 interface MarketState {
@@ -71,73 +72,91 @@ export interface AppState extends MarketState, UserState, AgentSwarmState {
   addCouncilLog: (agentName: string, message: string) => void;
 }
 
-export const useStore = create<AppState>((set) => ({
-  // Market State
-  price: 0,
-  priceChange: 0,
-  vix: 0,
-  dxy: 0,
-  btcd: 0,
-  sentimentScore: 50,
-  sentimentLabel: 'Neutral',
-  derivatives: { openInterest: '-', fundingRate: '-', longShortRatio: 1.0 },
-  intel: [],
-  trends: { price: 'neutral', vix: 'neutral', btcd: 'neutral', sentiment: 'neutral' },
-  chartData: [],
-  signals: [],
-  isScanning: false,
-  timeframe: '15m',
-  technicals: { rsi: 0, macd: { histogram: 0, signal: 0, macd: 0 }, adx: 0, atr: 0, trend: 'NEUTRAL' },
-  latestAnalysis: "",
+export const useStore = create<AppState>()(
+  persist(
+    (set) => ({
+      // Market State (NOT PERSISTED - always fresh from API)
+      price: 0,
+      priceChange: 0,
+      vix: 0,
+      dxy: 0,
+      btcd: 0,
+      sentimentScore: 50,
+      sentimentLabel: 'Neutral',
+      derivatives: { openInterest: '-', fundingRate: '-', longShortRatio: 1.0 },
+      intel: [],
+      trends: { price: 'neutral', vix: 'neutral', btcd: 'neutral', sentiment: 'neutral' },
+      chartData: [],
+      isScanning: false,
+      timeframe: '15m',
+      technicals: { rsi: 0, macd: { histogram: 0, signal: 0, macd: 0 }, adx: 0, atr: 0, trend: 'NEUTRAL' },
+      latestAnalysis: "",
 
-  // User State
-  balance: 50000,
-  positions: [],
-  journal: [],
-  activeTradeSetup: null,
+      // User State (PERSISTED - survives refresh)
+      balance: 50000,
+      positions: [],
+      journal: [],
+      signals: [],
+      activeTradeSetup: null,
 
-  // Agent Swarm State
-  agents: [
-    { role: 'ORCHESTRATOR', name: 'OVERMIND', description: 'System Coordinator', status: 'IDLE', lastLog: 'Standby' },
-    { role: 'STRATEGIST', name: 'VANGUARD', description: 'Lead Strategist', status: 'IDLE', lastLog: 'Standby' },
-    { role: 'QUANT_RESEARCHER', name: 'DATAMIND', description: 'Data Analysis', status: 'IDLE', lastLog: 'Standby' },
-    { role: 'RISK_OFFICER', name: 'IRONCLAD', description: 'Risk Management', status: 'IDLE', lastLog: 'Standby' },
-    { role: 'INSPECTOR', name: 'WATCHDOG', description: 'System Integrity', status: 'IDLE', lastLog: 'Standby' }
-  ],
-  isSwarmActive: false,
-  councilLogs: [],
+      // Agent Swarm State (PERSISTED - council logs survive)
+      agents: [
+        { role: 'ORCHESTRATOR', name: 'OVERMIND', description: 'System Coordinator', status: 'IDLE', lastLog: 'Standby' },
+        { role: 'STRATEGIST', name: 'VANGUARD', description: 'Lead Strategist', status: 'IDLE', lastLog: 'Standby' },
+        { role: 'QUANT_RESEARCHER', name: 'DATAMIND', description: 'Data Analysis', status: 'IDLE', lastLog: 'Standby' },
+        { role: 'RISK_OFFICER', name: 'IRONCLAD', description: 'Risk Management', status: 'IDLE', lastLog: 'Standby' },
+        { role: 'INSPECTOR', name: 'WATCHDOG', description: 'System Integrity', status: 'IDLE', lastLog: 'Standby' }
+      ],
+      isSwarmActive: false,
+      councilLogs: [],
 
-  // Actions
-  setMarketMetrics: (metrics) => set((state) => ({ ...state, ...metrics })),
-  setPrice: (price) => set({ price }),
-  setPriceChange: (priceChange) => set({ priceChange }),
-  setChartData: (data) => set({ chartData: data }),
-  setSignals: (signals) => set({ signals }),
-  setIsScanning: (isScanning) => set({ isScanning }),
-  setTimeframe: (timeframe) => set({ timeframe }),
-  setTechnicals: (technicals) => set({ technicals }),
-  setLatestAnalysis: (latestAnalysis) => set({ latestAnalysis }),
-  setActiveTradeSetup: (setup) => set({ activeTradeSetup: setup }),
+      // Actions
+      setMarketMetrics: (metrics) => set((state) => ({ ...state, ...metrics })),
+      setPrice: (price) => set({ price }),
+      setPriceChange: (priceChange) => set({ priceChange }),
+      setChartData: (data) => set({ chartData: data }),
+      setSignals: (signals) => set({ signals }),
+      setIsScanning: (isScanning) => set({ isScanning }),
+      setTimeframe: (timeframe) => set({ timeframe }),
+      setTechnicals: (technicals) => set({ technicals }),
+      setLatestAnalysis: (latestAnalysis) => set({ latestAnalysis }),
+      setActiveTradeSetup: (setup) => set({ activeTradeSetup: setup }),
 
-  updateBalance: (amount) => set((state) => ({ balance: state.balance + amount })),
-  addPosition: (position) => set((state) => ({ positions: [position, ...state.positions] })),
-  closePosition: (id, pnl) => set((state) => ({
-    positions: state.positions.filter((p) => p.id !== id),
-    balance: state.balance + pnl
-  })),
-  updatePositionPnl: (id, pnl, pnlPercent) => set((state) => ({
-    positions: state.positions.map((p) =>
-      p.id === id ? { ...p, pnl, pnlPercent } : p
-    )
-  })),
-  addJournalEntry: (entry) => set((state) => ({ journal: [entry, ...state.journal] })),
+      updateBalance: (amount) => set((state) => ({ balance: state.balance + amount })),
+      addPosition: (position) => set((state) => ({ positions: [position, ...state.positions] })),
+      closePosition: (id, pnl) => set((state) => ({
+        positions: state.positions.filter((p) => p.id !== id),
+        balance: state.balance + pnl
+      })),
+      updatePositionPnl: (id, pnl, pnlPercent) => set((state) => ({
+        positions: state.positions.map((p) =>
+          p.id === id ? { ...p, pnl, pnlPercent } : p
+        )
+      })),
+      addJournalEntry: (entry) => set((state) => ({ journal: [entry, ...state.journal] })),
 
-  updateAgentStatus: (role, status, log) => set((state) => ({
-    agents: state.agents.map((a) =>
-      a.role === role ? { ...a, status, lastLog: log || a.lastLog } : a
-    )
-  })),
-  addCouncilLog: (agentName, message) => set((state) => ({
-    councilLogs: [...state.councilLogs, { id: Date.now().toString(), agentName, message, timestamp: Date.now() }]
-  }))
-}));
+      updateAgentStatus: (role, status, log) => set((state) => ({
+        agents: state.agents.map((a) =>
+          a.role === role ? { ...a, status, lastLog: log || a.lastLog } : a
+        )
+      })),
+      addCouncilLog: (agentName, message) => set((state) => ({
+        councilLogs: [...state.councilLogs, { id: Date.now().toString(), agentName, message, timestamp: Date.now() }]
+      }))
+    }),
+    {
+      name: 'ipcha-mistabra-storage',
+      storage: createJSONStorage(() => localStorage),
+      // Only persist critical user data (not live market data)
+      partialize: (state) => ({
+        balance: state.balance,
+        positions: state.positions,
+        journal: state.journal,
+        signals: state.signals,
+        councilLogs: state.councilLogs,
+        timeframe: state.timeframe,
+        activeTradeSetup: state.activeTradeSetup
+      })
+    }
+  )
+);

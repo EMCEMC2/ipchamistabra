@@ -1,7 +1,19 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run preview:*)"
+      "Bash(npm run preview:*)",
+      "Bash(dir:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run dev:*)",
+      "Bash(timeout /t 10)",
+      "Bash(nul)",
+      "Bash(npm install:*)",
+      "Bash(ping:*)",
+      "WebSearch",
+      "WebFetch(domain:www.macroaxis.com)",
+      "WebFetch(domain:tapesurf.com)",
+      "WebFetch(domain:www.whalemap.io)",
+      "WebFetch(domain:bitinfocharts.com)"
     ],
     "deny": [],
     "ask": []

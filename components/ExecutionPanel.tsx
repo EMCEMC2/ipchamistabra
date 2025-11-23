@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Shield, PlayCircle, ArrowRight } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { Position } from '../types';
+import { calculatePositionSize, calculateLiquidationPrice } from '../utils/tradingCalculations';
 
 export const ExecutionPanel: React.FC = () => {
     const { price: currentPrice, balance, addPosition: onExecute, activeTradeSetup: initialValues } = useStore();
@@ -26,17 +27,9 @@ export const ExecutionPanel: React.FC = () => {
     const [positionSizeBTC, setPositionSizeBTC] = useState(0);
     const [marginUSD, setMarginUSD] = useState(0);
 
-    // Auto-calc logic
+    // Auto-calc logic using REAL trading calculations
     useEffect(() => {
         if (currentPrice === 0) return;
-
-        // Simple Position Sizing: Risk Amount / Distance to SL
-        // For demo, we simplify: Margin = (Balance * Risk%) * Factor
-        const calcMargin = (balance * (riskPercent / 100)) * 10; // boosting purely for UX demo size
-        setMarginUSD(calcMargin);
-
-        const size = (calcMargin * leverage) / currentPrice;
-        setPositionSizeBTC(size);
 
         // Auto Set SL/TP defaults if empty and Market order
         if (orderType === 'MARKET' && !stopLoss && !initialValues) {
@@ -50,10 +43,27 @@ export const ExecutionPanel: React.FC = () => {
                 setTakeProfit((currentPrice - (stopDistance * 2)).toFixed(2));
             }
         }
-    }, [currentPrice, balance, riskPercent, leverage, side, orderType]);
+
+        // Calculate position size using proper risk management
+        const slPrice = parseFloat(stopLoss) || (side === 'LONG' ? currentPrice * 0.985 : currentPrice * 1.015);
+        const size = calculatePositionSize(balance, riskPercent, currentPrice, slPrice, leverage);
+        setPositionSizeBTC(size);
+
+        // Calculate margin (collateral) required
+        const positionValue = currentPrice * size;
+        const margin = positionValue / leverage;
+        setMarginUSD(margin);
+
+    }, [currentPrice, balance, riskPercent, leverage, side, orderType, stopLoss]);
 
     const handleExecute = () => {
         if (currentPrice === 0) return;
+
+        const slPrice = parseFloat(stopLoss) || (side === 'LONG' ? currentPrice * 0.95 : currentPrice * 1.05);
+        const tpPrice = parseFloat(takeProfit) || (side === 'LONG' ? currentPrice * 1.05 : currentPrice * 0.95);
+
+        // Use REAL liquidation calculation
+        const liqPrice = calculateLiquidationPrice(currentPrice, leverage, side);
 
         const position: Position = {
             id: Date.now().toString(),
@@ -62,15 +72,16 @@ export const ExecutionPanel: React.FC = () => {
             entryPrice: currentPrice,
             size: positionSizeBTC,
             leverage: leverage,
-            stopLoss: parseFloat(stopLoss) || (side === 'LONG' ? currentPrice * 0.95 : currentPrice * 1.05),
-            takeProfit: parseFloat(takeProfit) || (side === 'LONG' ? currentPrice * 1.05 : currentPrice * 0.95),
+            stopLoss: slPrice,
+            takeProfit: tpPrice,
             timestamp: Date.now(),
             pnl: 0,
             pnlPercent: 0,
-            liquidationPrice: side === 'LONG' ? currentPrice * (1 - 1 / leverage) : currentPrice * (1 + 1 / leverage)
+            liquidationPrice: liqPrice
         };
 
         onExecute(position);
+        console.log(`[Execution] ${side} position opened @ $${currentPrice.toFixed(2)} | Size: ${positionSizeBTC.toFixed(4)} BTC | Liq: $${liqPrice.toFixed(2)}`);
     };
 
     return (
@@ -201,7 +212,7 @@ export const ExecutionPanel: React.FC = () => {
                     <div className="flex justify-between text-xs font-mono border-t border-terminal-border/50 pt-3 mt-1">
                         <span className="text-terminal-muted">EST. LIQ PRICE</span>
                         <span className="text-terminal-warn">
-                            {currentPrice > 0 ? (side === 'LONG' ? (currentPrice * (1 - 1 / leverage)).toFixed(0) : (currentPrice * (1 + 1 / leverage)).toFixed(0)) : '-'}
+                            {currentPrice > 0 ? `$${calculateLiquidationPrice(currentPrice, leverage, side).toFixed(2)}` : '-'}
                         </span>
                     </div>
                 </div>

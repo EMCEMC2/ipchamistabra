@@ -1,36 +1,54 @@
 
-import React from 'react';
-import { Globe, Zap, AlertTriangle, TrendingUp, TrendingDown, Activity, Shield, Target } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Globe, Zap, AlertTriangle, TrendingUp, TrendingDown, Activity, Shield, Target, Anchor } from 'lucide-react';
 import { IntelItem } from '../types';
 import ReactMarkdown from 'react-markdown';
 import { useStore } from '../store/useStore';
+import { fetchOnChainMetrics, analyzeOnChainMetrics, getOnChainRegime, OnChainMetrics } from '../services/glassnodeService';
 
 export const IntelDeck: React.FC = () => {
-    const { latestAnalysis, signals, technicals } = useStore();
+    const { latestAnalysis, signals, technicals, intel } = useStore();
+    const [onChainMetrics, setOnChainMetrics] = useState<OnChainMetrics | null>(null);
+    const [onChainRegime, setOnChainRegime] = useState<{ regime: string; confidence: number } | null>(null);
 
-    // Mock Intel Items (In a real app, these would come from an API or the store)
-    const items: IntelItem[] = [
-        {
-            id: '1',
-            title: 'Global Macro Context',
-            source: 'BitMind Macro',
-            timestamp: Date.now(),
-            summary: 'US CPI data suggests sticky inflation. Fed pivot expectations pushed to Q4. Risk-off sentiment prevailing in equities, correlating with BTC weakness.',
-            severity: 'HIGH',
-            category: 'MACRO',
-            btcSentiment: 'BEARISH'
-        },
-        {
-            id: '2',
-            title: 'On-Chain Activity',
-            source: 'Glassnode',
-            timestamp: Date.now() - 3600000,
-            summary: 'Exchange inflows spiking. 5,000 BTC moved to Binance in the last hour. Potential sell pressure incoming.',
-            severity: 'MEDIUM',
-            category: 'ONCHAIN',
-            btcSentiment: 'BEARISH'
-        }
-    ];
+    // Fetch on-chain metrics on mount and every 5 minutes
+    useEffect(() => {
+        const loadOnChainData = async () => {
+            const metrics = await fetchOnChainMetrics();
+            setOnChainMetrics(metrics);
+
+            const regime = getOnChainRegime(metrics);
+            setOnChainRegime(regime);
+        };
+
+        loadOnChainData();
+        const interval = setInterval(loadOnChainData, 900000); // 15 minutes (to avoid rate limit)
+
+        return () => clearInterval(interval);
+    }, []);
+
+    // Generate intel items from Glassnode + store intel
+    const items: IntelItem[] = [];
+
+    // Add on-chain intel items (if available)
+    if (onChainMetrics) {
+        const onChainIntel = analyzeOnChainMetrics(onChainMetrics);
+        onChainIntel.forEach((intel, idx) => {
+            items.push({
+                id: `onchain-${idx}`,
+                title: intel.metric,
+                source: 'Glassnode',
+                timestamp: onChainMetrics.timestamp,
+                summary: intel.explanation,
+                severity: intel.severity,
+                category: 'ONCHAIN',
+                btcSentiment: intel.signal
+            });
+        });
+    }
+
+    // Add intel from store (AI-generated news)
+    items.push(...intel);
 
     return (
         <div className="h-full grid grid-cols-12 gap-4 p-4 overflow-y-auto">
@@ -40,8 +58,21 @@ export const IntelDeck: React.FC = () => {
                     <Globe size={18} />
                     <h3 className="font-mono font-bold text-sm tracking-wider">GLOBAL INTELLIGENCE & TACTICS</h3>
                 </div>
-                <div className="text-[10px] text-terminal-muted font-mono">
-                    LIVE FEED • <span className="text-green-500">CONNECTED</span>
+                <div className="flex items-center gap-3">
+                    {onChainRegime && (
+                        <div className={`flex items-center gap-2 px-2 py-1 rounded border text-[10px] font-mono font-bold ${
+                            onChainRegime.regime === 'ACCUMULATION' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
+                            onChainRegime.regime === 'DISTRIBUTION' ? 'bg-red-500/10 text-red-500 border-red-500/20' :
+                            onChainRegime.regime === 'OVERHEATED' ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' :
+                            'bg-terminal-border text-terminal-muted border-terminal-border'
+                        }`}>
+                            <Anchor size={12} />
+                            ON-CHAIN: {onChainRegime.regime}
+                        </div>
+                    )}
+                    <div className="text-[10px] text-terminal-muted font-mono">
+                        LIVE FEED • <span className="text-green-500">CONNECTED</span>
+                    </div>
                 </div>
             </div>
 
@@ -50,7 +81,10 @@ export const IntelDeck: React.FC = () => {
                 {items.map(item => (
                     <div key={item.id} className="bg-terminal-card border border-terminal-border rounded-lg p-3 hover:border-terminal-accent/50 transition-colors">
                         <div className="flex justify-between items-start mb-2">
-                            <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${item.category === 'MACRO' ? 'bg-blue-500/10 text-blue-400' : 'bg-purple-500/10 text-purple-400'
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${
+                                item.category === 'MACRO' ? 'bg-blue-500/10 text-blue-400' :
+                                item.category === 'ONCHAIN' ? 'bg-green-500/10 text-green-400' :
+                                'bg-purple-500/10 text-purple-400'
                                 }`}>
                                 {item.category}
                             </span>

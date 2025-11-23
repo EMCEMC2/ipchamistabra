@@ -2,6 +2,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { ChatMessage, GroundingSource, TradeSignal, JournalEntry, IntelItem, AgentRole, AgentTaskResult, IntelItemSchema, TradeSignalSchema } from "../types";
 import { z } from 'zod';
+import { validateSignal, calculateRiskReward, parsePrice, classifyMarketRegime } from '../utils/tradingCalculations';
 
 const getAiClient = () => {
   const fromProcessEnv = process.env.API_KEY;
@@ -243,7 +244,7 @@ export const scanMarketForSignals = async (context: string): Promise<Omit<TradeS
       model: FAST_MODEL_ID,
       contents: `Analyze the provided market context and generate 1-3 algorithmic trading signals based on BitMind Tactical v2 logic.
       Context: ${context}
-      
+
       **System Rules (STRICTLY FOLLOW PROVIDED INDICATORS):**
       - **RSI**: Use the provided "RSI (14)" value. Overbought > 70, Oversold < 30.
       - **Trend**: Use the provided "Trend Alignment" (EMA 21 vs 55).
@@ -256,11 +257,11 @@ export const scanMarketForSignals = async (context: string): Promise<Omit<TradeS
       - **Mean Reversion**: RSI Extremes (>75 or <25) + Low Volatility (VIX < 15).
 
       **Task Requirements:**
-      1. **Classify Market Regime**: Identify if the market is 'LOW_VOL', 'NORMAL', 'HIGH_VOL', or 'TRENDING' based on VIX and ADX.
-      2. **Calculate R:R**: Ensure riskRewardRatio is a number (e.g. 2.5).
-      3. **Formatting**: 'targets' must be an array of strings.
-      
-      Focus on high probability setups supported by the DATA.
+      1. Provide entry zone, stop loss, and target prices as numbers or ranges (e.g., "84200" or "84000-84500")
+      2. Provide confidence 0-100
+      3. Explain reasoning clearly
+
+      **IMPORTANT:** Do NOT calculate R:R or regime yourself. Just provide the prices and confidence.
       `,
       config: {
         responseMimeType: "application/json",
@@ -274,13 +275,11 @@ export const scanMarketForSignals = async (context: string): Promise<Omit<TradeS
               entryZone: { type: Type.STRING },
               invalidation: { type: Type.STRING },
               targets: { type: Type.ARRAY, items: { type: Type.STRING } },
-              riskRewardRatio: { type: Type.NUMBER },
               confidence: { type: Type.NUMBER },
-              regime: { type: Type.STRING, enum: ['LOW_VOL', 'NORMAL', 'HIGH_VOL', 'TRENDING'] },
               reasoning: { type: Type.STRING },
               status: { type: Type.STRING, enum: ["SCANNING", "ACTIVE"] },
             },
-            required: ["pair", "type", "entryZone", "invalidation", "targets", "riskRewardRatio", "confidence", "regime", "reasoning", "status"],
+            required: ["pair", "type", "entryZone", "invalidation", "targets", "confidence", "reasoning", "status"],
           },
         },
       },
@@ -289,8 +288,56 @@ export const scanMarketForSignals = async (context: string): Promise<Omit<TradeS
     const text = response.text;
     if (!text) return [];
 
-    const data = cleanAndParseJSON<Omit<TradeSignal, 'id' | 'timestamp'>[]>(text);
-    return data || [];
+    const rawData = cleanAndParseJSON<any[]>(text);
+    if (!rawData) return [];
+
+    // CRITICAL: Validate and calculate R:R in TypeScript (NOT AI)
+    const validatedSignals: TradeSignal[] = [];
+
+    for (const rawSignal of rawData) {
+      // Extract technical data from context for regime calculation
+      const contextMatch = context.match(/ADX[^\d]*(\d+\.?\d*)/i);
+      const adx = contextMatch ? parseFloat(contextMatch[1]) : 0;
+
+      // Determine regime based on actual data (not AI hallucination)
+      let regime: TradeSignal['regime'] = 'NORMAL';
+      if (adx > 25) {
+        regime = 'TRENDING';
+      } else {
+        const vixMatch = context.match(/VIX[^\d]*(\d+\.?\d*)/i);
+        const vix = vixMatch ? parseFloat(vixMatch[1]) : 20;
+        if (vix < 15) regime = 'LOW_VOL';
+        if (vix > 25) regime = 'HIGH_VOL';
+      }
+
+      // Parse prices
+      const entry = parsePrice(rawSignal.entryZone);
+      const stop = parsePrice(rawSignal.invalidation);
+      const target = parsePrice(rawSignal.targets?.[0] || '');
+
+      if (!entry || !stop || !target) {
+        console.warn('[Signal Validation] Skipping invalid signal (bad prices):', rawSignal);
+        continue;
+      }
+
+      // Calculate REAL R:R (TypeScript, not AI)
+      const rr = calculateRiskReward(entry, stop, target);
+
+      // Build validated signal
+      const validated = validateSignal({
+        ...rawSignal,
+        regime, // Our calculation
+        riskRewardRatio: rr, // Our calculation
+      });
+
+      if (validated) {
+        validatedSignals.push(validated);
+      }
+    }
+
+    console.log(`[Signal Scan] Generated ${validatedSignals.length} validated signals (from ${rawData.length} raw)`);
+    return validatedSignals;
+
   } catch (error) {
     console.error("Signal Scan Error:", error);
     return [];

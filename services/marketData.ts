@@ -1,21 +1,20 @@
 
 import { useStore } from '../store/useStore';
 import {
-    getMacroMarketMetrics,
-    getDerivativesMetrics,
     getSentimentAnalysis,
     scanGlobalIntel,
     scanMarketForSignals
 } from './gemini';
+import { fetchMacroData, fetchDerivativesMetrics } from './macroDataService';
 
 export const fetchGlobalData = async () => {
     try {
-        // Parallel fetch for efficiency
+        // Parallel fetch for efficiency - NOW USING REAL APIs (not AI search)
         const [macro, derivatives, sentiment, intel] = await Promise.all([
-            getMacroMarketMetrics(),
-            getDerivativesMetrics(),
-            getSentimentAnalysis(),
-            scanGlobalIntel()
+            fetchMacroData(), // REAL Yahoo Finance + CoinGecko
+            fetchDerivativesMetrics(), // REAL CoinGlass API
+            getSentimentAnalysis(), // REAL Fear & Greed Index
+            scanGlobalIntel() // Still AI-powered (for news), but not for metrics
         ]);
 
         useStore.setState({
@@ -32,9 +31,9 @@ export const fetchGlobalData = async () => {
             intel: intel
         });
 
-        console.log("Global Data Synced");
+        console.log("✅ Global Data Synced (REAL APIs)");
     } catch (error) {
-        console.error("Global Data Sync Error:", error);
+        console.error("❌ Global Data Sync Error:", error);
     }
 };
 
