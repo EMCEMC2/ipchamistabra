@@ -12,7 +12,12 @@ const getAiClient = () => {
 
   if (!apiKey) {
     console.error("[Gemini Service] ERROR: API_KEY is missing from both sources!");
-    throw new Error("API_KEY is not defined in the environment.");
+    throw new Error("API_KEY is not defined. Please add VITE_GEMINI_API_KEY to your environment or settings.");
+  }
+
+  // Basic validation for Google AI keys (usually start with AIza)
+  if (!apiKey.startsWith("AIza")) {
+    console.warn("[Gemini Service] WARNING: API Key does not start with 'AIza'. It might be invalid.");
   }
 
   return new GoogleGenAI({ apiKey });
