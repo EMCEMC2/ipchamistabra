@@ -12,7 +12,7 @@ import {
   IPriceLine
 } from 'lightweight-charts';
 import { ChartDataPoint, TradeSignal } from '../types';
-import { Code, Eye, EyeOff, Activity, Layers } from 'lucide-react';
+import { Code, Eye, EyeOff, Activity, Layers, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import { PineScriptModal } from './PineScriptModal';
 import {
   calculateSMA,
@@ -51,6 +51,7 @@ export const ChartPanel: React.FC = () => {
   const [isScriptModalOpen, setIsScriptModalOpen] = useState(false);
   const [showSignals, setShowSignals] = useState(true);
   const [showTactical, setShowTactical] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
 
   const timeframes = [
     { label: '15m', value: '15m' },
@@ -71,19 +72,58 @@ export const ChartPanel: React.FC = () => {
 
     const chart = createChart(chartContainerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: '#18181b' },
-        textColor: '#a1a1aa',
-        fontFamily: 'JetBrains Mono, monospace',
+        background: { type: ColorType.Solid, color: 'transparent' },
+        textColor: '#9ca3af',
+        fontFamily: 'Inter, sans-serif',
+        fontSize: 12,
       },
       grid: {
-        vertLines: { color: '#27272a' },
-        horzLines: { color: '#27272a' },
+        vertLines: { color: '#27272a', style: LineStyle.Solid, visible: true },
+        horzLines: { color: '#27272a', style: LineStyle.Solid, visible: true },
       },
-      width: chartContainerRef.current.clientWidth || 800, // Fallback width
-      height: chartContainerRef.current.clientHeight || 400, // Fallback height
-      crosshair: { mode: CrosshairMode.Normal },
-      timeScale: { borderColor: '#27272a', timeVisible: true },
-      rightPriceScale: { borderColor: '#27272a' },
+      width: chartContainerRef.current.clientWidth || 800,
+      height: chartContainerRef.current.clientHeight || 400,
+      crosshair: {
+        mode: CrosshairMode.Magnet,
+        vertLine: {
+          color: '#6b7280',
+          width: 1,
+          style: LineStyle.Dashed,
+          labelBackgroundColor: '#374151',
+        },
+        horzLine: {
+          color: '#6b7280',
+          width: 1,
+          style: LineStyle.Dashed,
+          labelBackgroundColor: '#374151',
+        },
+      },
+      timeScale: {
+        borderColor: '#374151',
+        timeVisible: true,
+        secondsVisible: false,
+        rightOffset: 12,
+        barSpacing: 8,
+        minBarSpacing: 4,
+      },
+      rightPriceScale: {
+        borderColor: '#374151',
+        scaleMargins: {
+          top: 0.1,
+          bottom: 0.1,
+        },
+      },
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: false,
+      },
+      handleScale: {
+        axisPressedMouseMove: true,
+        mouseWheel: true,
+        pinch: true,
+      },
     });
 
     // Lightweight Charts v4 API
@@ -123,12 +163,20 @@ export const ChartPanel: React.FC = () => {
 
   // --- TACTICAL ENGINE & DATA UPDATE ---
   useEffect(() => {
-    if (!data || data.length === 0 || !candleSeriesRef.current) return;
+    if (!data || data.length === 0 || !candleSeriesRef.current) {
+      setIsLoading(true);
+      return;
+    }
+
+    setIsLoading(true);
 
     // 1. Basic Candle Data
     candleSeriesRef.current.setData(data.map(d => ({
       time: d.time as Time, open: d.open, high: d.high, low: d.low, close: d.close
     })));
+
+    // Mark as loaded after a brief delay for smooth transition
+    setTimeout(() => setIsLoading(false), 300);
 
     if (!showTactical) {
       emaFastSeriesRef.current?.setData([]);
@@ -340,25 +388,76 @@ export const ChartPanel: React.FC = () => {
     });
   }, [signals, showSignals, data]);
 
+  // Zoom Controls
+  const handleZoomIn = () => {
+    if (!chartRef.current) return;
+    const timeScale = chartRef.current.timeScale();
+    const visibleRange = timeScale.getVisibleRange();
+    if (visibleRange) {
+      const diff = visibleRange.to - visibleRange.from;
+      const newDiff = diff * 0.75; // Zoom in 25%
+      const center = (visibleRange.from + visibleRange.to) / 2;
+      timeScale.setVisibleRange({
+        from: (center - newDiff / 2) as Time,
+        to: (center + newDiff / 2) as Time,
+      });
+    }
+  };
+
+  const handleZoomOut = () => {
+    if (!chartRef.current) return;
+    const timeScale = chartRef.current.timeScale();
+    const visibleRange = timeScale.getVisibleRange();
+    if (visibleRange) {
+      const diff = visibleRange.to - visibleRange.from;
+      const newDiff = diff * 1.25; // Zoom out 25%
+      const center = (visibleRange.from + visibleRange.to) / 2;
+      timeScale.setVisibleRange({
+        from: (center - newDiff / 2) as Time,
+        to: (center + newDiff / 2) as Time,
+      });
+    }
+  };
+
+  const handleResetZoom = () => {
+    if (!chartRef.current) return;
+    chartRef.current.timeScale().fitContent();
+  };
+
   return (
-    <div className="h-full w-full bg-terminal-card border border-terminal-border rounded-lg p-4 flex flex-col relative">
-      <div className="flex justify-between items-center mb-2 shrink-0 z-10">
+    <div className="h-full w-full card-premium flex flex-col relative overflow-hidden group">
+      {/* Loading Overlay */}
+      {isLoading && (
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-12 h-12 border-4 border-green-500/20 border-t-green-500 rounded-full animate-spin"></div>
+            <div className="text-sm font-medium text-gray-400">Loading chart data...</div>
+          </div>
+        </div>
+      )}
+
+      {/* Header Controls */}
+      <div className="flex justify-between items-center mb-3 shrink-0 z-10">
         <div className="flex items-center gap-4">
-          <h2 className="text-terminal-muted font-mono text-sm uppercase tracking-wider flex items-center gap-2">
+          <h2 className="text-gray-400 font-sans text-sm uppercase tracking-wider flex items-center gap-2">
+            <Activity size={14} className="text-green-400" />
             BTCUSDT.P
-            <span className="text-terminal-text font-bold hidden sm:inline">
+            <span className="text-gray-200 font-semibold hidden sm:inline">
               • {timeframes.find(t => t.value === timeframe)?.label}
             </span>
           </h2>
-          <div className="flex bg-terminal-bg border border-terminal-border rounded p-0.5">
+
+          {/* Timeframe Selector */}
+          <div className="flex bg-white/5 border border-white/10 rounded-md p-0.5 gap-0.5">
             {timeframes.map((tf) => (
               <button
                 key={tf.value}
                 onClick={() => onTimeframeChange(tf.value)}
-                className={`px-1.5 py-0.5 text-[10px] font-mono rounded transition-colors ${timeframe === tf.value
-                  ? 'bg-terminal-border text-terminal-accent font-bold'
-                  : 'text-terminal-muted hover:text-terminal-text hover:bg-terminal-border/50'
-                  }`}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-all duration-200 ${
+                  timeframe === tf.value
+                    ? 'bg-green-500/20 text-green-400 border border-green-500/50 shadow-[0_0_10px_rgba(34,197,94,0.2)]'
+                    : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+                }`}
               >
                 {tf.label}
               </button>
@@ -367,41 +466,73 @@ export const ChartPanel: React.FC = () => {
         </div>
 
         <div className="flex gap-2 items-center">
+          {/* Zoom Controls */}
+          <div className="flex bg-white/5 border border-white/10 rounded-md overflow-hidden">
+            <button
+              onClick={handleZoomIn}
+              className="px-2 py-1.5 text-gray-400 hover:text-green-400 hover:bg-white/5 transition-all duration-200 border-r border-white/10"
+              title="Zoom In"
+            >
+              <ZoomIn size={14} />
+            </button>
+            <button
+              onClick={handleZoomOut}
+              className="px-2 py-1.5 text-gray-400 hover:text-green-400 hover:bg-white/5 transition-all duration-200 border-r border-white/10"
+              title="Zoom Out"
+            >
+              <ZoomOut size={14} />
+            </button>
+            <button
+              onClick={handleResetZoom}
+              className="px-2 py-1.5 text-gray-400 hover:text-green-400 hover:bg-white/5 transition-all duration-200"
+              title="Fit Content"
+            >
+              <Maximize2 size={14} />
+            </button>
+          </div>
+
           {/* TACTICAL V2 TOGGLE */}
           <button
             onClick={() => setShowTactical(!showTactical)}
-            className={`flex items-center gap-1.5 px-2 py-1 rounded transition-all border ${showTactical
-              ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-              : 'bg-terminal-border text-terminal-muted border-terminal-border'
-              }`}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md transition-all duration-200 border ${
+              showTactical
+                ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 shadow-[0_0_10px_rgba(251,191,36,0.15)]'
+                : 'bg-white/5 text-gray-400 border-white/10 hover:border-amber-500/30 hover:text-amber-400'
+            }`}
             title="Toggle BitMind Tactical v2 Indicators"
           >
-            <Layers size={12} />
-            <span className="text-[10px] font-mono font-bold uppercase">TACTICAL v2</span>
+            <Layers size={14} />
+            <span className="text-xs font-medium uppercase">TACTICAL</span>
           </button>
 
           <button
             onClick={() => setShowSignals(!showSignals)}
-            className={`flex items-center gap-1.5 px-2 py-1 rounded transition-all border ${showSignals
-              ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-              : 'bg-terminal-border text-terminal-muted border-terminal-border'
-              }`}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md transition-all duration-200 border ${
+              showSignals
+                ? 'bg-blue-500/10 text-blue-400 border-blue-500/30 shadow-[0_0_10px_rgba(59,130,246,0.15)]'
+                : 'bg-white/5 text-gray-400 border-white/10 hover:border-blue-500/30 hover:text-blue-400'
+            }`}
             title="Toggle AI Signal Overlay"
           >
-            {showSignals ? <Eye size={12} /> : <EyeOff size={12} />}
-            <span className="text-[10px] font-mono font-bold uppercase">AI OVERLAY</span>
+            {showSignals ? <Eye size={14} /> : <EyeOff size={14} />}
+            <span className="text-xs font-medium uppercase">SIGNALS</span>
           </button>
 
           <button
             onClick={() => setIsScriptModalOpen(true)}
-            className="flex items-center gap-1.5 bg-terminal-border hover:bg-terminal-accent/10 border border-terminal-border hover:border-terminal-accent text-terminal-muted hover:text-terminal-accent px-2 py-1 rounded transition-all group"
+            className="flex items-center gap-1.5 bg-white/5 hover:bg-purple-500/10 border border-white/10 hover:border-purple-500/30 text-gray-400 hover:text-purple-400 px-2.5 py-1.5 rounded-md transition-all duration-200 group"
           >
-            <Code size={12} className="group-hover:rotate-12 transition-transform" />
-            <span className="text-[10px] font-mono font-bold uppercase">PINE SCRIPT</span>
+            <Code size={14} className="group-hover:rotate-12 transition-transform duration-300" />
+            <span className="text-xs font-medium uppercase">PINE</span>
           </button>
         </div>
       </div>
-      <div className="flex-1 w-full relative overflow-hidden" ref={chartContainerRef} />
+
+      {/* Chart Container */}
+      <div className="flex-1 w-full relative overflow-hidden rounded-md bg-gradient-to-b from-black/20 to-black/40 border border-white/5" ref={chartContainerRef}>
+        {/* Shimmer effect on hover */}
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out pointer-events-none"></div>
+      </div>
 
       <PineScriptModal
         isOpen={isScriptModalOpen}
