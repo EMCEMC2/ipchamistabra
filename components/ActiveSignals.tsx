@@ -92,9 +92,6 @@ export const ActiveSignals: React.FC<ActiveSignalsProps> = ({ onTrade }) => {
                   ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]'
                   : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
               }`} />
-
-              {/* Subtle shimmer on hover */}
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out pointer-events-none"></div>
               
               <div className="pl-2 flex flex-col gap-2 relative z-10">
                   {/* Header */}

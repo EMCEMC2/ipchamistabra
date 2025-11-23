@@ -69,8 +69,6 @@ export const MetricCard: React.FC<MetricCardProps> = ({
         ${getTrendGlow()}
       `}
     >
-      {/* Shimmer Effect on Hover */}
-      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out pointer-events-none"></div>
 
       {/* Trend Indicator Badge */}
       <div className="absolute top-2 right-2 opacity-60 group-hover:opacity-100 transition-opacity duration-200">

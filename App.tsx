@@ -101,24 +101,18 @@ function App() {
         onClick={() => setActiveView(id)}
         className={`
           relative flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-300
-          text-xs font-semibold tracking-wide overflow-hidden group
+          text-xs font-semibold tracking-wide
           ${isActive
             ? 'bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-400 border border-green-500/50 shadow-[0_0_15px_rgba(34,197,94,0.25)]'
             : 'text-gray-400 hover:text-gray-200 hover:bg-white/5 border border-transparent hover:border-white/10'
           }
         `}
       >
-        {/* Shine effect */}
-        <div className={`
-          absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent
-          ${isActive ? '-translate-x-full group-hover:translate-x-full transition-transform duration-1000' : ''}
-        `}></div>
-
         {/* Icon */}
-        <Icon size={16} className="relative z-10" />
+        <Icon size={16} />
 
         {/* Label */}
-        <span className="relative z-10">{label}</span>
+        <span>{label}</span>
 
         {/* Active Indicator Dot */}
         {isActive && (
