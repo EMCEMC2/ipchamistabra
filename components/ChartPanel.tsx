@@ -51,7 +51,6 @@ export const ChartPanel: React.FC = () => {
   const [isScriptModalOpen, setIsScriptModalOpen] = useState(false);
   const [showSignals, setShowSignals] = useState(true);
   const [showTactical, setShowTactical] = useState(true);
-  const [isLoading, setIsLoading] = useState(true);
 
   const timeframes = [
     { label: '15m', value: '15m' },
@@ -164,19 +163,13 @@ export const ChartPanel: React.FC = () => {
   // --- TACTICAL ENGINE & DATA UPDATE ---
   useEffect(() => {
     if (!data || data.length === 0 || !candleSeriesRef.current) {
-      setIsLoading(true);
       return;
     }
-
-    setIsLoading(true);
 
     // 1. Basic Candle Data
     candleSeriesRef.current.setData(data.map(d => ({
       time: d.time as Time, open: d.open, high: d.high, low: d.low, close: d.close
     })));
-
-    // Mark as loaded after a brief delay for smooth transition
-    setTimeout(() => setIsLoading(false), 300);
 
     if (!showTactical) {
       emaFastSeriesRef.current?.setData([]);
@@ -426,16 +419,6 @@ export const ChartPanel: React.FC = () => {
 
   return (
     <div className="h-full w-full card-premium flex flex-col relative overflow-hidden group">
-      {/* Loading Overlay */}
-      {isLoading && (
-        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-12 h-12 border-4 border-green-500/20 border-t-green-500 rounded-full animate-spin"></div>
-            <div className="text-sm font-medium text-gray-400">Loading chart data...</div>
-          </div>
-        </div>
-      )}
-
       {/* Header Controls */}
       <div className="flex justify-between items-center mb-3 shrink-0 z-10">
         <div className="flex items-center gap-4">
