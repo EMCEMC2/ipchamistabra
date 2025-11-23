@@ -1,0 +1,397 @@
+/**
+ * ELITE DESIGN SYSTEM - IPCHA MISTABRA
+ * Premium Trading Platform UI Tokens
+ * Designed for professional traders requiring $1000/hr level polish
+ */
+
+:root {
+  /* ========================================
+     SPACING SCALE (8px base system)
+     ======================================== */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  --space-3xl: 64px;
+
+  /* ========================================
+     SEMANTIC COLORS - Dark Theme
+     ======================================== */
+
+  /* Backgrounds */
+  --bg-primary: hsl(240 10% 3.9%);        /* Main canvas */
+  --bg-secondary: hsl(240 4% 9%);         /* Elevated panels */
+  --bg-tertiary: hsl(240 4% 15%);         /* Interactive elements */
+  --bg-elevated: hsl(240 4% 18%);         /* Highest elevation */
+  --bg-glass: hsla(240 4% 18% / 0.6);     /* Glass morphism */
+  --bg-overlay: hsla(240 10% 3.9% / 0.8); /* Modals/overlays */
+
+  /* Text */
+  --text-primary: hsl(0 0% 98%);          /* Main text */
+  --text-secondary: hsl(240 5% 65%);      /* Secondary text */
+  --text-tertiary: hsl(240 4% 45%);       /* Muted text */
+  --text-inverse: hsl(240 10% 3.9%);      /* On light backgrounds */
+
+  /* Borders */
+  --border-subtle: hsl(240 4% 20%);       /* Default borders */
+  --border-medium: hsl(240 4% 25%);       /* Elevated borders */
+  --border-strong: hsl(240 4% 35%);       /* Focused borders */
+
+  /* Accent Colors - Semantic Meaning */
+  --accent-bullish: hsl(142 76% 36%);     /* Green - Bullish/Long */
+  --accent-bullish-bright: hsl(142 76% 45%);
+  --accent-bullish-muted: hsl(142 30% 25%);
+
+  --accent-bearish: hsl(0 84% 60%);       /* Red - Bearish/Short */
+  --accent-bearish-bright: hsl(0 84% 68%);
+  --accent-bearish-muted: hsl(0 40% 30%);
+
+  --accent-info: hsl(217 91% 60%);        /* Blue - Information */
+  --accent-info-bright: hsl(217 91% 68%);
+  --accent-info-muted: hsl(217 30% 30%);
+
+  --accent-warning: hsl(48 96% 53%);      /* Yellow - Warning */
+  --accent-warning-bright: hsl(48 96% 60%);
+  --accent-warning-muted: hsl(48 40% 30%);
+
+  --accent-neutral: hsl(240 5% 65%);      /* Gray - Neutral */
+  --accent-premium: hsl(280 70% 60%);     /* Purple - Premium features */
+
+  /* ========================================
+     SHADOWS & ELEVATION
+     ======================================== */
+
+  /* Subtle elevation */
+  --shadow-sm:
+    0 1px 2px 0 rgba(0, 0, 0, 0.3),
+    0 1px 3px 1px rgba(0, 0, 0, 0.15);
+
+  /* Medium elevation (cards) */
+  --shadow-md:
+    0 4px 6px -1px rgba(0, 0, 0, 0.4),
+    0 2px 4px -2px rgba(0, 0, 0, 0.3);
+
+  /* High elevation (modals, dropdowns) */
+  --shadow-lg:
+    0 10px 15px -3px rgba(0, 0, 0, 0.5),
+    0 4px 6px -4px rgba(0, 0, 0, 0.4);
+
+  /* Premium glow effects */
+  --glow-bullish: 0 0 20px rgba(34, 197, 94, 0.3);
+  --glow-bearish: 0 0 20px rgba(248, 113, 113, 0.3);
+  --glow-info: 0 0 20px rgba(59, 130, 246, 0.3);
+  --glow-premium: 0 0 30px rgba(168, 85, 247, 0.4);
+
+  /* ========================================
+     BORDER RADIUS
+     ======================================== */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* ========================================
+     TYPOGRAPHY SCALE
+     ======================================== */
+
+  /* Font Families */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  --font-display: 'Inter', sans-serif; /* For large headings */
+
+  /* Font Sizes */
+  --text-xs: 0.75rem;    /* 12px */
+  --text-sm: 0.875rem;   /* 14px */
+  --text-base: 1rem;     /* 16px */
+  --text-lg: 1.125rem;   /* 18px */
+  --text-xl: 1.25rem;    /* 20px */
+  --text-2xl: 1.5rem;    /* 24px */
+  --text-3xl: 1.875rem;  /* 30px */
+  --text-4xl: 2.25rem;   /* 36px */
+
+  /* Font Weights */
+  --font-normal: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+
+  /* Line Heights */
+  --leading-tight: 1.25;
+  --leading-snug: 1.375;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+  --leading-loose: 2;
+
+  /* Letter Spacing */
+  --tracking-tight: -0.025em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.025em;
+  --tracking-wider: 0.05em;
+
+  /* ========================================
+     TRANSITIONS & ANIMATIONS
+     ======================================== */
+
+  /* Timing Functions (Easing) */
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-smooth: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+  /* Duration */
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 350ms;
+  --duration-slower: 500ms;
+
+  /* Standard Transitions */
+  --transition-all: all var(--duration-normal) var(--ease-smooth);
+  --transition-colors: color var(--duration-fast) var(--ease-out),
+                       background-color var(--duration-fast) var(--ease-out),
+                       border-color var(--duration-fast) var(--ease-out);
+  --transition-transform: transform var(--duration-normal) var(--ease-smooth);
+  --transition-opacity: opacity var(--duration-fast) var(--ease-out);
+
+  /* ========================================
+     Z-INDEX LAYERS
+     ======================================== */
+  --z-base: 0;
+  --z-dropdown: 1000;
+  --z-sticky: 1100;
+  --z-fixed: 1200;
+  --z-modal-backdrop: 1300;
+  --z-modal: 1400;
+  --z-popover: 1500;
+  --z-tooltip: 1600;
+  --z-notification: 1700;
+
+  /* ========================================
+     COMPONENT-SPECIFIC TOKENS
+     ======================================== */
+
+  /* Buttons */
+  --btn-height-sm: 32px;
+  --btn-height-md: 40px;
+  --btn-height-lg: 48px;
+  --btn-padding-x-sm: 12px;
+  --btn-padding-x-md: 16px;
+  --btn-padding-x-lg: 24px;
+
+  /* Inputs */
+  --input-height-sm: 32px;
+  --input-height-md: 40px;
+  --input-height-lg: 48px;
+  --input-padding-x: 12px;
+  --input-border-width: 1px;
+  --input-focus-ring: 0 0 0 3px hsla(217, 91%, 60%, 0.2);
+
+  /* Cards */
+  --card-padding: var(--space-md);
+  --card-padding-lg: var(--space-lg);
+  --card-border-width: 1px;
+
+  /* Chart */
+  --chart-grid-color: hsl(240 4% 15%);
+  --chart-crosshair-color: hsl(240 5% 50%);
+  --chart-tooltip-bg: hsla(240 4% 18% / 0.95);
+
+  /* ========================================
+     GLASSMORPHISM
+     ======================================== */
+  --glass-bg: hsla(240 4% 18% / 0.6);
+  --glass-border: hsla(255 255 255 / 0.1);
+  --glass-blur: blur(12px);
+  --glass-saturate: saturate(180%);
+
+  /* ========================================
+     DATA VISUALIZATION COLORS
+     ======================================== */
+
+  /* Chart colors */
+  --chart-bullish-candle: hsl(142 76% 45%);
+  --chart-bearish-candle: hsl(0 84% 60%);
+  --chart-volume-bullish: hsla(142 76% 45% / 0.4);
+  --chart-volume-bearish: hsla(0 84% 60% / 0.4);
+
+  /* Indicator colors */
+  --indicator-ma-fast: hsl(48 96% 53%);
+  --indicator-ma-slow: hsl(280 70% 60%);
+  --indicator-rsi-overbought: hsl(0 84% 60%);
+  --indicator-rsi-oversold: hsl(142 76% 45%);
+
+  /* Heatmap colors */
+  --heatmap-cold: hsl(217 91% 60%);
+  --heatmap-neutral: hsl(48 96% 53%);
+  --heatmap-hot: hsl(0 84% 60%);
+
+  /* ========================================
+     ACCESSIBILITY
+     ======================================== */
+  --focus-ring: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--accent-info);
+  --focus-ring-offset: 2px;
+
+  /* Minimum contrast ratios (WCAG AA) */
+  --contrast-ratio-normal: 4.5;  /* Normal text */
+  --contrast-ratio-large: 3;     /* Large text (18px+) */
+
+  /* ========================================
+     PERFORMANCE
+     ======================================== */
+  /* GPU-accelerated properties */
+  --gpu-hack: translateZ(0);
+  --will-change-transform: transform;
+  --will-change-opacity: opacity;
+}
+
+/* ========================================
+   UTILITY CLASSES - Premium Components
+   ======================================== */
+
+.glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: var(--glass-blur) var(--glass-saturate);
+  -webkit-backdrop-filter: var(--glass-blur) var(--glass-saturate);
+}
+
+.elevated {
+  box-shadow: var(--shadow-md);
+}
+
+.glow-bullish {
+  box-shadow: var(--glow-bullish);
+}
+
+.glow-bearish {
+  box-shadow: var(--glow-bearish);
+}
+
+.glow-premium {
+  box-shadow: var(--glow-premium);
+}
+
+.smooth-transition {
+  transition: var(--transition-all);
+}
+
+.fade-in {
+  animation: fadeIn var(--duration-normal) var(--ease-out);
+}
+
+.slide-in-up {
+  animation: slideInUp var(--duration-normal) var(--ease-smooth);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+/* ========================================
+   TYPOGRAPHY UTILITIES
+   ======================================== */
+
+.text-display {
+  font-family: var(--font-display);
+  font-size: var(--text-4xl);
+  font-weight: var(--font-bold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+}
+
+.text-h1 {
+  font-size: var(--text-2xl);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-tight);
+}
+
+.text-h2 {
+  font-size: var(--text-xl);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-snug);
+}
+
+.text-h3 {
+  font-size: var(--text-lg);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-normal);
+}
+
+.text-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ========================================
+   FOCUS STATES (Accessibility)
+   ======================================== */
+
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ========================================
+   PERFORMANCE OPTIMIZATIONS
+   ======================================== */
+
+.gpu-accelerated {
+  transform: var(--gpu-hack);
+  will-change: var(--will-change-transform);
+}
+
+.optimize-animations {
+  will-change: var(--will-change-opacity), var(--will-change-transform);
+}
+
+/* Remove will-change after animation completes */
+.optimize-animations.animation-complete {
+  will-change: auto;
+}

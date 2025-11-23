@@ -92,19 +92,41 @@ function App() {
 
 
 
-  // Navigation Button Component
-  const NavButton = ({ id, label, icon: Icon }: { id: ViewMode, label: string, icon: any }) => (
-    <button
-      onClick={() => setActiveView(id)}
-      className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-all font-mono text-xs ${activeView === id
-        ? 'bg-terminal-accent/20 text-terminal-accent border border-terminal-accent/50 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
-        : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
-        }`}
-    >
-      <Icon size={14} />
-      <span className="font-bold tracking-wider">{label}</span>
-    </button>
-  );
+  // Premium Navigation Button Component
+  const NavButton = ({ id, label, icon: Icon }: { id: ViewMode, label: string, icon: any }) => {
+    const isActive = activeView === id;
+
+    return (
+      <button
+        onClick={() => setActiveView(id)}
+        className={`
+          relative flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-300
+          text-xs font-semibold tracking-wide overflow-hidden group
+          ${isActive
+            ? 'bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-400 border border-green-500/50 shadow-[0_0_15px_rgba(34,197,94,0.25)]'
+            : 'text-gray-400 hover:text-gray-200 hover:bg-white/5 border border-transparent hover:border-white/10'
+          }
+        `}
+      >
+        {/* Shine effect */}
+        <div className={`
+          absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent
+          ${isActive ? '-translate-x-full group-hover:translate-x-full transition-transform duration-1000' : ''}
+        `}></div>
+
+        {/* Icon */}
+        <Icon size={16} className="relative z-10" />
+
+        {/* Label */}
+        <span className="relative z-10">{label}</span>
+
+        {/* Active Indicator Dot */}
+        {isActive && (
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-green-400 rounded-full shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
+        )}
+      </button>
+    );
+  };
 
   // Scroll to top on view change
   useEffect(() => {
@@ -158,19 +180,31 @@ function App() {
   };
 
   return (
-    <div className="h-screen bg-black text-gray-200 font-mono selection:bg-green-900 selection:text-white overflow-hidden flex flex-col">
+    <div className="h-screen bg-black text-gray-200 font-sans selection:bg-green-900 selection:text-white overflow-hidden flex flex-col">
       {isApiKeyMissing && <ApiKeyModal />}
 
-      {/* Header */}
-      <header className="h-12 border-b border-white/10 flex items-center justify-between px-4 bg-black/50 backdrop-blur-md sticky top-0 z-50 shrink-0">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <Terminal className="w-5 h-5 text-green-500" />
-            <span className="font-bold tracking-widest text-green-500">IPCHA MISTABRA <span className="text-xs text-gray-500">v2.1</span></span>
+      {/* Elite Header with Glass Morphism */}
+      <header className="h-14 border-b border-white/10 flex items-center justify-between px-6 glass relative z-50 shrink-0">
+        {/* Subtle gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-r from-green-500/5 via-transparent to-blue-500/5 pointer-events-none"></div>
+
+        <div className="flex items-center gap-8 relative z-10">
+          {/* Premium Branding */}
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Terminal className="w-6 h-6 text-green-400" />
+              <div className="absolute inset-0 blur-md bg-green-500/30"></div>
+            </div>
+            <div className="flex flex-col">
+              <span className="font-bold tracking-wider text-lg text-gradient-bullish leading-none">
+                IPCHA MISTABRA
+              </span>
+              <span className="text-[10px] text-gray-500 tracking-widest font-medium">ELITE TRADING INTELLIGENCE</span>
+            </div>
           </div>
 
-          {/* Navigation Tabs */}
-          <div className="flex items-center gap-2 border-l border-white/10 pl-6 h-8">
+          {/* Navigation Tabs - Premium Edition */}
+          <div className="flex items-center gap-2 border-l border-white/10 pl-8 h-10">
             <NavButton id="TERMINAL" label="TERMINAL" icon={Layout} />
             <NavButton id="SWARM" label="SWARM" icon={Users} />
             <NavButton id="CORTEX" label="ML CORTEX" icon={Brain} />
@@ -179,25 +213,34 @@ function App() {
           </div>
         </div>
 
-        {/* Right Side Controls */}
-        <div className="flex items-center gap-4">
-          {/* Status Indicators */}
-          <div className="flex items-center gap-3 text-[10px] font-mono">
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/5 border border-white/10">
-              <div className={`w-1.5 h-1.5 rounded-full ${binanceWS.current ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-              <span className="text-gray-400">FEED</span>
+        {/* Right Side Controls - Premium Status */}
+        <div className="flex items-center gap-4 relative z-10">
+          {/* Elite Status Indicators */}
+          <div className="flex items-center gap-2 text-xs font-medium">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-white/5 border border-white/10 hover:border-green-500/30 transition-all duration-300 group">
+              <div className="status-indicator status-live"></div>
+              <span className="text-gray-400 group-hover:text-green-400 transition-colors">LIVE FEED</span>
+              <span className="text-gray-600">|</span>
+              <span className="text-green-400 font-mono text-[10px]">3/3</span>
             </div>
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/5 border border-white/10">
-              <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-              <span className="text-gray-400">AI CORE</span>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-white/5 border border-white/10 hover:border-blue-500/30 transition-all duration-300 group">
+              <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+              <span className="text-gray-400 group-hover:text-blue-400 transition-colors">AI CORE</span>
+              <span className="text-gray-600">|</span>
+              <span className="text-blue-400 font-mono text-[10px]">READY</span>
             </div>
+          </div>
+
+          {/* Version Badge */}
+          <div className="badge-premium text-purple-400 border-purple-500/30 bg-purple-500/10">
+            <span className="text-[10px] font-bold">v2.1 PRO</span>
           </div>
         </div>
       </header>
 
-      {/* Main Content Grid */}
-      <main className="flex-1 overflow-hidden p-2">
-        <div className="grid grid-cols-12 gap-2 h-full">
+      {/* Main Content Grid with Enhanced Spacing */}
+      <main className="flex-1 overflow-hidden p-3">
+        <div className="grid grid-cols-12 gap-3 h-full fade-in">
           {/* Left Column: Intel & Metrics (3 cols) */}
           <div className="col-span-3 flex flex-col gap-2 h-full overflow-hidden">
             <div className="h-1/3 min-h-[200px] grid grid-cols-2 gap-2">

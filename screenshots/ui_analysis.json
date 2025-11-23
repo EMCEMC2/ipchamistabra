@@ -1,0 +1,52 @@
+{
+  "url": "http://localhost:3002/",
+  "title": "IPCHA MISTABRA",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "colors": [
+    "rgb(0, 0, 0)",
+    "rgb(229, 231, 235)",
+    "rgb(9, 9, 11)",
+    "rgb(228, 228, 231)",
+    "rgba(0, 0, 0, 0.5)",
+    "rgba(255, 255, 255, 0.1)",
+    "rgb(34, 197, 94)",
+    "rgb(107, 114, 128)",
+    "rgba(16, 185, 129, 0.2)",
+    "rgb(16, 185, 129)",
+    "rgba(16, 185, 129, 0.5)",
+    "rgba(255, 255, 255, 0.05)",
+    "rgb(156, 163, 175)",
+    "rgb(59, 130, 246)",
+    "rgba(0, 0, 0, 0.4)",
+    "rgb(74, 222, 128)",
+    "rgb(248, 113, 113)",
+    "rgb(250, 204, 21)",
+    "rgb(39, 39, 42)",
+    "rgb(161, 161, 170)"
+  ],
+  "typography": {
+    "fonts": [
+      "\"JetBrains Mono\", monospace"
+    ],
+    "sizes": [
+      "H3: 14px",
+      "H4: 12px"
+    ]
+  },
+  "layout_info": {
+    "display": "block",
+    "flexDirection": "row",
+    "gridTemplateColumns": "none",
+    "padding": "8px",
+    "gap": "normal"
+  },
+  "body_styles": {
+    "backgroundColor": "rgb(9, 9, 11)",
+    "color": "rgb(228, 228, 231)",
+    "fontFamily": "Inter, sans-serif",
+    "fontSize": "16px"
+  }
+}
