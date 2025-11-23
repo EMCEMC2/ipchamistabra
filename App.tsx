@@ -23,7 +23,7 @@ import { ChartDataPoint } from './types';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
-type ViewMode = 'TERMINAL' | 'SIGNALS' | 'SWARM' | 'CORTEX' | 'JOURNAL';
+type ViewMode = 'TERMINAL' | 'SWARM' | 'CORTEX' | 'JOURNAL';
 
 function App() {
   // Global State
@@ -147,6 +147,13 @@ function App() {
     });
   }, [chartData]);
 
+  // Helper to map store trends to UI trends
+  const mapTrend = (t: 'up' | 'down' | 'neutral'): 'BULLISH' | 'BEARISH' | 'NEUTRAL' => {
+    if (t === 'up') return 'BULLISH';
+    if (t === 'down') return 'BEARISH';
+    return 'NEUTRAL';
+  };
+
   return (
     <div className="h-screen bg-black text-gray-200 font-mono selection:bg-green-900 selection:text-white overflow-hidden flex flex-col">
       {isApiKeyMissing && <ApiKeyModal />}
@@ -162,156 +169,122 @@ function App() {
           {/* Navigation Tabs */}
           <div className="flex items-center gap-2 border-l border-white/10 pl-6 h-8">
             <NavButton id="TERMINAL" label="TERMINAL" icon={Layout} />
-            <NavButton id="SIGNALS" label="SIGNALS" icon={Activity} />
             <NavButton id="SWARM" label="SWARM COUNCIL" icon={Users} />
             <NavButton id="CORTEX" label="ML CORTEX" icon={Brain} />
             <NavButton id="JOURNAL" label="JOURNAL" icon={BookOpen} />
           </div>
         </div>
 
-        <div className="flex items-center gap-6 text-sm">
-          <div className="flex items-center gap-2">
-            <span className="text-gray-500">BTC/USDT</span>
-            <span className={`font-bold ${priceChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              ${price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Activity className="w-4 h-4 text-gray-500" />
-            <span className="text-xs text-green-500 animate-pulse">SYSTEM OPTIMAL</span>
+        {/* Right Side Controls */}
+        <div className="flex items-center gap-4">
+          {/* Status Indicators */}
+          <div className="flex items-center gap-3 text-[10px] font-mono">
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/5 border border-white/10">
+              <div className={`w-1.5 h-1.5 rounded-full ${binanceWS.current ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+              <span className="text-gray-400">FEED</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/5 border border-white/10">
+              <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+              <span className="text-gray-400">AI CORE</span>
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Main Grid */}
-      <main className="flex-1 p-2 overflow-hidden flex flex-col gap-2 min-h-0">
+      {/* Main Content Grid */}
+      <main className="flex-1 overflow-hidden p-2">
+        <div className="grid grid-cols-12 gap-2 h-full">
+          {/* Left Column: Intel & Metrics (3 cols) */}
+          <div className="col-span-3 flex flex-col gap-2 h-full overflow-hidden">
+            <div className="h-1/3 min-h-[200px] grid grid-cols-2 gap-2">
+              <MetricCard
+                title="BTC PRICE"
+                value={`$${price.toLocaleString()}`}
+                subValue={`${priceChange > 0 ? '+' : ''}${priceChange}%`}
+                color={priceChange >= 0 ? 'text-green-400' : 'text-red-400'}
+                trend={mapTrend(trends.price)}
+              />
+              <MetricCard
+                title="SENTIMENT"
+                value={sentimentLabel}
+                subValue={`Score: ${sentimentScore}`}
+                color={sentimentScore > 60 ? 'text-green-400' : sentimentScore < 40 ? 'text-red-400' : 'text-yellow-400'}
+                trend={mapTrend(trends.sentiment)}
+              />
+              <MetricCard
+                title="VIX"
+                value={vix.toFixed(2)}
+                subValue="Volatility"
+                color={vix > 20 ? 'text-red-400' : 'text-green-400'}
+                trend={mapTrend(trends.vix)}
+              />
+              <MetricCard
+                title="BTC DOM"
+                value={`${btcd.toFixed(1)}%`}
+                subValue="Dominance"
+                color="text-yellow-400"
+                trend={mapTrend(trends.btcd)}
+              />
+            </div>
+            <div className="h-2/3 flex-1 min-h-0">
+              <IntelDeck items={intel} />
+            </div>
+          </div>
 
-        {/* Top Row: Metrics */}
-        <div className="shrink-0 grid grid-cols-2 lg:grid-cols-7 gap-2 h-[80px]">
-          <MetricCard
-            title="BITCOIN PRICE"
-            value={`$${price.toLocaleString()}`}
-            subValue={`${priceChange > 0 ? '+' : ''}${priceChange}% (24h)`}
-            color={priceChange >= 0 ? 'text-green-400' : 'text-red-400'}
-            trend={priceChange > 0 ? 'BULLISH' : 'BEARISH'}
-          />
-          <MetricCard
-            title="SENTIMENT"
-            value={sentimentLabel}
-            subValue={`Score: ${sentimentScore}`}
-            color={sentimentScore > 60 ? 'text-green-400' : sentimentScore < 40 ? 'text-red-400' : 'text-yellow-400'}
-            trend={sentimentScore > 60 ? 'BULLISH' : sentimentScore < 40 ? 'BEARISH' : 'NEUTRAL'}
-          />
-          <MetricCard
-            title="VIX (VOLATILITY)"
-            value={vix.toFixed(2)}
-            subValue="Market Fear Index"
-            trend={trends.vix === 'up' ? 'BEARISH' : trends.vix === 'down' ? 'BULLISH' : 'NEUTRAL'}
-            color={vix > 20 ? 'red' : 'green'}
-          />
-          <MetricCard
-            title="BTC DOMINANCE"
-            value={`${btcd.toFixed(1)}%`}
-            subValue="Market Cap %"
-            trend={trends.btcd === 'up' ? 'BULLISH' : trends.btcd === 'down' ? 'BEARISH' : 'NEUTRAL'}
-            color="yellow"
-          />
-          <MetricCard
-            title="OPEN INTEREST"
-            value={derivatives.openInterest}
-            subValue="Total Active Positions"
-            color="text-blue-400"
-            trend="BULLISH"
-          />
-          <MetricCard
-            title="FUNDING RATE"
-            value={derivatives.fundingRate}
-            subValue="Weighted Avg (8h)"
-            color={parseFloat(derivatives.fundingRate) > 0 ? 'text-green-400' : 'text-red-400'}
-            trend={getTrend('FUNDING', parseFloat(derivatives.fundingRate))}
-          />
-          <MetricCard
-            title="LONG/SHORT RATIO"
-            value={derivatives.longShortRatio.toFixed(2)}
-            subValue="Global Sentiment"
-            color={derivatives.longShortRatio > 1 ? 'text-green-400' : 'text-red-400'}
-            trend={getTrend('LS', derivatives.longShortRatio)}
-          />
-        </div>
-
-        {/* Main Content Area */}
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-2 min-h-0">
-
-          {/* Left Column: Main View + Intel */}
-          <div className="col-span-12 lg:col-span-9 flex flex-col gap-2 h-full min-h-0">
-
-            {/* Main View (Chart/Swarm/Cortex) - Flex 1 to take available space */}
-            <div className="flex-[3] bg-black/40 border border-white/10 rounded-sm overflow-hidden relative min-h-0 flex flex-col">
-              <ErrorBoundary>
-                {activeView === 'TERMINAL' && (
+          {/* Center Column: Chart & Signals (6 cols) */}
+          <div className="col-span-6 flex flex-col gap-2 h-full overflow-hidden">
+            {activeView === 'TERMINAL' && (
+              <>
+                <div className="h-[60%] min-h-[300px]">
                   <ChartPanel
                     data={chartData}
                     timeframe={timeframe}
                     onTimeframeChange={setTimeframe}
                     signals={signals}
                   />
-                )}
-                {activeView === 'SIGNALS' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 h-full">
-                    <ActiveSignals
-                      signals={signals}
-                      onScan={fetchSignals}
-                      isScanning={isScanning}
-                    />
-                    <TradeSetupPanel latestAnalysis={latestAnalysis} />
-                  </div>
-                )}
-                {activeView === 'SWARM' && <AgentSwarm />}
-                {activeView === 'CORTEX' && (
-                  <MLCortex
-                    data={chartData}
-                    macro={{ vix, dxy, btcd }}
-                    sentiment={{ score: sentimentScore, label: sentimentLabel }}
+                </div>
+                <div className="h-[40%] flex-1 min-h-0 grid grid-cols-2 gap-2">
+                  <ActiveSignals
+                    signals={signals}
+                    onScan={fetchSignals}
+                    isScanning={isScanning}
                   />
-                )}
-                {activeView === 'JOURNAL' && (
-                  <TradeJournal
-                    entries={journal}
-                    onAddEntry={addJournalEntry}
-                  />
-                )}
-              </ErrorBoundary>
-            </div>
-
-            {/* Intel Deck - Fixed height or Flex 1 */}
-            <div className="flex-1 bg-black/40 border border-white/10 rounded-sm overflow-hidden min-h-[200px]">
-              <ErrorBoundary>
-                <IntelDeck items={intel} latestAnalysis={latestAnalysis} />
-              </ErrorBoundary>
-            </div>
+                  <TradeSetupPanel latestAnalysis={latestAnalysis} />
+                </div>
+              </>
+            )}
+            {activeView === 'SWARM' && <AgentSwarm />}
+            {activeView === 'CORTEX' && (
+              <MLCortex
+                data={chartData}
+                macro={{ vix, dxy, btcd }}
+                sentiment={{ score: sentimentScore, label: sentimentLabel }}
+              />
+            )}
+            {activeView === 'JOURNAL' && (
+              <TradeJournal
+                entries={journal}
+                onAddEntry={addJournalEntry}
+              />
+            )}
           </div>
 
-          {/* Right Column: AI Command Center */}
-          <div className="col-span-12 lg:col-span-3 h-full min-h-0">
-            <div className="h-full bg-black/40 border border-white/10 rounded-sm overflow-hidden">
-              <ErrorBoundary>
-                <AiCommandCenter
-                  onNewAnalysis={handleNewAnalysis}
-                  marketData={{
-                    price,
-                    change: priceChange,
-                    vix: vix,
-                    btcd: btcd,
-                    sentiment: sentimentScore
-                  }}
-                  signals={signals}
-                  chartData={chartData}
-                  technicalIndicators={technicals}
-                />
-              </ErrorBoundary>
-            </div>
+          {/* Right Column: AI Command Center (3 cols) */}
+          <div className="col-span-3 h-full overflow-hidden">
+            <AiCommandCenter
+              onNewAnalysis={handleNewAnalysis}
+              marketData={{
+                price,
+                change: priceChange,
+                vix: vix,
+                btcd: btcd,
+                sentiment: sentimentScore
+              }}
+              signals={signals}
+              chartData={chartData}
+              technicalIndicators={technicals}
+            />
           </div>
-
         </div>
       </main>
     </div>
