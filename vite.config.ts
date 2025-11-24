@@ -25,6 +25,18 @@ export default defineConfig(({ mode }) => {
       'process.env.API_KEY': JSON.stringify(apiKey),
       'import.meta.env.VITE_GEMINI_API_KEY': JSON.stringify(apiKey)
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'lucide': ['lucide-react']
+          }
+        }
+      }
+    },
+    optimizeDeps: {
+      include: ['lucide-react']
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
