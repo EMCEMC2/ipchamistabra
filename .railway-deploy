@@ -1,0 +1,4 @@
+# Railway Deployment Trigger
+# This file forces Railway to redeploy when changed
+# Last deployment: 2025-11-24 23:43:00 UTC
+# Commit: bca37b1 - Security and build fixes applied
