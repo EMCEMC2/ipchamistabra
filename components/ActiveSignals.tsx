@@ -49,26 +49,28 @@ export const ActiveSignals: React.FC<ActiveSignalsProps> = ({ onTrade }) => {
   };
 
   return (
-    <div className="card-premium h-full flex flex-col">
-      <div className="flex items-center justify-between mb-3 shrink-0">
+    <div className="h-full flex flex-col gap-3 p-1">
+      <div className="flex items-center justify-between mb-1 shrink-0">
         <div className="flex items-center gap-2 text-blue-400">
           <Activity size={16} />
-          <h3 className="font-sans font-semibold text-sm tracking-wide">Active Signals</h3>
+          <h3 className="font-sans font-semibold text-sm tracking-wide text-gray-200">Active Signals</h3>
         </div>
         <div className="flex items-center gap-2">
-             <div className="flex items-center gap-1.5 px-2 py-1 bg-white/5 border border-white/10 rounded-md">
-                 <span className="relative flex h-2 w-2">
-                   <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${isScanning ? 'bg-green-400' : 'bg-blue-400'} opacity-75`}></span>
-                   <span className={`relative inline-flex rounded-full h-2 w-2 ${isScanning ? 'bg-green-500' : 'bg-blue-500'}`}></span>
+             <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md border text-[10px] font-medium ${
+               isScanning ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : 'bg-green-500/10 text-green-400 border-green-500/30'
+             }`}>
+                 <span className="relative flex h-1.5 w-1.5">
+                   <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${isScanning ? 'bg-amber-400' : 'bg-green-400'} opacity-75`}></span>
+                   <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${isScanning ? 'bg-amber-500' : 'bg-green-500'}`}></span>
                  </span>
-                 <span className="text-[10px] text-gray-400 font-medium">{isScanning ? 'SCANNING' : 'LIVE'}</span>
+                 <span>{isScanning ? 'SCANNING' : 'LIVE'}</span>
             </div>
             <button
                 onClick={fetchSignals}
                 disabled={isScanning}
-                className="text-xs flex items-center gap-1.5 bg-white/5 hover:bg-green-500/10 border border-white/10 hover:border-green-500/30 text-gray-400 hover:text-green-400 px-2.5 py-1.5 rounded-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="text-[10px] flex items-center gap-1.5 bg-white/5 hover:bg-green-500/10 border border-white/10 hover:border-green-500/30 text-gray-400 hover:text-green-400 px-2 py-1 rounded-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-                <RefreshCw size={12} className={isScanning ? "animate-spin" : ""} />
+                <RefreshCw size={10} className={isScanning ? "animate-spin" : ""} />
                 SCAN
             </button>
         </div>

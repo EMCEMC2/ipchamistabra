@@ -46,6 +46,7 @@ function App() {
 
   // Local State for Dashboard
   const [activeView, setActiveView] = useState<ViewMode>('TERMINAL');
+  const [bottomTab, setBottomTab] = useState<'SIGNALS' | 'ORDERFLOW'>('SIGNALS');
   const [isApiKeyMissing, setIsApiKeyMissing] = useState(false);
 
   // Refs
@@ -279,10 +280,41 @@ function App() {
                 <div className="h-[60%] min-h-[300px]">
                   <ChartPanel />
                 </div>
-                <div className="h-[40%] flex-1 min-h-0 grid grid-cols-3 gap-2">
-                  <ActiveSignals />
-                  <AggrOrderFlow />
-                  <TradeSetupPanel />
+                <div className="h-[40%] flex-1 min-h-0 grid grid-cols-12 gap-3">
+                  {/* Left Column: Signals & Order Flow (Tabs) */}
+                  <div className="col-span-8 h-full flex flex-col">
+                    <div className="flex items-center gap-2 mb-2 px-1">
+                      <button
+                        onClick={() => setBottomTab('SIGNALS')}
+                        className={`text-xs font-semibold px-3 py-1.5 rounded-t-md border-t border-x border-transparent transition-all ${
+                          bottomTab === 'SIGNALS'
+                            ? 'bg-white/5 border-white/10 text-green-400 border-b-black'
+                            : 'text-gray-500 hover:text-gray-300'
+                        }`}
+                      >
+                        ACTIVE SIGNALS
+                      </button>
+                      <button
+                        onClick={() => setBottomTab('ORDERFLOW')}
+                        className={`text-xs font-semibold px-3 py-1.5 rounded-t-md border-t border-x border-transparent transition-all ${
+                          bottomTab === 'ORDERFLOW'
+                            ? 'bg-white/5 border-white/10 text-blue-400 border-b-black'
+                            : 'text-gray-500 hover:text-gray-300'
+                        }`}
+                      >
+                        ORDER FLOW
+                      </button>
+                    </div>
+                    <div className="flex-1 min-h-0 relative">
+                      {bottomTab === 'SIGNALS' && <ActiveSignals />}
+                      {bottomTab === 'ORDERFLOW' && <AggrOrderFlow />}
+                    </div>
+                  </div>
+
+                  {/* Right Column: Trade Setup (Always Visible) */}
+                  <div className="col-span-4 h-full pt-8">
+                    <TradeSetupPanel />
+                  </div>
                 </div>
               </>
             )}
