@@ -28,14 +28,23 @@ export default defineConfig(({ mode }) => {
     build: {
       rollupOptions: {
         output: {
-          manualChunks: {
-            'lucide': ['lucide-react'],
-            'charts': ['lightweight-charts']
+          manualChunks: (id) => {
+            // Extract all node_modules to vendor chunk except charts
+            if (id.includes('node_modules')) {
+              if (id.includes('lightweight-charts') || id.includes('fancy-canvas')) {
+                return 'charts';
+              }
+              if (id.includes('lucide-react')) {
+                return 'lucide';
+              }
+              return 'vendor';
+            }
           }
         }
       },
       target: 'esnext',
-      minify: 'esbuild'
+      minify: 'esbuild',
+      sourcemap: false
     },
     optimizeDeps: {
       include: ['lucide-react', 'lightweight-charts'],
