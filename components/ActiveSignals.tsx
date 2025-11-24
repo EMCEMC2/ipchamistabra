@@ -77,6 +77,79 @@ export const ActiveSignals: React.FC<ActiveSignalsProps> = ({ onTrade }) => {
         </div>
       </div>
 
+      <div className="flex-1 overflow-y-auto pr-2 space-y-2">
+        {signals.map((signal) => {
+          const confStyle = getConfidenceStyle(signal.confidence);
+          return (
+            <div
+              key={signal.id}
+              className={`p-3 rounded-md border bg-white/5 hover:bg-white/10 transition-all duration-200 group relative overflow-hidden ${
+                signal.type === 'LONG'
+                  ? 'border-green-500/20 hover:border-green-500/40'
+                  : 'border-red-500/20 hover:border-red-500/40'
+              }`}
+            >
+              {/* Side Indicator with Glow */}
+              <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l ${
+                signal.type === 'LONG'
+                  ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]'
+                  : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
+              }`} />
+              
+              <div className="pl-2 flex flex-col gap-2 relative z-10">
+                  {/* Header */}
+                  <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                          <span className="font-semibold font-mono text-sm text-gray-100">{signal.pair}</span>
+                          <span className={`text-xs font-semibold flex items-center gap-0.5 ${
+                            signal.type === 'LONG' ? 'text-green-400' : 'text-red-400'
+                          }`}>
+                              {signal.type === 'LONG' ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+                              {signal.type}
+                          </span>
+                          {signal.regime && getRegimeBadge(signal.regime)}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {/* Confidence Badge */}
+                        <div className="group/conf relative cursor-help" title="AI Confidence Score">
+                          <div className={`flex items-center gap-1 px-2 py-0.5 rounded-md border ${confStyle.bg} ${confStyle.border}`}>
+                             <Zap size={10} className={confStyle.color} />
+                             <span className={`text-[10px] font-semibold ${confStyle.color}`}>{signal.confidence}%</span>
+                          </div>
+                        </div>
+                      </div>
+                  </div>
+
+                  {/* Details Grid */}
+                  <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-xs font-mono mt-1">
+                      <div>
+                          <div className="text-gray-500 text-[10px] uppercase mb-0.5 flex items-center gap-1 font-medium">
+                              <Target size={10} /> Entry
+                          </div>
+                          <div className="text-gray-200 font-semibold">{signal.entryZone}</div>
+                      </div>
+                      <div className="text-right">
+                          <div className="text-gray-500 text-[10px] uppercase mb-0.5 font-medium">Target</div>
+                          <div className="text-green-400 font-semibold">{signal.targets[0]}</div>
+                      </div>
+                      <div>
+                          <div className="text-gray-500 text-[10px] uppercase mb-0.5 flex items-center gap-1 font-medium">
+                              <Shield size={10} /> Stop
+                          </div>
+                          <div className="text-red-400 font-semibold">{signal.invalidation}</div>
+                      </div>
+                      <div className="text-right">
+                          <div className="text-gray-500 text-[10px] uppercase mb-0.5 flex items-center justify-end gap-1 font-medium">
+                            <Scale size={10} /> R:R
+                          </div>
+                          <div className="text-blue-400 font-semibold">{signal.riskRewardRatio ? signal.riskRewardRatio.toFixed(1) : '-'}</div>
+                      </div>
+                  </div>
+
+                  <div className="border-t border-white/10 pt-2 mt-1 flex justify-between items-end">
+                      <div className="text-[10px] text-gray-400 truncate max-w-[140px] leading-tight" title={signal.reasoning}>
+                          {signal.reasoning}
                       </div>
                       {onTrade && (
                           <button
