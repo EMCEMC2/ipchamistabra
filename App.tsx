@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Activity, Terminal, Layout, Users, Brain, BookOpen, LineChart } from 'lucide-react';
+import { Activity, Terminal, Layout, Users, Brain, BookOpen, LineChart, Target } from 'lucide-react';
 import { ChartPanel } from './components/ChartPanel';
 import { IntelDeck } from './components/IntelDeck';
 import { MetricCard } from './components/MetricCard';
