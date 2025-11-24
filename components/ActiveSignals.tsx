@@ -11,6 +11,7 @@ interface ActiveSignalsProps {
 
 export const ActiveSignals: React.FC<ActiveSignalsProps> = ({ onTrade }) => {
   const { signals, isScanning } = useStore();
+  const safeSignals = signals || [];
 
   const getStatusBadge = (status: TradeSignal['status']) => {
     const baseClasses = "text-[10px] px-2 py-0.5 rounded font-mono border";
@@ -78,7 +79,7 @@ export const ActiveSignals: React.FC<ActiveSignalsProps> = ({ onTrade }) => {
       </div>
 
       <div className="flex-1 overflow-y-auto pr-2 space-y-2">
-        {signals.map((signal) => {
+        {safeSignals.map((signal) => {
           const confStyle = getConfidenceStyle(signal.confidence);
           return (
             <div
@@ -164,14 +165,14 @@ export const ActiveSignals: React.FC<ActiveSignalsProps> = ({ onTrade }) => {
             </div>
           );
         })}
-        {signals.length === 0 && !isScanning && (
+        {safeSignals.length === 0 && !isScanning && (
             <div className="flex flex-col items-center justify-center h-full text-gray-500 opacity-60">
                 <Activity size={28} className="mb-3 opacity-40" />
                 <span className="text-sm font-medium">No Active Signals</span>
                 <span className="text-xs text-gray-600 mt-1">Click SCAN to analyze market</span>
             </div>
         )}
-        {isScanning && signals.length === 0 && (
+        {isScanning && safeSignals.length === 0 && (
              <div className="flex flex-col items-center justify-center h-full text-green-400 opacity-70 animate-pulse">
                 <div className="relative">
                   <Activity size={28} className="mb-3" />

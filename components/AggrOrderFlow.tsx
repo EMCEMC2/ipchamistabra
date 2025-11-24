@@ -78,7 +78,7 @@ export const AggrOrderFlow: React.FC = () => {
                     </span>
                 </div>
                 <div className="text-lg font-sans font-bold text-gray-100">
-                    {stats.cvd.delta > 0 ? '+' : ''}${(stats.cvd.delta / 1000000).toFixed(2)}M
+                    {stats.cvd?.delta > 0 ? '+' : ''}{((stats.cvd?.delta || 0) / 1000000).toFixed(2)}M
                 </div>
                 <div className="text-[9px] text-gray-500 mt-1 line-clamp-1">
                     {cvdAnalysis.reasoning}
@@ -116,17 +116,17 @@ export const AggrOrderFlow: React.FC = () => {
                 <span className="text-gray-500">SELL PRESSURE</span>
             </div>
             <div className="relative h-2 bg-black/40 rounded-full overflow-hidden mb-1">
-                <div className="absolute left-0 top-0 h-full bg-green-500" style={{ width: `${pressure.buyPressure}%` }} />
-                <div className="absolute right-0 top-0 h-full bg-red-500" style={{ width: `${pressure.sellPressure}%` }} />
+                <div className="absolute left-0 top-0 h-full bg-green-500" style={{ width: `${pressure?.buyPressure || 50}%` }} />
+                <div className="absolute right-0 top-0 h-full bg-red-500" style={{ width: `${pressure?.sellPressure || 50}%` }} />
             </div>
             <div className="flex justify-between text-[9px] font-mono">
-                <span className="text-green-400">${(stats.buyVolume / 1000000).toFixed(1)}M</span>
-                <span className="text-red-400">${(stats.sellVolume / 1000000).toFixed(1)}M</span>
+                <span className="text-green-400">${((stats.buyVolume || 0) / 1000000).toFixed(1)}M</span>
+                <span className="text-red-400">${((stats.sellVolume || 0) / 1000000).toFixed(1)}M</span>
             </div>
         </div>
 
         {/* Liquidations List */}
-        {stats.recentLiquidations.length > 0 && (
+        {stats.recentLiquidations?.length > 0 && (
             <div className="card-premium p-2">
                 <div className="flex items-center gap-1.5 mb-2 text-yellow-500">
                     <AlertTriangle size={12} />
@@ -146,7 +146,7 @@ export const AggrOrderFlow: React.FC = () => {
         )}
 
         {/* Whale Trades List */}
-        {stats.recentLargeTrades.length > 0 && (
+        {stats.recentLargeTrades?.length > 0 && (
             <div className="card-premium p-2">
                  <div className="flex items-center gap-1.5 mb-2 text-purple-400">
                     <DollarSign size={12} />
