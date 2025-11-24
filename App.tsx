@@ -312,8 +312,16 @@ function App() {
                   </div>
 
                   {/* Right Column: Trade Setup (Always Visible) */}
-                  <div className="col-span-4 h-full pt-8">
-                    <TradeSetupPanel />
+                  <div className="col-span-4 h-full flex flex-col">
+                    <div className="flex items-center gap-2 mb-2 px-1 h-[34px]">
+                        <div className="flex items-center gap-2 text-gray-400">
+                            <Target size={14} />
+                            <span className="text-xs font-semibold tracking-wide">TRADE SETUP</span>
+                        </div>
+                    </div>
+                    <div className="flex-1 min-h-0">
+                        <TradeSetupPanel />
+                    </div>
                   </div>
                 </div>
               </>
