@@ -29,13 +29,19 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks: {
-            'lucide': ['lucide-react']
+            'lucide': ['lucide-react'],
+            'charts': ['lightweight-charts']
           }
         }
-      }
+      },
+      target: 'esnext',
+      minify: 'esbuild'
     },
     optimizeDeps: {
-      include: ['lucide-react']
+      include: ['lucide-react', 'lightweight-charts'],
+      esbuildOptions: {
+        target: 'esnext'
+      }
     },
     resolve: {
       alias: {
