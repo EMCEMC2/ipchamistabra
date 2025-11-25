@@ -52,13 +52,26 @@ function App() {
   // Refs
   const binanceWS = useRef(new BinancePriceFeed());
 
-  // Check for API Key on Mount
+  // Check for API Key on Mount & Expire Stale Signals
   useEffect(() => {
     const fromProcessEnv = import.meta.env.VITE_GEMINI_API_KEY;
     const fromStorage = localStorage.getItem('GEMINI_API_KEY');
 
     if (!fromProcessEnv && !fromStorage) {
       setIsApiKeyMissing(true);
+    }
+
+    // Expire signals older than 4 hours (14400000ms)
+    const currentTime = Date.now();
+    const SIGNAL_EXPIRY = 4 * 60 * 60 * 1000; // 4 hours
+    const signals = useStore.getState().signals;
+    const validSignals = signals.filter(s => currentTime - s.timestamp < SIGNAL_EXPIRY);
+
+    if (validSignals.length < signals.length) {
+      useStore.setState({ signals: validSignals });
+      if (import.meta.env.DEV) {
+        console.log(`[Signals] Expired ${signals.length - validSignals.length} stale signals`);
+      }
     }
   }, []);
 
@@ -78,6 +91,20 @@ function App() {
     const ws = binanceWS.current;
     ws.connect();
     return () => ws.disconnect();
+  }, []);
+
+  // Aggr Order Flow Connection (Real-time liquidations, CVD, market pressure)
+  useEffect(() => {
+    const { aggrService } = require('./services/aggrService');
+    const { AggrStats } = require('./services/aggrService');
+
+    aggrService.connect((stats: typeof AggrStats) => {
+      if (import.meta.env.DEV) {
+        console.log('[Aggr] CVD:', stats.cvd.cumulativeDelta, 'Pressure:', stats.pressure.dominantSide);
+      }
+    });
+
+    return () => aggrService.disconnect();
   }, []);
 
   // CRITICAL: Position Monitoring (The Engine Heartbeat)

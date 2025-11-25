@@ -151,12 +151,12 @@ export async function fetchDerivativesMetrics(): Promise<{
     const latestOI = data.data[data.data.length - 1]?.openInterest || 0;
     const formattedOI = `$${(latestOI / 1_000_000_000).toFixed(2)}B`;
 
-    // For funding rate, we'd need a separate endpoint
-    // Fallback for now
-    const fundingRate = '+0.01%';
-    const longShortRatio = 1.05;
+    // Funding rate and L/S ratio require separate API endpoints or paid tier
+    // Marking as N/A instead of fake values
+    const fundingRate = 'N/A';
+    const longShortRatio = 0;
 
-    console.log(`[Derivatives] OI: ${formattedOI} | Funding: ${fundingRate}`);
+    console.log(`[Derivatives] OI: ${formattedOI} | Funding: ${fundingRate} | L/S: ${longShortRatio}`);
 
     return {
       openInterest: formattedOI,

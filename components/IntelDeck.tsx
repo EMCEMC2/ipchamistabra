@@ -1,54 +1,15 @@
 
-import React, { useEffect, useState } from 'react';
-import { Globe, Zap, AlertTriangle, TrendingUp, TrendingDown, Activity, Shield, Target, Anchor } from 'lucide-react';
+import React from 'react';
+import { Globe, Zap, AlertTriangle, Activity } from 'lucide-react';
 import { IntelItem } from '../types';
 import ReactMarkdown from 'react-markdown';
 import { useStore } from '../store/useStore';
-import { fetchOnChainMetrics, analyzeOnChainMetrics, getOnChainRegime, OnChainMetrics } from '../services/glassnodeService';
 
 export const IntelDeck: React.FC = () => {
-    const { latestAnalysis, signals, technicals, intel } = useStore();
-    const [onChainMetrics, setOnChainMetrics] = useState<OnChainMetrics | null>(null);
-    const [onChainRegime, setOnChainRegime] = useState<{ regime: string; confidence: number } | null>(null);
+    const { latestAnalysis, technicals, intel } = useStore();
 
-    // Fetch on-chain metrics on mount and every 5 minutes
-    useEffect(() => {
-        const loadOnChainData = async () => {
-            const metrics = await fetchOnChainMetrics();
-            setOnChainMetrics(metrics);
-
-            const regime = getOnChainRegime(metrics);
-            setOnChainRegime(regime);
-        };
-
-        loadOnChainData();
-        const interval = setInterval(loadOnChainData, 900000); // 15 minutes (to avoid rate limit)
-
-        return () => clearInterval(interval);
-    }, []);
-
-    // Generate intel items from Glassnode + store intel
-    const items: IntelItem[] = [];
-
-    // Add on-chain intel items (if available)
-    if (onChainMetrics) {
-        const onChainIntel = analyzeOnChainMetrics(onChainMetrics);
-        onChainIntel.forEach((intel, idx) => {
-            items.push({
-                id: `onchain-${idx}`,
-                title: intel.metric,
-                source: 'Glassnode',
-                timestamp: onChainMetrics.timestamp,
-                summary: intel.explanation,
-                severity: intel.severity,
-                category: 'ONCHAIN',
-                btcSentiment: intel.signal
-            });
-        });
-    }
-
-    // Add intel from store (AI-generated news)
-    items.push(...intel);
+    // Generate intel items from store intel only (Glassnode removed)
+    const items: IntelItem[] = [...intel];
 
     return (
         <div className="h-full flex flex-col gap-3 overflow-hidden">
@@ -122,15 +83,6 @@ export const IntelDeck: React.FC = () => {
                         <span className="font-sans font-semibold text-xs tracking-wide">INTEL FEED</span>
                     </div>
                     <div className="flex items-center gap-2">
-                        {onChainRegime && (
-                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
-                                onChainRegime.regime === 'ACCUMULATION' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
-                                onChainRegime.regime === 'DISTRIBUTION' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
-                                'bg-orange-500/10 text-orange-400 border-orange-500/20'
-                            }`}>
-                                {onChainRegime.regime}
-                            </span>
-                        )}
                         <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_5px_rgba(34,197,94,0.5)]"></div>
                     </div>
                 </div>

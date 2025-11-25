@@ -59,11 +59,9 @@ export const fetchChartData = async () => {
 
         useStore.setState({ chartData: formattedData });
 
-        // Update current price from the last candle
-        if (formattedData.length > 0) {
-            const lastCandle = formattedData[formattedData.length - 1];
-            useStore.setState({ price: lastCandle.close });
-        }
+        // Note: Price updates come from WebSocket (primary source)
+        // We don't update price from chart data to avoid conflicts
+        // Chart data is for historical OHLCV only
 
         console.log("Chart Data Synced");
     } catch (e) {
@@ -74,9 +72,23 @@ export const fetchChartData = async () => {
 export const fetchSignals = async () => {
     try {
         useStore.setState({ isScanning: true });
-        const { price, vix, btcd, sentimentScore, technicals } = useStore.getState();
+        const { price, vix, btcd, sentimentScore, technicals, chartData } = useStore.getState();
 
-        // Construct context for the AI
+        // HYBRID APPROACH: Tactical v2 (rule-based) + AI validation
+        // Step 1: Generate Tactical v2 signal from chart data
+        const { generateTacticalSignal } = await import('./tacticalSignals');
+        const tacticalResult = generateTacticalSignal(chartData);
+
+        if (import.meta.env.DEV) {
+            console.log('[Signal Gen] Tactical v2:', {
+                signal: tacticalResult.signal ? tacticalResult.signal.type : 'NONE',
+                bullScore: tacticalResult.bullScore,
+                bearScore: tacticalResult.bearScore,
+                regime: tacticalResult.regime
+            });
+        }
+
+        // Step 2: Construct context for AI
         const context = `
             Price: ${price}
             VIX: ${vix}
@@ -85,15 +97,27 @@ export const fetchSignals = async () => {
             Technicals: ${JSON.stringify(technicals || {})}
         `;
 
-        const rawSignals = await scanMarketForSignals(context);
+        // Step 3: Get AI signals with Tactical v2 context
+        const rawSignals = await scanMarketForSignals(context, tacticalResult);
+
+        // Step 4: Combine signals (prioritize Tactical v2 if strong)
         const signals = rawSignals.map(s => ({
             ...s,
             id: Math.random().toString(36).substr(2, 9),
             timestamp: Date.now()
         }));
 
+        // If Tactical v2 generated a signal with high score, include it
+        if (tacticalResult.signal && (tacticalResult.bullScore >= 5.0 || tacticalResult.bearScore >= 5.0)) {
+            signals.unshift({
+                ...tacticalResult.signal,
+                id: `tactical-${Date.now()}`,
+                timestamp: Date.now()
+            });
+        }
+
         useStore.setState({ signals, isScanning: false });
-        console.log("Signals Synced:", signals.length);
+        console.log(`[Signal Gen] Complete: ${signals.length} signals (Tactical: ${tacticalResult.signal ? 1 : 0}, AI: ${rawSignals.length})`);
     } catch (e) {
         console.error("Signal Fetch Error:", e);
         useStore.setState({ isScanning: false });
@@ -105,12 +129,39 @@ export const startMarketDataSync = () => {
     fetchGlobalData();
     fetchChartData();
 
+    // Adaptive chart polling based on timeframe
+    const getChartInterval = (): number => {
+        const timeframe = useStore.getState().timeframe;
+        const intervalMap: Record<string, number> = {
+            '1m': 5000,    // 5s for 1-minute chart (needs frequent updates)
+            '5m': 15000,   // 15s for 5-minute chart
+            '15m': 30000,  // 30s for 15-minute chart
+            '1h': 60000,   // 1m for 1-hour chart
+            '4h': 120000,  // 2m for 4-hour chart
+            '1d': 300000   // 5m for daily chart
+        };
+        return intervalMap[timeframe] || 30000;
+    };
+
     // Intervals
     const globalInterval = setInterval(fetchGlobalData, 60000); // 1 min
-    const chartInterval = setInterval(fetchChartData, 5000); // 5 sec
+    let chartInterval = setInterval(fetchChartData, getChartInterval());
+
+    // Subscribe to timeframe changes to adjust polling
+    const unsubscribe = useStore.subscribe(
+        (state) => state.timeframe,
+        () => {
+            clearInterval(chartInterval);
+            chartInterval = setInterval(fetchChartData, getChartInterval());
+            if (import.meta.env.DEV) {
+                console.log(`[MarketData] Chart polling adjusted: ${getChartInterval()}ms`);
+            }
+        }
+    );
 
     return () => {
         clearInterval(globalInterval);
         clearInterval(chartInterval);
+        unsubscribe();
     };
 };

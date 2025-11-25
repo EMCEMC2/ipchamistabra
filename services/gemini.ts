@@ -236,14 +236,29 @@ export const generateTradeSetup = async (context: string): Promise<AiResponse> =
   }
 };
 
-export const scanMarketForSignals = async (context: string): Promise<Omit<TradeSignal, 'id' | 'timestamp'>[]> => {
+export const scanMarketForSignals = async (
+  context: string,
+  tacticalSignal?: { signal: any; bullScore: number; bearScore: number; regime: string; reasoning: string[] }
+): Promise<Omit<TradeSignal, 'id' | 'timestamp'>[]> => {
   const ai = getAiClient();
+
+  // If Tactical v2 generated a signal, enhance it with AI validation
+  const tacticalContext = tacticalSignal
+    ? `\n\nTACTICAL V2 SIGNAL (Rule-based system):
+       Type: ${tacticalSignal.signal?.type || 'NONE'}
+       Bull Score: ${tacticalSignal.bullScore.toFixed(1)}
+       Bear Score: ${tacticalSignal.bearScore.toFixed(1)}
+       Regime: ${tacticalSignal.regime}
+       Reasoning: ${tacticalSignal.reasoning.join(' | ')}
+
+       **IMPORTANT: Validate this signal. If scores are strong (>5.0) and reasoning is sound, include it.**`
+    : '';
 
   try {
     const response = await ai.models.generateContent({
       model: FAST_MODEL_ID,
       contents: `Analyze the provided market context and generate 1-3 algorithmic trading signals based on BitMind Tactical v2 logic.
-      Context: ${context}
+      Context: ${context}${tacticalContext}
 
       **System Rules (STRICTLY FOLLOW PROVIDED INDICATORS):**
       - **RSI**: Use the provided "RSI (14)" value. Overbought > 70, Oversold < 30.
