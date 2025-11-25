@@ -656,17 +656,29 @@ export const scanGlobalIntel = async (): Promise<IntelItem[]> => {
     });
 
     const text = response.text;
-    if (!text) return MOCK_INTEL;
+    if (!text) {
+      console.warn("[Intel] No response text, using fallback");
+      return MOCK_INTEL;
+    }
 
     const parsed = cleanAndParseJSON(text);
 
+    if (!parsed) {
+      console.error("[Intel] JSON parse failed, using fallback. Raw text:", text.substring(0, 200));
+      return MOCK_INTEL;
+    }
+
+    // Ensure parsed is an array
+    const arrayData = Array.isArray(parsed) ? parsed : [parsed];
+
     try {
-      const validated = z.array(IntelItemSchema).safeParse(parsed);
+      const validated = z.array(IntelItemSchema).safeParse(arrayData);
       if (validated.success) {
         console.log("✅ Intel fetched:", validated.data.length, "BTC-related items");
         return validated.data as IntelItem[];
       } else {
         console.error("Intel Validation Failed:", validated.error);
+        console.error("Parsed data:", JSON.stringify(arrayData, null, 2).substring(0, 500));
         return MOCK_INTEL; // Fallback on validation failure
       }
     } catch (validationError) {
