@@ -25,6 +25,7 @@ import { ChartDataPoint } from './types';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { usePositionMonitor } from './hooks/usePositionMonitor';
+import { aggrService } from './services/aggrService';
 
 type ViewMode = 'TERMINAL' | 'SWARM' | 'CORTEX' | 'JOURNAL' | 'BACKTEST';
 
@@ -95,10 +96,7 @@ function App() {
 
   // Aggr Order Flow Connection (Real-time liquidations, CVD, market pressure)
   useEffect(() => {
-    const { aggrService } = require('./services/aggrService');
-    const { AggrStats } = require('./services/aggrService');
-
-    aggrService.connect((stats: typeof AggrStats) => {
+    aggrService.connect((stats) => {
       if (import.meta.env.DEV) {
         console.log('[Aggr] CVD:', stats.cvd.cumulativeDelta, 'Pressure:', stats.pressure.dominantSide);
       }
