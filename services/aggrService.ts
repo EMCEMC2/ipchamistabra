@@ -88,34 +88,50 @@ export interface CascadeEvent {
   severity: 'minor' | 'moderate' | 'major' | 'extreme';
 }
 
-// Rolling window for CVD calculation
+// Rolling window for CVD calculation with session-based reset
 class RollingWindow {
   private data: CVDData[] = [];
   private maxSize: number;
   private cumulativeSum: number = 0;
+  private sessionStartCVD: number = 0;
+  private lastResetTime: number = Date.now();
+  private resetHour: number = 0; // Reset at midnight UTC
 
-  constructor(maxSize: number = 60) {
+  constructor(maxSize: number = 60, resetHour: number = 0) {
     this.maxSize = maxSize;
+    this.resetHour = resetHour;
   }
 
   add(buyVolume: number, sellVolume: number): CVDData {
+    const now = Date.now();
+    const currentHour = new Date(now).getUTCHours();
+
+    // FIX #3: Reset CVD at session start (daily at resetHour UTC)
+    if (currentHour === this.resetHour && now - this.lastResetTime > 3600000) {
+      console.log('[CVD] Session reset at', new Date(now).toISOString());
+      this.sessionStartCVD = this.cumulativeSum;
+      this.lastResetTime = now;
+    }
+
     const delta = buyVolume - sellVolume;
     this.cumulativeSum += delta;
 
+    // Session CVD (resets daily)
+    const sessionCVD = this.cumulativeSum - this.sessionStartCVD;
+
     const cvdData: CVDData = {
-      timestamp: Date.now(),
+      timestamp: now,
       buyVolume,
       sellVolume,
       delta,
-      cumulativeDelta: this.cumulativeSum
+      cumulativeDelta: sessionCVD  // FIX #3: Use session-relative CVD instead of unbounded
     };
 
     this.data.push(cvdData);
 
     // Keep only maxSize elements
     if (this.data.length > this.maxSize) {
-      const removed = this.data.shift()!;
-      // Don't adjust cumulative sum (it's cumulative!)
+      this.data.shift();
     }
 
     return cvdData;
@@ -134,9 +150,18 @@ class RollingWindow {
     const sum = this.data.reduce((acc, d) => acc + d.delta, 0);
     return sum / this.data.length;
   }
+
+  /**
+   * Manual reset (useful for testing or session changes)
+   */
+  resetSession(): void {
+    console.log('[CVD] Manual session reset');
+    this.sessionStartCVD = this.cumulativeSum;
+    this.lastResetTime = Date.now();
+  }
 }
 
-// Main Aggr Service
+// Main Aggr Service with FIX #5: Auto-reconnection support
 export class AggrTradeService {
   private wsConnections: Map<string, WebSocket> = new Map();
   private isConnected: boolean = false;
@@ -151,6 +176,11 @@ export class AggrTradeService {
   private cascadeVolume: number = 0;
   private cascadeSide: 'long' | 'short' | null = null;
 
+  // FIX #5: Reconnection tracking
+  private reconnectAttempts: Map<string, number> = new Map();
+  private reconnectTimeouts: Map<string, NodeJS.Timeout> = new Map();
+  private maxReconnectAttempts: number = 10;
+
   // Event handlers
   private onStatsUpdate?: (stats: AggrStats) => void;
   private onLiquidation?: (liq: AggrLiquidation) => void;
@@ -158,7 +188,7 @@ export class AggrTradeService {
   private onCascade?: (cascade: CascadeEvent) => void;
 
   constructor() {
-    console.log('[Aggr] Service initialized');
+    console.log('[Aggr] Service initialized with auto-reconnection');
   }
 
   /**
@@ -189,74 +219,123 @@ export class AggrTradeService {
   }
 
   /**
-   * Connect to Binance Futures WebSocket
+   * FIX #5: Connect to Binance Futures WebSocket with auto-reconnection
    */
   private connectBinance(): void {
-    try {
-      // Binance Futures: Aggregated Trades + Liquidation Orders
-      const tradesWs = new WebSocket('wss://fstream.binance.com/ws/btcusdt@aggTrade');
-      const liquidationsWs = new WebSocket('wss://fstream.binance.com/ws/btcusdt@forceOrder');
+    const connectTrades = () => {
+      try {
+        const key = 'binance-trades';
+        const tradesWs = new WebSocket('wss://fstream.binance.com/ws/btcusdt@aggTrade');
 
-      tradesWs.onopen = () => {
-        console.log('[Aggr/Binance] Trades connected');
-      };
+        tradesWs.onopen = () => {
+          console.log('[Aggr/Binance] Trades connected');
+          this.reconnectAttempts.set(key, 0); // Reset counter on success
+        };
 
-      tradesWs.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
+        tradesWs.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            const trade: AggrTrade = {
+              exchange: 'Binance',
+              timestamp: data.T || Date.now(),
+              price: parseFloat(data.p) || 0,
+              amount: parseFloat(data.q) || 0,
+              side: data.m ? 'sell' : 'buy',
+              isLiquidation: false,
+              usdValue: 0
+            };
+            trade.usdValue = trade.price * trade.amount;
+            this.processTrade(trade);
+          } catch (error) {
+            console.error('[Aggr/Binance] Trade parse error:', error);
+          }
+        };
 
-          const trade: AggrTrade = {
-            exchange: 'Binance',
-            timestamp: data.T || Date.now(),
-            price: parseFloat(data.p) || 0,
-            amount: parseFloat(data.q) || 0,
-            side: data.m ? 'sell' : 'buy', // m = buyer is maker (sell aggressor)
-            isLiquidation: false,
-            usdValue: 0
-          };
+        tradesWs.onerror = (err) => console.error('[Aggr/Binance] Trades error:', err);
 
-          trade.usdValue = trade.price * trade.amount;
-          this.processTrade(trade);
-        } catch (error) {
-          console.error('[Aggr/Binance] Trade parse error:', error);
-        }
-      };
+        tradesWs.onclose = (event) => {
+          console.warn('[Aggr/Binance] Trades connection closed:', event.code, event.reason);
+          this.reconnectWithBackoff(key, connectTrades);
+        };
 
-      liquidationsWs.onopen = () => {
-        console.log('[Aggr/Binance] Liquidations connected');
-      };
+        this.wsConnections.set(key, tradesWs);
+      } catch (error) {
+        console.error('[Aggr/Binance] Trades connection failed:', error);
+        this.reconnectWithBackoff('binance-trades', connectTrades);
+      }
+    };
 
-      liquidationsWs.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          const order = data.o;
+    const connectLiquidations = () => {
+      try {
+        const key = 'binance-liquidations';
+        const liquidationsWs = new WebSocket('wss://fstream.binance.com/ws/btcusdt@forceOrder');
 
-          if (!order) return;
+        liquidationsWs.onopen = () => {
+          console.log('[Aggr/Binance] Liquidations connected');
+          this.reconnectAttempts.set(key, 0);
+        };
 
-          const liquidation: AggrLiquidation = {
-            exchange: 'Binance',
-            timestamp: data.E || Date.now(),
-            price: parseFloat(order.p) || 0,
-            amount: parseFloat(order.q) || 0,
-            side: order.S === 'SELL' ? 'long' : 'short', // SELL order = long liquidation
-            usdValue: 0
-          };
+        liquidationsWs.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            const order = data.o;
+            if (!order) return;
 
-          liquidation.usdValue = liquidation.price * liquidation.amount;
-          this.processLiquidation(liquidation);
-        } catch (error) {
-          console.error('[Aggr/Binance] Liquidation parse error:', error);
-        }
-      };
+            const liquidation: AggrLiquidation = {
+              exchange: 'Binance',
+              timestamp: data.E || Date.now(),
+              price: parseFloat(order.p) || 0,
+              amount: parseFloat(order.q) || 0,
+              side: order.S === 'SELL' ? 'long' : 'short',
+              usdValue: 0
+            };
+            liquidation.usdValue = liquidation.price * liquidation.amount;
+            this.processLiquidation(liquidation);
+          } catch (error) {
+            console.error('[Aggr/Binance] Liquidation parse error:', error);
+          }
+        };
 
-      tradesWs.onerror = (err) => console.error('[Aggr/Binance] Trades error:', err);
-      liquidationsWs.onerror = (err) => console.error('[Aggr/Binance] Liquidations error:', err);
+        liquidationsWs.onerror = (err) => console.error('[Aggr/Binance] Liquidations error:', err);
 
-      this.wsConnections.set('binance-trades', tradesWs);
-      this.wsConnections.set('binance-liquidations', liquidationsWs);
-    } catch (error) {
-      console.error('[Aggr/Binance] Connection failed:', error);
+        liquidationsWs.onclose = (event) => {
+          console.warn('[Aggr/Binance] Liquidations connection closed:', event.code, event.reason);
+          this.reconnectWithBackoff(key, connectLiquidations);
+        };
+
+        this.wsConnections.set(key, liquidationsWs);
+      } catch (error) {
+        console.error('[Aggr/Binance] Liquidations connection failed:', error);
+        this.reconnectWithBackoff('binance-liquidations', connectLiquidations);
+      }
+    };
+
+    connectTrades();
+    connectLiquidations();
+  }
+
+  /**
+   * FIX #5: Reconnect with exponential backoff
+   */
+  private reconnectWithBackoff(key: string, connectFn: () => void): void {
+    const attempts = (this.reconnectAttempts.get(key) || 0) + 1;
+    this.reconnectAttempts.set(key, attempts);
+
+    if (attempts > this.maxReconnectAttempts) {
+      console.error(`[Aggr/${key}] Max reconnection attempts reached (${this.maxReconnectAttempts}). Giving up.`);
+      return;
     }
+
+    // Exponential backoff: 1s, 2s, 4s, 8s, 16s, max 30s
+    const delay = Math.min(1000 * Math.pow(2, attempts - 1), 30000);
+    console.log(`[Aggr/${key}] Reconnecting in ${delay}ms (attempt ${attempts}/${this.maxReconnectAttempts})`);
+
+    const timeout = setTimeout(() => {
+      console.log(`[Aggr/${key}] Attempting reconnection...`);
+      connectFn();
+    }, delay);
+
+    this.reconnectTimeouts.set(key, timeout);
   }
 
   /**
@@ -606,11 +685,20 @@ export class AggrTradeService {
   }
 
   /**
-   * Disconnect from all exchanges
+   * FIX #5: Disconnect from all exchanges and clear reconnection timers
    */
   disconnect(): void {
     console.log('[Aggr] Disconnecting from all exchanges...');
 
+    // Clear all reconnection timeouts
+    for (const [key, timeout] of this.reconnectTimeouts) {
+      clearTimeout(timeout);
+      console.log(`[Aggr] Cleared reconnection timeout for ${key}`);
+    }
+    this.reconnectTimeouts.clear();
+    this.reconnectAttempts.clear();
+
+    // Close all WebSocket connections
     for (const [name, ws] of this.wsConnections) {
       ws.close();
       console.log(`[Aggr] Disconnected from ${name}`);

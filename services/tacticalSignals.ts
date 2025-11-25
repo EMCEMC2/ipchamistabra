@@ -1,6 +1,7 @@
 /**
  * TACTICAL V2 LIVE SIGNAL GENERATOR
  * Implements the same confluence scoring logic used in backtests
+ * NOW WITH ORDER FLOW INTEGRATION for enhanced accuracy
  * This ensures backtest results are representative of live performance
  */
 
@@ -15,6 +16,8 @@ import {
   calculateStdev,
   calculateTR
 } from '../utils/technicalAnalysis';
+import { AggrStats } from './aggrService';
+import { generateTradingSignal, analyzeCVD } from './aggrIntelligence';
 
 export interface TacticalSignalConfig {
   minScoreLowVol: number;    // Default: 5.5
@@ -23,6 +26,8 @@ export interface TacticalSignalConfig {
   cooldownLowVol: number;    // Default: 12 bars
   cooldownNormal: number;    // Default: 8 bars
   cooldownHighVol: number;   // Default: 5 bars
+  useOrderFlow: boolean;     // NEW: Enable order flow integration
+  orderFlowWeight: number;   // NEW: 0.0-1.0 weight for order flow (0.3 = 30%)
 }
 
 const DEFAULT_CONFIG: TacticalSignalConfig = {
@@ -31,7 +36,9 @@ const DEFAULT_CONFIG: TacticalSignalConfig = {
   minScoreHighVol: 4.0,
   cooldownLowVol: 12,
   cooldownNormal: 8,
-  cooldownHighVol: 5
+  cooldownHighVol: 5,
+  useOrderFlow: true,    // Enable by default
+  orderFlowWeight: 0.3   // 30% weight for order flow
 };
 
 export interface TacticalSignalResult {
@@ -45,12 +52,69 @@ export interface TacticalSignalResult {
 let lastSignalBar = -999; // Track last signal to enforce cooldown
 
 /**
+ * FIX #4: Slippage model for realistic execution simulation
+ * Applies basis points slippage based on order type and volatility
+ */
+interface SlippageConfig {
+  marketOrderBps: number;  // Market order slippage (default: 3 bps)
+  stopOrderBps: number;    // Stop loss slippage (worse fills) (default: 5 bps)
+  limitOrderBps: number;   // Limit target slippage (better fills possible) (default: 2 bps)
+  volMultiplier: number;   // Volatility scaling factor (default: 2.0)
+}
+
+const DEFAULT_SLIPPAGE: SlippageConfig = {
+  marketOrderBps: 3,
+  stopOrderBps: 5,
+  limitOrderBps: 2,
+  volMultiplier: 2.0
+};
+
+/**
+ * Apply slippage to a price based on order type and market conditions
+ * @param price - Base price
+ * @param side - BUY or SELL
+ * @param orderType - MARKET, STOP, or LIMIT
+ * @param atr - Current ATR (for volatility adjustment)
+ * @param avgPrice - Average price (for volatility normalization)
+ */
+function applySlippage(
+  price: number,
+  side: 'BUY' | 'SELL',
+  orderType: 'MARKET' | 'STOP' | 'LIMIT',
+  atr: number,
+  avgPrice: number,
+  config: SlippageConfig = DEFAULT_SLIPPAGE
+): number {
+  // Base slippage in basis points
+  const baseBps = orderType === 'STOP' ? config.stopOrderBps :
+                  orderType === 'LIMIT' ? config.limitOrderBps :
+                  config.marketOrderBps;
+
+  // Volatility adjustment (high ATR = more slippage)
+  const volRatio = atr / (avgPrice * 0.02);  // Normalize to 2% baseline ATR
+  const adjustedBps = baseBps * Math.min(volRatio * config.volMultiplier, 3.0);  // Cap at 3x
+
+  // Convert basis points to decimal
+  const slippageDecimal = adjustedBps / 10000;
+  const slippage = price * slippageDecimal;
+
+  // Apply slippage direction (buy = worse = higher, sell = worse = lower)
+  return side === 'BUY' ? price + slippage : price - slippage;
+}
+
+/**
  * Generate Tactical v2 signal from current market data
  * Uses exact same logic as backtest for consistency
+ * NOW ENHANCED with Order Flow integration for better accuracy
+ *
+ * @param chartData - OHLCV candle data (minimum 200 candles)
+ * @param config - Configuration for signal generation
+ * @param orderFlowStats - OPTIONAL: Real-time order flow data (CVD, liquidations, pressure)
  */
 export function generateTacticalSignal(
   chartData: ChartDataPoint[],
-  config: TacticalSignalConfig = DEFAULT_CONFIG
+  config: TacticalSignalConfig = DEFAULT_CONFIG,
+  orderFlowStats?: AggrStats | null
 ): TacticalSignalResult {
   if (chartData.length < 200) {
     return {
@@ -169,6 +233,58 @@ export function generateTacticalSignal(
   reasoning.push(`Regime: ${regime} | Min Score: ${minScore} | Cooldown: ${barsSinceLast}/${cooldown} bars`);
   reasoning.push(`Bull Score: ${bullScore.toFixed(1)} | Bear Score: ${bearScore.toFixed(1)}`);
 
+  // ORDER FLOW INTEGRATION (NEW)
+  if (config.useOrderFlow && orderFlowStats) {
+    try {
+      const flowSignal = generateTradingSignal(orderFlowStats);
+      const cvdAnalysis = analyzeCVD(orderFlowStats);
+
+      // Add order flow confluence to scores
+      if (flowSignal.type === 'LONG' && flowSignal.confidence > 30) {
+        const flowBoost = (flowSignal.confidence / 100) * config.orderFlowWeight * 6.0; // Max 1.8 pts
+        bullScore += flowBoost;
+        reasoning.push(`Order Flow LONG: +${flowBoost.toFixed(2)} (CVD: ${cvdAnalysis.trend}, Pressure: ${orderFlowStats.pressure.dominantSide})`);
+      } else if (flowSignal.type === 'SHORT' && flowSignal.confidence > 30) {
+        const flowBoost = (flowSignal.confidence / 100) * config.orderFlowWeight * 6.0;
+        bearScore += flowBoost;
+        reasoning.push(`Order Flow SHORT: +${flowBoost.toFixed(2)} (CVD: ${cvdAnalysis.trend}, Pressure: ${orderFlowStats.pressure.dominantSide})`);
+      }
+
+      // CRITICAL: Liquidation cascade override
+      if (orderFlowStats.liquidationVolume > 50000000) {
+        const longLiqs = orderFlowStats.recentLiquidations.filter(l => l.side === 'long').length;
+        const shortLiqs = orderFlowStats.recentLiquidations.filter(l => l.side === 'short').length;
+
+        if (longLiqs > shortLiqs * 2 && longLiqs > 5) {
+          // Massive long liquidations → bearish override
+          bearScore += 3.0;
+          reasoning.push(`⚠️ LIQUIDATION CASCADE: ${longLiqs} long liqs ($${(orderFlowStats.liquidationVolume / 1000000).toFixed(1)}M) → BEARISH`);
+        } else if (shortLiqs > longLiqs * 2 && shortLiqs > 5) {
+          // Massive short liquidations → bullish override
+          bullScore += 3.0;
+          reasoning.push(`⚠️ SHORT SQUEEZE: ${shortLiqs} short liqs ($${(orderFlowStats.liquidationVolume / 1000000).toFixed(1)}M) → BULLISH`);
+        }
+      }
+
+      // Extreme pressure override
+      if (orderFlowStats.pressure.strength === 'extreme') {
+        if (orderFlowStats.pressure.dominantSide === 'buy') {
+          bullScore += 1.5;
+          reasoning.push(`⚡ EXTREME BUY PRESSURE: ${orderFlowStats.pressure.buyPressure.toFixed(1)}% → +1.5 bull`);
+        } else if (orderFlowStats.pressure.dominantSide === 'sell') {
+          bearScore += 1.5;
+          reasoning.push(`⚡ EXTREME SELL PRESSURE: ${orderFlowStats.pressure.sellPressure.toFixed(1)}% → +1.5 bear`);
+        }
+      }
+
+      // Update reasoning with final scores after order flow
+      reasoning.push(`Final Scores (with Order Flow): Bull ${bullScore.toFixed(1)} | Bear ${bearScore.toFixed(1)}`);
+    } catch (error) {
+      console.error('[Tactical v2] Order flow integration error:', error);
+      reasoning.push('⚠️ Order flow data unavailable');
+    }
+  }
+
   // Check if signal threshold met
   if (bullScore >= minScore && bearScore < 2 && barsSinceLast > cooldown) {
     lastSignalBar = i;
@@ -177,16 +293,31 @@ export function generateTacticalSignal(
     const currentPrice = closes[i];
     const currentATR = atr[i];
     const stopDistance = currentATR * 1.5; // 1.5x ATR for stop
-    const targetDistance = currentATR * 3.0; // 3x ATR for target (2:1 R:R)
+    const targetDistance = currentATR * 3.0; // 3x ATR for target
+
+    // Base prices (without slippage)
+    const baseEntryPrice = currentPrice;
+    const baseStopPrice = currentPrice - stopDistance;
+    const baseTargetPrice = currentPrice + targetDistance;
+
+    // FIX #4: Apply slippage to make prices realistic
+    const entryPrice = applySlippage(baseEntryPrice, 'BUY', 'MARKET', currentATR, currentPrice);
+    const stopPrice = applySlippage(baseStopPrice, 'SELL', 'STOP', currentATR, currentPrice);
+    const targetPrice = applySlippage(baseTargetPrice, 'SELL', 'LIMIT', currentATR, currentPrice);
+
+    // FIX #2: Calculate R:R dynamically from actual distances (with slippage)
+    const actualRiskDistance = Math.abs(entryPrice - stopPrice);
+    const actualRewardDistance = Math.abs(targetPrice - entryPrice);
+    const calculatedRR = actualRewardDistance / actualRiskDistance;
 
     const signal: TradeSignal = {
-      id: `tactical-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: `tactical-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
       pair: 'BTCUSDT',
       type: 'LONG',
-      entryZone: currentPrice.toFixed(2),
-      invalidation: (currentPrice - stopDistance).toFixed(2),
-      targets: [(currentPrice + targetDistance).toFixed(2)],
-      riskRewardRatio: 2.0,
+      entryZone: entryPrice.toFixed(2),
+      invalidation: stopPrice.toFixed(2),
+      targets: [targetPrice.toFixed(2)],
+      riskRewardRatio: parseFloat(calculatedRR.toFixed(2)), // Dynamic calculation with slippage
       confidence: Math.min(Math.round((bullScore / minScore) * 100), 95),
       regime: regime,
       reasoning: `Tactical v2: ${reasoning.join(' | ')}`,
@@ -209,14 +340,29 @@ export function generateTacticalSignal(
     const stopDistance = currentATR * 1.5;
     const targetDistance = currentATR * 3.0;
 
+    // Base prices (without slippage)
+    const baseEntryPrice = currentPrice;
+    const baseStopPrice = currentPrice + stopDistance;
+    const baseTargetPrice = currentPrice - targetDistance;
+
+    // FIX #4: Apply slippage to make prices realistic
+    const entryPrice = applySlippage(baseEntryPrice, 'SELL', 'MARKET', currentATR, currentPrice);
+    const stopPrice = applySlippage(baseStopPrice, 'BUY', 'STOP', currentATR, currentPrice);
+    const targetPrice = applySlippage(baseTargetPrice, 'BUY', 'LIMIT', currentATR, currentPrice);
+
+    // FIX #2: Calculate R:R dynamically from actual distances (with slippage)
+    const actualRiskDistance = Math.abs(entryPrice - stopPrice);
+    const actualRewardDistance = Math.abs(targetPrice - entryPrice);
+    const calculatedRR = actualRewardDistance / actualRiskDistance;
+
     const signal: TradeSignal = {
-      id: `tactical-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: `tactical-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
       pair: 'BTCUSDT',
       type: 'SHORT',
-      entryZone: currentPrice.toFixed(2),
-      invalidation: (currentPrice + stopDistance).toFixed(2),
-      targets: [(currentPrice - targetDistance).toFixed(2)],
-      riskRewardRatio: 2.0,
+      entryZone: entryPrice.toFixed(2),
+      invalidation: stopPrice.toFixed(2),
+      targets: [targetPrice.toFixed(2)],
+      riskRewardRatio: parseFloat(calculatedRR.toFixed(2)), // Dynamic calculation with slippage
       confidence: Math.min(Math.round((bearScore / minScore) * 100), 95),
       regime: regime,
       reasoning: `Tactical v2: ${reasoning.join(' | ')}`,

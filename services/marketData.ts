@@ -74,17 +74,26 @@ export const fetchSignals = async () => {
         useStore.setState({ isScanning: true });
         const { price, vix, btcd, sentimentScore, technicals, chartData } = useStore.getState();
 
-        // HYBRID APPROACH: Tactical v2 (rule-based) + AI validation
-        // Step 1: Generate Tactical v2 signal from chart data
+        // HYBRID APPROACH: Tactical v2 (rule-based) + AI validation + ORDER FLOW
+        // Step 1: Get current order flow stats (REAL-TIME)
+        const { aggrService } = await import('./aggrService');
+        const orderFlowStats = aggrService.getStats();
+
+        // Step 2: Generate Tactical v2 signal WITH order flow integration
         const { generateTacticalSignal } = await import('./tacticalSignals');
-        const tacticalResult = generateTacticalSignal(chartData);
+        const tacticalResult = generateTacticalSignal(chartData, undefined, orderFlowStats);
 
         if (import.meta.env.DEV) {
-            console.log('[Signal Gen] Tactical v2:', {
+            console.log('[Signal Gen] Tactical v2 (with Order Flow):', {
                 signal: tacticalResult.signal ? tacticalResult.signal.type : 'NONE',
                 bullScore: tacticalResult.bullScore,
                 bearScore: tacticalResult.bearScore,
-                regime: tacticalResult.regime
+                regime: tacticalResult.regime,
+                orderFlow: orderFlowStats ? {
+                    cvd: orderFlowStats.cvd.cumulativeDelta,
+                    pressure: orderFlowStats.pressure.dominantSide,
+                    liquidations: orderFlowStats.liquidationCount
+                } : 'N/A'
             });
         }
 
