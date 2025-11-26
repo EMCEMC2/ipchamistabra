@@ -403,8 +403,8 @@ function App() {
 
             {/* Trade Entry & Management (92% height) */}
             <div className="flex-1 min-h-0 flex flex-col gap-2 h-[92%]">
-              {/* Trade Setup (50%) */}
-              <div className="h-1/2 flex flex-col">
+              {/* Trade Setup (60%) */}
+              <div className="h-[60%] flex flex-col">
                 <div className="flex items-center gap-1.5 mb-1.5 px-1">
                   <Target size={12} className="text-gray-400" />
                   <span className="text-[11px] font-bold tracking-wide text-gray-200">ORDER ENTRY</span>
@@ -414,8 +414,8 @@ function App() {
                 </div>
               </div>
 
-              {/* AI Command / Positions (50%) */}
-              <div className="h-1/2 min-h-0">
+              {/* AI Command / Positions (40%) */}
+              <div className="h-[40%] min-h-0">
                 <AiCommandCenter />
               </div>
             </div>

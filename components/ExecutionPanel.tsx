@@ -250,8 +250,8 @@ export const ExecutionPanel: React.FC = () => {
                 </button>
             </div>
 
-            {/* Inputs */}
-            <div className="space-y-5 flex-1">
+            {/* Inputs - Scrollable Area */}
+            <div className="space-y-5 flex-1 overflow-y-auto custom-scrollbar pr-2">
 
                 {/* Leverage Slider */}
                 <div className="bg-terminal-bg/30 p-3 rounded-lg border border-terminal-border/50">
