@@ -132,8 +132,8 @@ export const ChartPanel: React.FC = () => {
     });
 
     // Tactical Series
-    const emaFast = chart.addLineSeries({ color: '#3b82f6', lineWidth: 2 });
-    const emaSlow = chart.addLineSeries({ color: '#f97316', lineWidth: 2 });
+    const emaFast = chart.addLineSeries({ color: '#3b82f6', lineWidth: 1 });
+    const emaSlow = chart.addLineSeries({ color: '#f97316', lineWidth: 1 });
     const ema200 = chart.addLineSeries({ color: '#a855f7', lineWidth: 1, lineStyle: LineStyle.Dotted });
 
     chartRef.current = chart;
@@ -337,13 +337,13 @@ export const ChartPanel: React.FC = () => {
 
     if (nearestSupp) {
       const l = candleSeriesRef.current.createPriceLine({
-        price: nearestSupp, color: '#10b981', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'CLUSTER SUP'
+        price: nearestSupp, color: '#10b981', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: ''
       });
       clusterLinesRef.current.push(l);
     }
     if (nearestRes) {
       const l = candleSeriesRef.current.createPriceLine({
-        price: nearestRes, color: '#ef4444', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'CLUSTER RES'
+        price: nearestRes, color: '#ef4444', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: ''
       });
       clusterLinesRef.current.push(l);
     }
@@ -365,17 +365,17 @@ export const ChartPanel: React.FC = () => {
 
       if (entryPrice) {
         activePriceLinesRef.current.push(candleSeriesRef.current!.createPriceLine({
-          price: entryPrice, color: '#3b82f6', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: `ENTRY (${signal.type})`
+          price: entryPrice, color: '#3b82f6', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: `ENTRY`
         }));
       }
       if (stopPrice) {
         activePriceLinesRef.current.push(candleSeriesRef.current!.createPriceLine({
-          price: stopPrice, color: '#ef4444', lineWidth: 1, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: `STOP LOSS`
+          price: stopPrice, color: '#ef4444', lineWidth: 1, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: `STOP`
         }));
       }
       if (targetPrice) {
         activePriceLinesRef.current.push(candleSeriesRef.current!.createPriceLine({
-          price: targetPrice, color: '#10b981', lineWidth: 1, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: `TARGET 1`
+          price: targetPrice, color: '#10b981', lineWidth: 1, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: `TP`
         }));
       }
     });
@@ -418,28 +418,28 @@ export const ChartPanel: React.FC = () => {
   };
 
   return (
-    <div className="h-full w-full card-premium flex flex-col relative overflow-hidden group">
+    <div className="h-full w-full flex flex-col relative overflow-hidden group bg-[#050505] border border-[#1a1a1a] rounded-sm">
       {/* Header Controls */}
-      <div className="flex justify-between items-center mb-3 shrink-0 z-10">
+      <div className="flex justify-between items-center px-2 py-1.5 border-b border-[#1a1a1a] bg-[#0a0a0a] shrink-0 z-10">
         <div className="flex items-center gap-4">
-          <h2 className="text-gray-400 font-sans text-sm uppercase tracking-wider flex items-center gap-2">
-            <Activity size={14} className="text-green-400" />
+          <h2 className="text-gray-400 font-sans text-xs uppercase tracking-wider flex items-center gap-2">
+            <Activity size={12} className="text-green-400" />
             BTCUSDT.P
-            <span className="text-gray-200 font-semibold hidden sm:inline">
+            <span className="text-gray-500 font-semibold hidden sm:inline">
               • {timeframes.find(t => t.value === timeframe)?.label}
             </span>
           </h2>
 
           {/* Timeframe Selector */}
-          <div className="flex bg-white/5 border border-white/10 rounded-md p-0.5 gap-0.5">
+          <div className="flex bg-[#1a1a1a] rounded-sm p-0.5 gap-0.5">
             {timeframes.map((tf) => (
               <button
                 key={tf.value}
                 onClick={() => onTimeframeChange(tf.value)}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-all duration-200 ${
+                className={`px-2 py-0.5 text-[10px] font-medium rounded-sm transition-all duration-200 ${
                   timeframe === tf.value
-                    ? 'bg-green-500/20 text-green-400 border border-green-500/50 shadow-[0_0_10px_rgba(34,197,94,0.2)]'
-                    : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+                    ? 'bg-[#2a2a2a] text-green-400 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
                 }`}
               >
                 {tf.label}
@@ -450,69 +450,69 @@ export const ChartPanel: React.FC = () => {
 
         <div className="flex gap-2 items-center">
           {/* Zoom Controls */}
-          <div className="flex bg-white/5 border border-white/10 rounded-md overflow-hidden">
+          <div className="flex bg-[#1a1a1a] rounded-sm overflow-hidden">
             <button
               onClick={handleZoomIn}
-              className="px-2 py-1.5 text-gray-400 hover:text-green-400 hover:bg-white/5 transition-all duration-200 border-r border-white/10"
+              className="px-1.5 py-1 text-gray-500 hover:text-green-400 hover:bg-white/5 transition-all duration-200 border-r border-[#2a2a2a]"
               title="Zoom In"
             >
-              <ZoomIn size={14} />
+              <ZoomIn size={12} />
             </button>
             <button
               onClick={handleZoomOut}
-              className="px-2 py-1.5 text-gray-400 hover:text-green-400 hover:bg-white/5 transition-all duration-200 border-r border-white/10"
+              className="px-1.5 py-1 text-gray-500 hover:text-green-400 hover:bg-white/5 transition-all duration-200 border-r border-[#2a2a2a]"
               title="Zoom Out"
             >
-              <ZoomOut size={14} />
+              <ZoomOut size={12} />
             </button>
             <button
               onClick={handleResetZoom}
-              className="px-2 py-1.5 text-gray-400 hover:text-green-400 hover:bg-white/5 transition-all duration-200"
+              className="px-1.5 py-1 text-gray-500 hover:text-green-400 hover:bg-white/5 transition-all duration-200"
               title="Fit Content"
             >
-              <Maximize2 size={14} />
+              <Maximize2 size={12} />
             </button>
           </div>
 
           {/* TACTICAL V2 TOGGLE */}
           <button
             onClick={() => setShowTactical(!showTactical)}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md transition-all duration-200 border ${
+            className={`flex items-center gap-1 px-2 py-1 rounded-sm transition-all duration-200 border ${
               showTactical
-                ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 shadow-[0_0_10px_rgba(251,191,36,0.15)]'
-                : 'bg-white/5 text-gray-400 border-white/10 hover:border-amber-500/30 hover:text-amber-400'
+                ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                : 'bg-transparent text-gray-500 border-transparent hover:text-amber-400'
             }`}
             title="Toggle BitMind Tactical v2 Indicators"
           >
-            <Layers size={14} />
-            <span className="text-xs font-medium uppercase">TACTICAL</span>
+            <Layers size={12} />
+            <span className="text-[10px] font-medium uppercase hidden sm:inline">TACTICAL</span>
           </button>
 
           <button
             onClick={() => setShowSignals(!showSignals)}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md transition-all duration-200 border ${
+            className={`flex items-center gap-1 px-2 py-1 rounded-sm transition-all duration-200 border ${
               showSignals
-                ? 'bg-blue-500/10 text-blue-400 border-blue-500/30 shadow-[0_0_10px_rgba(59,130,246,0.15)]'
-                : 'bg-white/5 text-gray-400 border-white/10 hover:border-blue-500/30 hover:text-blue-400'
+                ? 'bg-blue-500/10 text-blue-400 border-blue-500/30'
+                : 'bg-transparent text-gray-500 border-transparent hover:text-blue-400'
             }`}
             title="Toggle AI Signal Overlay"
           >
-            {showSignals ? <Eye size={14} /> : <EyeOff size={14} />}
-            <span className="text-xs font-medium uppercase">SIGNALS</span>
+            {showSignals ? <Eye size={12} /> : <EyeOff size={12} />}
+            <span className="text-[10px] font-medium uppercase hidden sm:inline">SIGNALS</span>
           </button>
 
           <button
             onClick={() => setIsScriptModalOpen(true)}
-            className="flex items-center gap-1.5 bg-white/5 hover:bg-purple-500/10 border border-white/10 hover:border-purple-500/30 text-gray-400 hover:text-purple-400 px-2.5 py-1.5 rounded-md transition-all duration-200 group"
+            className="flex items-center gap-1 bg-transparent hover:bg-purple-500/10 border border-transparent hover:border-purple-500/30 text-gray-500 hover:text-purple-400 px-2 py-1 rounded-sm transition-all duration-200 group"
           >
-            <Code size={14} className="group-hover:rotate-12 transition-transform duration-300" />
-            <span className="text-xs font-medium uppercase">PINE</span>
+            <Code size={12} className="group-hover:rotate-12 transition-transform duration-300" />
+            <span className="text-[10px] font-medium uppercase hidden sm:inline">PINE</span>
           </button>
         </div>
       </div>
 
       {/* Chart Container */}
-      <div className="flex-1 w-full relative overflow-hidden rounded-md bg-gradient-to-b from-black/20 to-black/40 border border-white/5" ref={chartContainerRef}>
+      <div className="flex-1 w-full relative overflow-hidden bg-[#050505]" ref={chartContainerRef}>
       </div>
 
       <PineScriptModal
