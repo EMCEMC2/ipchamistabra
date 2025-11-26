@@ -11,10 +11,7 @@ import { Position } from '../types';
 import { calculatePositionSize, calculateLiquidationPrice } from '../utils/tradingCalculations';
 import { binanceApi } from '../services/binanceApi';
 
-interface OrderBookLevel {
-  price: string;
-  size: string;
-}
+type OrderBookLevel = [string, string];
 
 export const ExecutionPanelPro: React.FC = () => {
   const {
@@ -105,7 +102,8 @@ export const ExecutionPanelPro: React.FC = () => {
 
     try {
       if (isLiveMode) {
-        await binanceApi.placeOrder('BTCUSDT', side, orderType, size);
+        // Cast orderType to any to support STOP/OCO if API allows, or restrict UI
+        await binanceApi.placeOrder('BTCUSDT', side, orderType as any, size);
         console.log(`[LIVE] ${side} ${size} BTC @ ${executionPrice}`);
       } else {
         // Paper Trading
@@ -136,8 +134,21 @@ export const ExecutionPanelPro: React.FC = () => {
     }
   };
 
+  // Visual Glue: Highlight panel when a signal is loaded
+  const [highlight, setHighlight] = useState(false);
+
+  useEffect(() => {
+    if (activeTradeSetup) {
+      setHighlight(true);
+      const timer = setTimeout(() => setHighlight(false), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [activeTradeSetup]);
+
   return (
-    <div className="h-full flex flex-col bg-terminal-card border border-terminal-border rounded-lg overflow-hidden">
+    <div className={`h-full flex flex-col bg-terminal-card border rounded-lg overflow-hidden transition-all duration-500 ${
+      highlight ? 'border-blue-500 shadow-[0_0_30px_rgba(59,130,246,0.4)] ring-1 ring-blue-500/50' : 'border-terminal-border'
+    }`}>
       {/* === ZONE A: ORDER LOGIC === */}
       <div className="shrink-0 border-b border-terminal-border">
         {/* Row 1: Order Type Tabs */}
