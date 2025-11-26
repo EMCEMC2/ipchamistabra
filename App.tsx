@@ -257,26 +257,26 @@ function App() {
         </div>
       </header>
 
-      {/* Main Content Grid with Enhanced Spacing */}
-      <main className="flex-1 overflow-hidden p-3">
-        <div className="grid grid-cols-12 gap-3 h-full fade-in">
-          {/* Left Column: Signals & Order Flow (3 cols) - MOVED HERE */}
-          <div className="col-span-3 flex flex-col gap-2 h-full overflow-hidden">
+      {/* Main Content Grid - PROFESSIONAL TRADING TERMINAL LAYOUT */}
+      <main className="flex-1 overflow-hidden p-2">
+        <div className="grid grid-cols-12 gap-2 h-full fade-in">
+          {/* LEFT SIDEBAR: Signals & Order Flow (2 cols - Compact) */}
+          <div className="col-span-2 flex flex-col gap-2 h-full overflow-hidden">
             {activeView === 'TERMINAL' && (
               <>
-                {/* Active Signals (Top Half) */}
-                <div className="h-1/2 flex flex-col">
-                  <div className="flex items-center gap-2 mb-2 px-1">
-                    <Activity size={14} className="text-blue-400" />
-                    <span className="text-xs font-semibold tracking-wide text-gray-200">ACTIVE SIGNALS</span>
+                {/* Active Signals (Top 60%) */}
+                <div className="h-[60%] flex flex-col">
+                  <div className="flex items-center gap-1.5 mb-1.5 px-1">
+                    <Activity size={12} className="text-blue-400" />
+                    <span className="text-[11px] font-bold tracking-wide text-gray-200">SIGNALS</span>
                   </div>
                   <div className="flex-1 min-h-0">
                     <ActiveSignals />
                   </div>
                 </div>
 
-                {/* Order Flow (Bottom Half) */}
-                <div className="h-1/2 flex flex-col">
+                {/* Order Flow (Bottom 40%) */}
+                <div className="h-[40%] flex flex-col">
                   <div className="flex-1 min-h-0">
                     <AggrOrderFlow />
                   </div>
@@ -285,17 +285,17 @@ function App() {
             )}
           </div>
 
-          {/* Center Column: Chart & News (6 cols) */}
-          <div className="col-span-6 flex flex-col gap-2 h-full overflow-hidden">
+          {/* CENTER: Chart Dominant + News (7 cols - MAXIMUM SPACE) */}
+          <div className="col-span-7 flex flex-col gap-2 h-full overflow-hidden">
             {activeView === 'TERMINAL' && (
               <>
-                {/* Chart (70% height) */}
-                <div className="h-[70%] min-h-[350px]">
+                {/* Chart (78% height - DOMINANT VIEW) */}
+                <div className="h-[78%] min-h-[450px]">
                   <ChartPanel />
                 </div>
 
-                {/* News Under Chart (30% height) */}
-                <div className="h-[30%] flex-1 min-h-0">
+                {/* News/Intel Under Chart (22% height - Compact) */}
+                <div className="h-[22%] flex-1 min-h-0">
                   <IntelDeck />
                 </div>
               </>
@@ -306,10 +306,10 @@ function App() {
             {activeView === 'JOURNAL' && <TradeJournal />}
           </div>
 
-          {/* Right Column: Data Cards & Trade Setup (3 cols) */}
+          {/* RIGHT SIDEBAR: Order Entry & Management (3 cols) */}
           <div className="col-span-3 flex flex-col gap-2 h-full overflow-hidden">
-            {/* Compact Data Cards (Smaller - Top) */}
-            <div className="grid grid-cols-2 gap-2 shrink-0">
+            {/* Compact Metrics Strip (Single Row - 8% height) */}
+            <div className="grid grid-cols-2 gap-1.5 shrink-0 h-[8%] min-h-[60px]">
               <MetricCard
                 title="BTC PRICE"
                 value={`$${price.toLocaleString()}`}
@@ -340,20 +340,20 @@ function App() {
               />
             </div>
 
-            {/* Trade Setup & AI Command Center (Bottom) */}
-            <div className="flex-1 min-h-0 flex flex-col gap-2">
-              {/* Trade Setup */}
+            {/* Trade Entry & Management (92% height) */}
+            <div className="flex-1 min-h-0 flex flex-col gap-2 h-[92%]">
+              {/* Trade Setup (50%) */}
               <div className="h-1/2 flex flex-col">
-                <div className="flex items-center gap-2 mb-2 px-1">
-                  <Target size={14} className="text-gray-400" />
-                  <span className="text-xs font-semibold tracking-wide text-gray-200">TRADE SETUP</span>
+                <div className="flex items-center gap-1.5 mb-1.5 px-1">
+                  <Target size={12} className="text-gray-400" />
+                  <span className="text-[11px] font-bold tracking-wide text-gray-200">ORDER ENTRY</span>
                 </div>
                 <div className="flex-1 min-h-0">
                   <TradeSetupPanel />
                 </div>
               </div>
 
-              {/* AI Command Center */}
+              {/* AI Command / Positions (50%) */}
               <div className="h-1/2 min-h-0">
                 <AiCommandCenter />
               </div>
