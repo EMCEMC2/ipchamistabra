@@ -7,7 +7,7 @@ import { AiCommandCenter } from './components/AiCommandCenter';
 import { MLCortex } from './components/MLCortex';
 import { AgentSwarm } from './components/AgentSwarm/SwarmCore';
 import { ActiveSignals } from './components/ActiveSignals';
-import { ExecutionPanel } from './components/ExecutionPanel';
+import { ExecutionPanelPro } from './components/ExecutionPanelPro';
 import { PositionsPanel } from './components/PositionsPanel';
 import { TradeJournal } from './components/TradeJournal';
 import { BacktestPanel } from './components/BacktestPanel';
@@ -415,7 +415,7 @@ function App() {
                   <span className="text-[11px] font-bold tracking-wide text-gray-200">ORDER ENTRY</span>
                 </div>
                 <div className="flex-1 min-h-0">
-                  <ExecutionPanel />
+                  <ExecutionPanelPro />
                 </div>
               </div>
 

@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { Activity, ArrowUpRight, ArrowDownRight, Clock, Target, Shield, RefreshCw, Zap, Scale, PlayCircle } from 'lucide-react';
+import { Activity, RefreshCw, Zap, ArrowUp, ArrowDown, Play } from 'lucide-react';
 import { TradeSignal } from '../types';
 import { useStore } from '../store/useStore';
 import { fetchSignals } from '../services/marketData';
@@ -13,175 +12,112 @@ export const ActiveSignals: React.FC<ActiveSignalsProps> = ({ onTrade }) => {
   const { signals, isScanning } = useStore();
   const safeSignals = signals || [];
 
-  const getStatusBadge = (status: TradeSignal['status']) => {
-    const baseClasses = "text-[10px] px-2 py-0.5 rounded font-mono border";
-    switch (status) {
-      case 'ACTIVE':
-        return <span className={`${baseClasses} bg-emerald-500/10 text-emerald-500 border-emerald-500/20`}>ACTIVE</span>;
-      case 'SCANNING':
-        return <span className={`${baseClasses} bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse`}>SCANNING</span>;
-      case 'FILLED':
-        return <span className={`${baseClasses} bg-blue-500/10 text-blue-500 border-blue-500/20`}>FILLED</span>;
-      case 'CLOSED':
-        return <span className={`${baseClasses} bg-zinc-500/10 text-zinc-500 border-zinc-500/20`}>CLOSED</span>;
-    }
-  };
-
-  const getRegimeBadge = (regime: TradeSignal['regime']) => {
-     let color = "text-terminal-muted";
-     let bg = "bg-terminal-border";
-     if (regime === 'LOW_VOL') { color = "text-blue-400"; bg = "bg-blue-400/10 border-blue-400/20"; }
-     if (regime === 'NORMAL') { color = "text-terminal-text"; bg = "bg-terminal-border border-terminal-border"; }
-     if (regime === 'HIGH_VOL') { color = "text-terminal-warn"; bg = "bg-terminal-warn/10 border-terminal-warn/20"; }
-     if (regime === 'TRENDING') { color = "text-terminal-accent"; bg = "bg-terminal-accent/10 border-terminal-accent/20"; }
-
-     return (
-        <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono border uppercase ${bg} ${color}`}>
-            {regime?.replace('_', ' ')}
-        </span>
-     );
-  };
-
-  const getConfidenceStyle = (score: number) => {
-    if (score >= 85) return { color: 'text-terminal-accent', bg: 'bg-terminal-accent/10', border: 'border-terminal-accent/20' };
-    if (score >= 70) return { color: 'text-blue-400', bg: 'bg-blue-400/10', border: 'border-blue-400/20' };
-    if (score >= 50) return { color: 'text-terminal-warn', bg: 'bg-terminal-warn/10', border: 'border-terminal-warn/20' };
-    return { color: 'text-terminal-danger', bg: 'bg-terminal-danger/10', border: 'border-terminal-danger/20' };
+  // Helper for Confidence Color
+  const getConfColor = (score: number) => {
+    if (score >= 80) return 'text-green-400';
+    if (score >= 60) return 'text-blue-400';
+    if (score >= 40) return 'text-yellow-400';
+    return 'text-red-400';
   };
 
   return (
-    <div className="h-full flex flex-col gap-2">
+    <div className="h-full flex flex-col bg-[#050505] border border-[#1a1a1a] rounded-sm overflow-hidden font-sans">
       {/* Header */}
-      <div className="flex items-center justify-between shrink-0 px-1">
-        <div className="flex items-center gap-2 text-blue-400">
-          <Activity size={16} />
-          <h3 className="font-sans font-semibold text-sm tracking-wide text-gray-200">Active Signals</h3>
-        </div>
+      <div className="flex items-center justify-between px-2 py-1.5 border-b border-[#1a1a1a] bg-[#0a0a0a]">
         <div className="flex items-center gap-2">
-             <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded border text-[10px] font-medium ${
-               isScanning ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : 'bg-green-500/10 text-green-400 border-green-500/30'
-             }`}>
-                 <span className="relative flex h-1.5 w-1.5">
-                   <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${isScanning ? 'bg-amber-400' : 'bg-green-400'} opacity-75`}></span>
-                   <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${isScanning ? 'bg-amber-500' : 'bg-green-500'}`}></span>
-                 </span>
-                 <span>{isScanning ? 'SCANNING' : 'LIVE'}</span>
-            </div>
-            <button
-                onClick={fetchSignals}
-                disabled={isScanning}
-                className="text-[10px] flex items-center gap-1.5 bg-white/5 hover:bg-green-500/10 border border-white/10 hover:border-green-500/30 text-gray-400 hover:text-green-400 px-2 py-0.5 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-                <RefreshCw size={10} className={isScanning ? "animate-spin" : ""} />
-                SCAN
-            </button>
+          <Activity size={12} className="text-blue-500" />
+          <span className="text-[10px] font-bold tracking-wider text-gray-300 uppercase">Active Signals</span>
+          <span className="text-[9px] text-gray-600 font-mono">({safeSignals.length})</span>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          {isScanning && (
+             <span className="flex items-center gap-1 text-[9px] text-amber-500 animate-pulse">
+                <RefreshCw size={8} className="animate-spin" /> SCANNING
+             </span>
+          )}
+          <button
+            onClick={fetchSignals}
+            disabled={isScanning}
+            className="text-[9px] bg-[#1a1a1a] hover:bg-[#2a2a2a] text-gray-400 hover:text-white px-2 py-0.5 rounded-sm transition-colors border border-[#333]"
+          >
+            SCAN
+          </button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto pr-2 space-y-2">
-        {safeSignals.map((signal) => {
-          const confStyle = getConfidenceStyle(signal.confidence);
-          return (
-            <div
-              key={signal.id}
-              className={`p-3 rounded-md border bg-white/5 hover:bg-white/10 transition-all duration-200 group relative overflow-hidden ${
-                signal.type === 'LONG'
-                  ? 'border-green-500/20 hover:border-green-500/40'
-                  : 'border-red-500/20 hover:border-red-500/40'
-              }`}
-            >
-              {/* Side Indicator with Glow */}
-              <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l ${
-                signal.type === 'LONG'
-                  ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]'
-                  : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
-              }`} />
-              
-              <div className="pl-2 flex flex-col gap-2 relative z-10">
-                  {/* Header */}
-                  <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-2">
-                          <span className="font-semibold font-mono text-sm text-gray-100">{signal.pair}</span>
-                          <span className={`text-xs font-semibold flex items-center gap-0.5 ${
-                            signal.type === 'LONG' ? 'text-green-400' : 'text-red-400'
-                          }`}>
-                              {signal.type === 'LONG' ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                              {signal.type}
-                          </span>
-                          {signal.regime && getRegimeBadge(signal.regime)}
-                      </div>
+      {/* Data Grid */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar">
+        <table className="w-full text-left border-collapse">
+          <thead className="sticky top-0 bg-[#0a0a0a] z-10 text-[9px] text-gray-500 font-medium uppercase tracking-wider">
+            <tr>
+              <th className="px-2 py-1 border-b border-[#1a1a1a]">Ticker</th>
+              <th className="px-2 py-1 border-b border-[#1a1a1a]">Side</th>
+              <th className="px-2 py-1 border-b border-[#1a1a1a] text-right">Entry</th>
+              <th className="px-2 py-1 border-b border-[#1a1a1a] text-right">Conf</th>
+              <th className="px-2 py-1 border-b border-[#1a1a1a] text-right">R:R</th>
+              <th className="px-2 py-1 border-b border-[#1a1a1a]">Action</th>
+            </tr>
+          </thead>
+          <tbody className="text-[10px] font-mono divide-y divide-[#1a1a1a]">
+            {safeSignals.map((signal) => (
+              <tr 
+                key={signal.id} 
+                className="group hover:bg-[#111] transition-colors cursor-pointer"
+                onClick={() => onTrade && onTrade(signal)}
+              >
+                {/* Ticker */}
+                <td className="px-2 py-1 text-gray-300 font-bold group-hover:text-white">
+                  {signal.pair.replace('USDT', '')}
+                </td>
 
-                      <div className="flex items-center gap-2">
-                        {/* Confidence Badge */}
-                        <div className="group/conf relative cursor-help" title="AI Confidence Score">
-                          <div className={`flex items-center gap-1 px-2 py-0.5 rounded-md border ${confStyle.bg} ${confStyle.border}`}>
-                             <Zap size={10} className={confStyle.color} />
-                             <span className={`text-[10px] font-semibold ${confStyle.color}`}>{signal.confidence}%</span>
-                          </div>
-                        </div>
-                      </div>
-                  </div>
+                {/* Side */}
+                <td className="px-2 py-1">
+                  <span className={`flex items-center gap-0.5 ${signal.type === 'LONG' ? 'text-green-500' : 'text-red-500'}`}>
+                    {signal.type === 'LONG' ? <ArrowUp size={8} /> : <ArrowDown size={8} />}
+                    {signal.type}
+                  </span>
+                </td>
 
-                  {/* Details Grid */}
-                  <div className="grid grid-cols-2 gap-y-2 gap-x-3 text-xs font-mono mt-1">
-                      <div className="min-w-0">
-                          <div className="text-gray-500 text-[10px] uppercase mb-0.5 flex items-center gap-1 font-medium">
-                              <Target size={10} /> Entry
-                          </div>
-                          <div className="text-gray-200 font-semibold truncate">{signal.entryZone}</div>
-                      </div>
-                      <div className="text-right min-w-0">
-                          <div className="text-gray-500 text-[10px] uppercase mb-0.5 font-medium">Target</div>
-                          <div className="text-green-400 font-semibold truncate">{signal.targets[0]}</div>
-                      </div>
-                      <div className="min-w-0">
-                          <div className="text-gray-500 text-[10px] uppercase mb-0.5 flex items-center gap-1 font-medium">
-                              <Shield size={10} /> Stop
-                          </div>
-                          <div className="text-red-400 font-semibold truncate">{signal.invalidation}</div>
-                      </div>
-                      <div className="text-right min-w-0">
-                          <div className="text-gray-500 text-[10px] uppercase mb-0.5 flex items-center justify-end gap-1 font-medium">
-                            <Scale size={10} /> R:R
-                          </div>
-                          <div className="text-blue-400 font-semibold">{signal.riskRewardRatio ? signal.riskRewardRatio.toFixed(1) : '-'}:1</div>
-                      </div>
-                  </div>
+                {/* Entry */}
+                <td className="px-2 py-1 text-right text-gray-400 tabular-nums">
+                  {signal.entryZone.split('-')[0]}
+                </td>
 
-                  <div className="border-t border-white/10 pt-2 mt-1 flex justify-between items-start gap-2">
-                      <div className="text-[9px] text-gray-400 leading-tight line-clamp-3 flex-1" title={signal.reasoning}>
-                          {signal.reasoning}
-                      </div>
-                      {onTrade && (
-                          <button
-                            onClick={() => onTrade(signal)}
-                            className="flex items-center gap-1 bg-green-500/10 hover:bg-green-500/20 border border-green-500/30 hover:border-green-500/50 text-green-400 text-[10px] font-medium uppercase px-2 py-1 rounded-md transition-all duration-200 shrink-0"
-                          >
-                              <PlayCircle size={10} /> Execute
-                          </button>
-                      )}
-                  </div>
-              </div>
-            </div>
-          );
-        })}
-        {safeSignals.length === 0 && !isScanning && (
-            <div className="flex flex-col items-center justify-center h-full text-gray-500 opacity-60">
-                <Activity size={28} className="mb-3 opacity-40" />
-                <span className="text-sm font-medium">No Active Signals</span>
-                <span className="text-xs text-gray-600 mt-1">Click SCAN to analyze market</span>
-            </div>
-        )}
-        {isScanning && safeSignals.length === 0 && (
-             <div className="flex flex-col items-center justify-center h-full text-green-400 opacity-70 animate-pulse">
-                <div className="relative">
-                  <Activity size={28} className="mb-3" />
-                  <div className="absolute inset-0 blur-md bg-green-500/30"></div>
-                </div>
-                <span className="text-sm font-medium">Analyzing Market Structure</span>
-                <span className="text-xs text-gray-400 mt-1">Scanning for high-probability setups...</span>
-            </div>
-        )}
+                {/* Confidence */}
+                <td className="px-2 py-1 text-right tabular-nums">
+                  <span className={`${getConfColor(signal.confidence)} flex items-center justify-end gap-0.5`}>
+                    <Zap size={8} className="fill-current" />
+                    {signal.confidence}%
+                  </span>
+                </td>
+
+                {/* R:R */}
+                <td className="px-2 py-1 text-right text-blue-400 tabular-nums">
+                  {signal.riskRewardRatio ? signal.riskRewardRatio.toFixed(1) : '-'}
+                </td>
+
+                {/* Action */}
+                <td className="px-2 py-1 text-right">
+                   <button 
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-[9px] bg-[#1a1a1a] hover:bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded-sm border border-transparent hover:border-blue-500/30 flex items-center gap-1 ml-auto"
+                   >
+                      <Play size={8} /> LOAD
+                   </button>
+                </td>
+              </tr>
+            ))}
+            
+            {/* Empty State */}
+            {safeSignals.length === 0 && !isScanning && (
+               <tr>
+                  <td colSpan={6} className="px-2 py-8 text-center text-gray-600 italic">
+                     No active signals. Click SCAN.
+                  </td>
+               </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
