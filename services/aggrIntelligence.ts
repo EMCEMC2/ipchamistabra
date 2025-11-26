@@ -9,7 +9,7 @@ import {
   AggrTrade,
   CascadeEvent,
   MarketPressure
-} from './aggrService';
+} from '../types/aggrTypes';
 import { IntelItem } from '../types';
 
 export interface TradingSignal {
