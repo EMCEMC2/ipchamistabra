@@ -47,7 +47,6 @@ function App() {
 
   // Local State for Dashboard
   const [activeView, setActiveView] = useState<ViewMode>('TERMINAL');
-  const [bottomTab, setBottomTab] = useState<'SIGNALS' | 'ORDERFLOW'>('SIGNALS');
   const [isApiKeyMissing, setIsApiKeyMissing] = useState(false);
 
   // Refs
@@ -261,9 +260,56 @@ function App() {
       {/* Main Content Grid with Enhanced Spacing */}
       <main className="flex-1 overflow-hidden p-3">
         <div className="grid grid-cols-12 gap-3 h-full fade-in">
-          {/* Left Column: Intel & Metrics (3 cols) */}
+          {/* Left Column: Signals & Order Flow (3 cols) - MOVED HERE */}
           <div className="col-span-3 flex flex-col gap-2 h-full overflow-hidden">
-            <div className="h-1/3 min-h-[200px] grid grid-cols-2 gap-2">
+            {activeView === 'TERMINAL' && (
+              <>
+                {/* Active Signals (Top Half) */}
+                <div className="h-1/2 flex flex-col">
+                  <div className="flex items-center gap-2 mb-2 px-1">
+                    <Activity size={14} className="text-blue-400" />
+                    <span className="text-xs font-semibold tracking-wide text-gray-200">ACTIVE SIGNALS</span>
+                  </div>
+                  <div className="flex-1 min-h-0">
+                    <ActiveSignals />
+                  </div>
+                </div>
+
+                {/* Order Flow (Bottom Half) */}
+                <div className="h-1/2 flex flex-col">
+                  <div className="flex-1 min-h-0">
+                    <AggrOrderFlow />
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Center Column: Chart & News (6 cols) */}
+          <div className="col-span-6 flex flex-col gap-2 h-full overflow-hidden">
+            {activeView === 'TERMINAL' && (
+              <>
+                {/* Chart (70% height) */}
+                <div className="h-[70%] min-h-[350px]">
+                  <ChartPanel />
+                </div>
+
+                {/* News Under Chart (30% height) */}
+                <div className="h-[30%] flex-1 min-h-0">
+                  <IntelDeck />
+                </div>
+              </>
+            )}
+            {activeView === 'SWARM' && <AgentSwarm />}
+            {activeView === 'CORTEX' && <MLCortex />}
+            {activeView === 'BACKTEST' && <BacktestPanel />}
+            {activeView === 'JOURNAL' && <TradeJournal />}
+          </div>
+
+          {/* Right Column: Data Cards & Trade Setup (3 cols) */}
+          <div className="col-span-3 flex flex-col gap-2 h-full overflow-hidden">
+            {/* Compact Data Cards (Smaller - Top) */}
+            <div className="grid grid-cols-2 gap-2 shrink-0">
               <MetricCard
                 title="BTC PRICE"
                 value={`$${price.toLocaleString()}`}
@@ -293,73 +339,25 @@ function App() {
                 trend={mapTrend(trends.btcd)}
               />
             </div>
-            <div className="h-2/3 flex-1 min-h-0">
-              <IntelDeck />
+
+            {/* Trade Setup & AI Command Center (Bottom) */}
+            <div className="flex-1 min-h-0 flex flex-col gap-2">
+              {/* Trade Setup */}
+              <div className="h-1/2 flex flex-col">
+                <div className="flex items-center gap-2 mb-2 px-1">
+                  <Target size={14} className="text-gray-400" />
+                  <span className="text-xs font-semibold tracking-wide text-gray-200">TRADE SETUP</span>
+                </div>
+                <div className="flex-1 min-h-0">
+                  <TradeSetupPanel />
+                </div>
+              </div>
+
+              {/* AI Command Center */}
+              <div className="h-1/2 min-h-0">
+                <AiCommandCenter />
+              </div>
             </div>
-          </div>
-
-          {/* Center Column: Chart & Signals (6 cols) */}
-          <div className="col-span-6 flex flex-col gap-2 h-full overflow-hidden">
-            {activeView === 'TERMINAL' && (
-              <>
-                <div className="h-[60%] min-h-[300px]">
-                  <ChartPanel />
-                </div>
-                <div className="h-[40%] flex-1 min-h-0 grid grid-cols-12 gap-3">
-                  {/* Left Column: Signals & Order Flow (Tabs) */}
-                  <div className="col-span-8 h-full flex flex-col">
-                    <div className="flex items-center gap-2 mb-2 px-1">
-                      <button
-                        onClick={() => setBottomTab('SIGNALS')}
-                        className={`text-xs font-semibold px-3 py-1.5 rounded-t-md border-t border-x border-transparent transition-all ${
-                          bottomTab === 'SIGNALS'
-                            ? 'bg-white/5 border-white/10 text-green-400 border-b-black'
-                            : 'text-gray-500 hover:text-gray-300'
-                        }`}
-                      >
-                        ACTIVE SIGNALS
-                      </button>
-                      <button
-                        onClick={() => setBottomTab('ORDERFLOW')}
-                        className={`text-xs font-semibold px-3 py-1.5 rounded-t-md border-t border-x border-transparent transition-all ${
-                          bottomTab === 'ORDERFLOW'
-                            ? 'bg-white/5 border-white/10 text-blue-400 border-b-black'
-                            : 'text-gray-500 hover:text-gray-300'
-                        }`}
-                      >
-                        ORDER FLOW
-                      </button>
-                    </div>
-                    <div className="flex-1 min-h-0 relative">
-                      {bottomTab === 'SIGNALS' && <ActiveSignals />}
-                      {bottomTab === 'ORDERFLOW' && <AggrOrderFlow />}
-                    </div>
-                  </div>
-
-                  {/* Right Column: Trade Setup (Always Visible) */}
-                  <div className="col-span-4 h-full flex flex-col">
-                    <div className="flex items-center gap-2 mb-2 px-1 h-[34px]">
-                        <div className="flex items-center gap-2 text-gray-400">
-                            <Target size={14} />
-                            <span className="text-xs font-semibold tracking-wide">TRADE SETUP</span>
-                        </div>
-                    </div>
-                    <div className="flex-1 min-h-0">
-                        <TradeSetupPanel />
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-            {activeView === 'SWARM' && <AgentSwarm />}
-            {activeView === 'CORTEX' && <MLCortex />}
-            {activeView === 'BACKTEST' && <BacktestPanel />}
-            {activeView === 'JOURNAL' && <TradeJournal />}
-          </div>
-
-          {/* Right Column: AI Command Center (3 cols) */}
-          <div className="col-span-3 h-full overflow-hidden">
-            <AiCommandCenter />
           </div>
         </div>
       </main>
