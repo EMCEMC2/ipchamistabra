@@ -77,10 +77,10 @@ export const AggrOrderFlow: React.FC = () => {
                         {cvdAnalysis.trend.toUpperCase()}
                     </span>
                 </div>
-                <div className="text-lg font-sans font-bold text-gray-100">
+                <div className="text-lg font-sans font-bold text-gray-100 truncate">
                     {stats.cvd?.delta > 0 ? '+' : ''}{((stats.cvd?.delta || 0) / 1000000).toFixed(2)}M
                 </div>
-                <div className="text-[9px] text-gray-500 mt-1 line-clamp-1">
+                <div className="text-[9px] text-gray-500 mt-1 line-clamp-2 leading-tight">
                     {cvdAnalysis.reasoning}
                 </div>
             </div>
@@ -132,13 +132,13 @@ export const AggrOrderFlow: React.FC = () => {
                     <AlertTriangle size={12} />
                     <span className="text-[10px] font-bold">RECENT LIQUIDATIONS</span>
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                     {stats.recentLiquidations.slice(0, 3).map((liq, i) => (
-                        <div key={i} className="flex justify-between text-[9px] font-mono border-b border-white/5 pb-0.5 last:border-0">
-                            <span className={liq.side === 'long' ? 'text-red-400' : 'text-green-400'}>
+                        <div key={i} className="flex justify-between items-center text-[10px] font-mono border-b border-white/5 pb-1 last:border-0 last:pb-0">
+                            <span className={`font-semibold ${liq.side === 'long' ? 'text-red-400' : 'text-green-400'}`}>
                                 {liq.side.toUpperCase()} REKT
                             </span>
-                            <span className="text-gray-300">${(liq.usdValue / 1000).toFixed(1)}K</span>
+                            <span className="text-gray-200 font-medium">${(liq.usdValue / 1000).toFixed(1)}K</span>
                         </div>
                     ))}
                 </div>
@@ -150,15 +150,15 @@ export const AggrOrderFlow: React.FC = () => {
             <div className="card-premium p-2">
                  <div className="flex items-center gap-1.5 mb-2 text-purple-400">
                     <DollarSign size={12} />
-                    <span className="text-[10px] font-bold">WHALE ACTIVITY</span>
+                    <span className="text-[10px] font-bold tracking-wide">WHALE ACTIVITY</span>
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                     {stats.recentLargeTrades.slice(0, 3).map((trade, i) => (
-                        <div key={i} className="flex justify-between text-[9px] font-mono border-b border-white/5 pb-0.5 last:border-0">
-                            <span className={trade.side === 'buy' ? 'text-green-400' : 'text-red-400'}>
+                        <div key={i} className="flex justify-between items-center text-[10px] font-mono border-b border-white/5 pb-1 last:border-0 last:pb-0">
+                            <span className={`font-semibold ${trade.side === 'buy' ? 'text-green-400' : 'text-red-400'}`}>
                                 {trade.side.toUpperCase()}
                             </span>
-                            <span className="text-gray-300">${(trade.usdValue / 1000).toFixed(1)}K</span>
+                            <span className="text-gray-200 font-medium">${(trade.usdValue / 1000).toFixed(1)}K</span>
                         </div>
                     ))}
                 </div>

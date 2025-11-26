@@ -123,39 +123,39 @@ export const ActiveSignals: React.FC<ActiveSignalsProps> = ({ onTrade }) => {
                   </div>
 
                   {/* Details Grid */}
-                  <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-xs font-mono mt-1">
-                      <div>
+                  <div className="grid grid-cols-2 gap-y-2 gap-x-3 text-xs font-mono mt-1">
+                      <div className="min-w-0">
                           <div className="text-gray-500 text-[10px] uppercase mb-0.5 flex items-center gap-1 font-medium">
                               <Target size={10} /> Entry
                           </div>
-                          <div className="text-gray-200 font-semibold">{signal.entryZone}</div>
+                          <div className="text-gray-200 font-semibold truncate">{signal.entryZone}</div>
                       </div>
-                      <div className="text-right">
+                      <div className="text-right min-w-0">
                           <div className="text-gray-500 text-[10px] uppercase mb-0.5 font-medium">Target</div>
-                          <div className="text-green-400 font-semibold">{signal.targets[0]}</div>
+                          <div className="text-green-400 font-semibold truncate">{signal.targets[0]}</div>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                           <div className="text-gray-500 text-[10px] uppercase mb-0.5 flex items-center gap-1 font-medium">
                               <Shield size={10} /> Stop
                           </div>
-                          <div className="text-red-400 font-semibold">{signal.invalidation}</div>
+                          <div className="text-red-400 font-semibold truncate">{signal.invalidation}</div>
                       </div>
-                      <div className="text-right">
+                      <div className="text-right min-w-0">
                           <div className="text-gray-500 text-[10px] uppercase mb-0.5 flex items-center justify-end gap-1 font-medium">
                             <Scale size={10} /> R:R
                           </div>
-                          <div className="text-blue-400 font-semibold">{signal.riskRewardRatio ? signal.riskRewardRatio.toFixed(1) : '-'}</div>
+                          <div className="text-blue-400 font-semibold">{signal.riskRewardRatio ? signal.riskRewardRatio.toFixed(1) : '-'}:1</div>
                       </div>
                   </div>
 
-                  <div className="border-t border-white/10 pt-2 mt-1 flex justify-between items-end">
-                      <div className="text-[10px] text-gray-400 truncate max-w-[140px] leading-tight" title={signal.reasoning}>
+                  <div className="border-t border-white/10 pt-2 mt-1 flex justify-between items-start gap-2">
+                      <div className="text-[9px] text-gray-400 leading-tight line-clamp-3 flex-1" title={signal.reasoning}>
                           {signal.reasoning}
                       </div>
                       {onTrade && (
                           <button
                             onClick={() => onTrade(signal)}
-                            className="flex items-center gap-1 bg-green-500/10 hover:bg-green-500/20 border border-green-500/30 hover:border-green-500/50 text-green-400 text-[10px] font-medium uppercase px-2 py-1 rounded-md transition-all duration-200"
+                            className="flex items-center gap-1 bg-green-500/10 hover:bg-green-500/20 border border-green-500/30 hover:border-green-500/50 text-green-400 text-[10px] font-medium uppercase px-2 py-1 rounded-md transition-all duration-200 shrink-0"
                           >
                               <PlayCircle size={10} /> Execute
                           </button>
