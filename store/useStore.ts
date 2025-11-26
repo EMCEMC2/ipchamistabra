@@ -62,6 +62,10 @@ export interface AppState extends MarketState, UserState, AgentSwarmState {
   setLatestAnalysis: (analysis: string) => void;
   setActiveTradeSetup: (setup: Partial<Position> | null) => void;
 
+  // Phase 2: Live Trading (Testnet)
+  isLiveMode: boolean;
+  setIsLiveMode: (mode: boolean) => void;
+
   updateBalance: (amount: number) => void;
   addPosition: (position: Position) => void;
   closePosition: (id: string, pnl: number) => void;
@@ -99,6 +103,9 @@ export const useStore = create<AppState>()(
       signals: [],
       activeTradeSetup: null,
 
+      // Phase 2: Live Trading (Testnet)
+      isLiveMode: false,
+
       // Agent Swarm State (PERSISTED - council logs survive)
       agents: [
         { role: 'ORCHESTRATOR', name: 'OVERMIND', description: 'System Coordinator', status: 'IDLE', lastLog: 'Standby' },
@@ -121,6 +128,8 @@ export const useStore = create<AppState>()(
       setTechnicals: (technicals) => set({ technicals }),
       setLatestAnalysis: (latestAnalysis) => set({ latestAnalysis }),
       setActiveTradeSetup: (setup) => set({ activeTradeSetup: setup }),
+
+      setIsLiveMode: (isLiveMode) => set({ isLiveMode }),
 
       updateBalance: (amount) => set((state) => ({ balance: state.balance + amount })),
       addPosition: (position) => set((state) => ({ positions: [position, ...state.positions] })),
@@ -153,8 +162,6 @@ export const useStore = create<AppState>()(
         positions: state.positions,
         journal: state.journal,
         signals: state.signals,
-        councilLogs: state.councilLogs,
-        timeframe: state.timeframe,
         activeTradeSetup: state.activeTradeSetup
       })
     }

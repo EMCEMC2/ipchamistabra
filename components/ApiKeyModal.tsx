@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
-import { Key, AlertTriangle, Save, RefreshCw } from 'lucide-react';
+import { Key, AlertTriangle, Save, RefreshCw, Shield } from 'lucide-react';
+import { useStore } from '../store/useStore';
 
 export const ApiKeyModal: React.FC = () => {
-    const [inputKey, setInputKey] = useState('');
+    const [geminiKey, setGeminiKey] = useState('');
 
     const handleSave = () => {
-        if (inputKey.trim().length > 10) {
-            localStorage.setItem('GEMINI_API_KEY', inputKey.trim());
-            window.location.reload();
+        let reload = false;
+        if (geminiKey.trim().length > 10) {
+            localStorage.setItem('GEMINI_API_KEY', geminiKey.trim());
+            reload = true;
         }
+
+        if (reload) window.location.reload();
     };
 
     return (
@@ -22,62 +26,46 @@ export const ApiKeyModal: React.FC = () => {
                         <AlertTriangle size={32} />
                     </div>
                     <div>
-                        <h2 className="text-xl font-bold font-mono tracking-wider">SYSTEM HALTED</h2>
-                        <p className="text-xs text-red-400 font-mono">CRITICAL SECURITY ALERT</p>
+                        <h2 className="text-xl font-bold font-mono tracking-wider">SYSTEM CONFIG</h2>
+                        <p className="text-xs text-red-400 font-mono">API KEYS REQUIRED</p>
                     </div>
                 </div>
 
-                <div className="space-y-4 font-mono text-sm text-gray-300">
-                    <p>
-                        The Neural Core cannot initialize because the <strong className="text-white">Gemini API Key</strong> is missing or invalid.
-                    </p>
-
-                    <div className="bg-black/50 border border-terminal-border p-3 rounded text-xs text-gray-400">
-                        <p className="mb-2">Option 1: Add to <code className="text-terminal-accent">.env.local</code> file:</p>
-                        <code className="block bg-black p-2 rounded text-green-400">
-                            VITE_GEMINI_API_KEY=your_key_here
-                        </code>
-                    </div>
-
-                    <div className="flex items-center gap-2 my-4">
-                        <div className="h-px bg-terminal-border flex-1" />
-                        <span className="text-xs text-gray-500">OR TEMPORARY OVERRIDE</span>
-                        <div className="h-px bg-terminal-border flex-1" />
-                    </div>
-
+                <div className="space-y-4">
                     <div>
-                        <label className="block text-xs text-gray-500 mb-1">Enter API Key Manually (Saved to Local Storage)</label>
-                        <div className="flex gap-2">
-                            <div className="relative flex-1">
-                                <Key size={14} className="absolute left-3 top-3 text-gray-500" />
-                                <input
-                                    type="password"
-                                    value={inputKey}
-                                    onChange={(e) => setInputKey(e.target.value)}
-                                    placeholder="AIzaSy..."
-                                    className="w-full bg-black border border-terminal-border rounded py-2 pl-9 pr-3 focus:border-terminal-accent focus:outline-none text-white"
-                                />
-                            </div>
-                            <button
-                                onClick={handleSave}
-                                disabled={inputKey.length < 10}
-                                className="bg-terminal-accent text-black px-4 py-2 rounded font-bold hover:bg-opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                            >
-                                <Save size={16} />
-                                INIT
-                            </button>
+                        <label className="block text-xs font-mono text-terminal-muted mb-1">GEMINI API KEY (AI INTELLIGENCE)</label>
+                        <div className="relative">
+                            <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-terminal-muted" />
+                            <input
+                                type="password"
+                                value={geminiKey}
+                                onChange={(e) => setGeminiKey(e.target.value)}
+                                className="w-full bg-terminal-bg border border-terminal-border rounded p-2 pl-9 text-xs font-mono text-terminal-text focus:border-terminal-accent outline-none transition-colors"
+                                placeholder="sk-..."
+                            />
                         </div>
                     </div>
-                </div>
 
-                <div className="mt-6 pt-4 border-t border-terminal-border flex justify-center">
-                    <button
-                        onClick={() => window.location.reload()}
-                        className="text-xs text-gray-500 hover:text-white flex items-center gap-2 transition-colors"
-                    >
-                        <RefreshCw size={12} />
-                        Reload System
-                    </button>
+                    <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                        <div className="flex items-center gap-2 text-blue-400 mb-2">
+                            <Shield size={14} />
+                            <span className="text-xs font-bold">SECURE BACKEND ACTIVE</span>
+                        </div>
+                        <p className="text-[10px] text-blue-300/70 leading-relaxed">
+                            Binance API keys are now securely managed by the backend server. 
+                            You do not need to enter them here. Ensure your backend server is running.
+                        </p>
+                    </div>
+
+                    <div className="flex justify-end gap-2 mt-6">
+                        <button
+                            onClick={handleSave}
+                            className="flex items-center gap-2 px-4 py-2 bg-terminal-accent text-black rounded text-xs font-bold hover:brightness-110 transition-all"
+                        >
+                            <Save size={14} />
+                            SAVE & RELOAD
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

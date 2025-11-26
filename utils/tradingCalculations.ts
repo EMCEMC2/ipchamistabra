@@ -271,9 +271,9 @@ export function calculatePositionSize(
 
   if (stopDistance === 0) return 0;
 
-  // Position size = Risk Amount / (Stop Distance * Leverage)
-  // This ensures you only lose riskAmount if SL hits
-  const size = riskAmount / (stopDistance * leverage);
+  // Position size = Risk Amount / Stop Distance
+  // Leverage determines margin required, not the PnL per dollar move
+  const size = riskAmount / stopDistance;
 
   return size;
 }

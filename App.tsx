@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Activity, Terminal, Layout, Users, Brain, BookOpen, LineChart, Target } from 'lucide-react';
+import { Activity, Terminal, Layout, Users, Brain, BookOpen, LineChart, Target, Globe, Wallet } from 'lucide-react';
 import { ChartPanel } from './components/ChartPanel';
 import { IntelDeck } from './components/IntelDeck';
 import { MetricCard } from './components/MetricCard';
@@ -7,7 +7,8 @@ import { AiCommandCenter } from './components/AiCommandCenter';
 import { MLCortex } from './components/MLCortex';
 import { AgentSwarm } from './components/AgentSwarm/SwarmCore';
 import { ActiveSignals } from './components/ActiveSignals';
-import { TradeSetupPanel } from './components/TradeSetupPanel';
+import { ExecutionPanel } from './components/ExecutionPanel';
+import { PositionsPanel } from './components/PositionsPanel';
 import { TradeJournal } from './components/TradeJournal';
 import { BacktestPanel } from './components/BacktestPanel';
 import { AggrOrderFlow } from './components/AggrOrderFlow';
@@ -21,13 +22,14 @@ import { startMarketDataSync, fetchChartData, fetchSignals } from './services/ma
 import { calculateRSI, calculateATR, calculateADX, calculateEMA, calculateMACD } from './utils/technicalAnalysis';
 import { BinancePriceFeed } from './services/websocket';
 import { useStore } from './store/useStore';
-import { ChartDataPoint } from './types';
+import { ChartDataPoint, TradeSignal } from './types';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { usePositionMonitor } from './hooks/usePositionMonitor';
 import { aggrService } from './services/aggrService';
 
 type ViewMode = 'TERMINAL' | 'SWARM' | 'CORTEX' | 'JOURNAL' | 'BACKTEST';
+type BottomViewMode = 'INTEL' | 'POSITIONS';
 
 function App() {
   // Global State
@@ -42,12 +44,37 @@ function App() {
     derivatives, intel, trends,
     timeframe, setTimeframe,
     technicals, setTechnicals, // Global technicals
-    isScanning // Scanning state
+    isScanning, // Scanning state
+    setActiveTradeSetup,
+
+    // Phase 2: Live Trading (Testnet)
+    isLiveMode,
+    setIsLiveMode
   } = useStore();
 
   // Local State for Dashboard
   const [activeView, setActiveView] = useState<ViewMode>('TERMINAL');
+  const [bottomView, setBottomView] = useState<BottomViewMode>('POSITIONS');
   const [isApiKeyMissing, setIsApiKeyMissing] = useState(false);
+
+  // WebSocket Management for Live Mode
+  useEffect(() => {
+    if (isLiveMode) {
+      import('./services/binanceWebSocket').then(({ binanceWS }) => {
+        binanceWS.connect();
+      });
+    } else {
+      import('./services/binanceWebSocket').then(({ binanceWS }) => {
+        binanceWS.disconnect();
+      });
+    }
+
+    return () => {
+      import('./services/binanceWebSocket').then(({ binanceWS }) => {
+        binanceWS.disconnect();
+      });
+    };
+  }, [isLiveMode]);
 
   // Refs
   const binanceWS = useRef(new BinancePriceFeed());
@@ -115,7 +142,14 @@ function App() {
     return 'NEUTRAL';
   };
 
-
+  // Signal Execution Handler
+  const handleSignalExecute = useCallback((signal: TradeSignal) => {
+    setActiveTradeSetup({
+      type: signal.type,
+      stopLoss: parseFloat(signal.invalidation),
+      takeProfit: parseFloat(signal.targets[0])
+    });
+  }, [setActiveTradeSetup]);
 
   // Premium Navigation Button Component
   const NavButton = ({ id, label, icon: Icon }: { id: ViewMode, label: string, icon: any }) => {
@@ -260,8 +294,8 @@ function App() {
       {/* Main Content Grid - PROFESSIONAL TRADING TERMINAL LAYOUT */}
       <main className="flex-1 overflow-hidden p-2">
         <div className="grid grid-cols-12 gap-2 h-full fade-in">
-          {/* LEFT SIDEBAR: Signals & Order Flow (2 cols - Compact) */}
-          <div className="col-span-2 flex flex-col gap-2 h-full overflow-hidden">
+          {/* LEFT SIDEBAR: Signals & Order Flow (3 cols - WIDENED) */}
+          <div className="col-span-3 flex flex-col gap-2 h-full overflow-hidden">
             {activeView === 'TERMINAL' && (
               <>
                 {/* Active Signals (Top 60%) */}
@@ -271,7 +305,7 @@ function App() {
                     <span className="text-[11px] font-bold tracking-wide text-gray-200">SIGNALS</span>
                   </div>
                   <div className="flex-1 min-h-0">
-                    <ActiveSignals />
+                    <ActiveSignals onTrade={handleSignalExecute} />
                   </div>
                 </div>
 
@@ -285,8 +319,8 @@ function App() {
             )}
           </div>
 
-          {/* CENTER: Chart Dominant + News (7 cols - MAXIMUM SPACE) */}
-          <div className="col-span-7 flex flex-col gap-2 h-full overflow-hidden">
+          {/* CENTER: Chart Dominant + News/Positions (6 cols - BALANCED) */}
+          <div className="col-span-6 flex flex-col gap-2 h-full overflow-hidden">
             {activeView === 'TERMINAL' && (
               <>
                 {/* Chart (78% height - DOMINANT VIEW) */}
@@ -294,9 +328,36 @@ function App() {
                   <ChartPanel />
                 </div>
 
-                {/* News/Intel Under Chart (22% height - Compact) */}
-                <div className="h-[22%] flex-1 min-h-0">
-                  <IntelDeck />
+                {/* Bottom Tabs: Intel vs Positions (22% height) */}
+                <div className="h-[22%] flex flex-col min-h-0 card-premium">
+                  {/* Tab Headers */}
+                  <div className="flex items-center border-b border-white/5 bg-white/5">
+                     <button
+                        onClick={() => setBottomView('POSITIONS')}
+                        className={`flex items-center gap-2 px-4 py-1.5 text-[10px] font-bold tracking-wide transition-colors ${
+                            bottomView === 'POSITIONS' 
+                            ? 'text-green-400 border-b-2 border-green-400 bg-green-500/5' 
+                            : 'text-gray-500 hover:text-gray-300'
+                        }`}
+                     >
+                        <Wallet size={12} /> POSITIONS
+                     </button>
+                     <button
+                        onClick={() => setBottomView('INTEL')}
+                        className={`flex items-center gap-2 px-4 py-1.5 text-[10px] font-bold tracking-wide transition-colors ${
+                            bottomView === 'INTEL' 
+                            ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-500/5' 
+                            : 'text-gray-500 hover:text-gray-300'
+                        }`}
+                     >
+                        <Globe size={12} /> INTEL FEED
+                     </button>
+                  </div>
+
+                  {/* Tab Content */}
+                  <div className="flex-1 min-h-0 overflow-hidden">
+                     {bottomView === 'POSITIONS' ? <PositionsPanel /> : <IntelDeck />}
+                  </div>
                 </div>
               </>
             )}
@@ -349,7 +410,7 @@ function App() {
                   <span className="text-[11px] font-bold tracking-wide text-gray-200">ORDER ENTRY</span>
                 </div>
                 <div className="flex-1 min-h-0">
-                  <TradeSetupPanel />
+                  <ExecutionPanel />
                 </div>
               </div>
 
