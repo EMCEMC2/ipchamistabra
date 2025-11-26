@@ -41,6 +41,7 @@ interface UserState {
   positions: Position[];
   journal: JournalEntry[];
   activeTradeSetup: Partial<Position> | null;
+  executionSide: 'LONG' | 'SHORT';
 }
 
 interface AgentSwarmState {
@@ -61,6 +62,7 @@ export interface AppState extends MarketState, UserState, AgentSwarmState {
   setTechnicals: (technicals: AppState['technicals']) => void;
   setLatestAnalysis: (analysis: string) => void;
   setActiveTradeSetup: (setup: Partial<Position> | null) => void;
+  setExecutionSide: (side: 'LONG' | 'SHORT') => void;
 
   // Phase 2: Live Trading (Testnet)
   isLiveMode: boolean;
@@ -102,6 +104,7 @@ export const useStore = create<AppState>()(
       journal: [],
       signals: [],
       activeTradeSetup: null,
+      executionSide: 'LONG', // Default side
 
       // Phase 2: Live Trading (Testnet)
       isLiveMode: false,
@@ -128,6 +131,7 @@ export const useStore = create<AppState>()(
       setTechnicals: (technicals) => set({ technicals }),
       setLatestAnalysis: (latestAnalysis) => set({ latestAnalysis }),
       setActiveTradeSetup: (setup) => set({ activeTradeSetup: setup }),
+      setExecutionSide: (side) => set({ executionSide: side }),
 
       setIsLiveMode: (isLiveMode) => set({ isLiveMode }),
 

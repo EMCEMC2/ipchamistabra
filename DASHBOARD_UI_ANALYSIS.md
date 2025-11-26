@@ -14,6 +14,13 @@ IPCHA MISTABRA INTEL is a professional-grade cryptocurrency trading intelligence
 **Target User:** Professional crypto traders, quant researchers, market makers
 **Primary Use Case:** Real-time market monitoring, signal execution, position management
 
+### Implementation Status Legend
+
+- ✅ **Fully Implemented**
+- 🚧 **Partially Implemented**
+- 📋 **Planned**
+- ❌ **Not Implemented**
+
 ---
 
 ## LAYOUT ARCHITECTURE
@@ -47,21 +54,24 @@ IPCHA MISTABRA INTEL is a professional-grade cryptocurrency trading intelligence
 ### Column Distribution
 
 **LEFT SIDEBAR (col-span-3):**
+
 - 25% screen width
 - **Purpose:** Signal monitoring + Order flow intelligence
 - **Height Split:** 60/40 ratio
 - **Scroll:** Independent vertical scroll per section
 
 **CENTER PANEL (col-span-6):**
+
 - 50% screen width (DOMINANT)
 - **Purpose:** Primary chart visualization + Positions/Intel tabs
 - **Height Split:** 78% chart / 22% bottom panel
 - **Components:** Lightweight Charts + Tabbed data view
 
 **RIGHT SIDEBAR (col-span-3):**
+
 - 25% screen width
 - **Purpose:** Market metrics + Trade execution + AI commands
-- **Height Split:** 8% metrics / 50% execution / 50% AI
+- **Height Split:** 8% metrics / 60% execution / 40% AI
 - **Interaction:** Primary action zone for order placement
 
 ---
@@ -95,11 +105,13 @@ Accent Glow:        0 0 10px rgba(59, 130, 246, 0.2)
 ### Typography
 
 **Font Stack:**
+
 - Primary: `Inter, sans-serif` (Body text, UI labels)
 - Mono: `'Courier New', monospace` (Prices, timestamps, data)
 - Headings: `font-bold tracking-wider uppercase`
 
 **Size Scale:**
+
 ```
 Micro:     10px  (Badges, labels, timestamps)
 XS:        11px  (Section headers)
@@ -112,6 +124,7 @@ XL:        24px  (Metric values)
 ### Spacing System
 
 **Gap Scale (Tailwind-based):**
+
 ```
 gap-1:     4px   (Tight elements)
 gap-2:     8px   (Standard spacing)
@@ -121,6 +134,7 @@ gap-8:     32px  (Navigation items)
 ```
 
 **Padding Scale:**
+
 ```
 p-1:       4px   (Compact cards)
 p-2:       8px   (Standard cards)
@@ -149,16 +163,9 @@ px-6:      24px  (Header horizontal)
       <span className="text-xs">ELITE TRADING INTELLIGENCE</span>
     </div>
   </div>
-
   {/* Center: Navigation Tabs */}
-  <NavButton
-    id="TERMINAL"
-    label="TERMINAL"
-    icon={Layout}
-    active={isActive}
-  />
+  <NavButton id="TERMINAL" label="TERMINAL" icon={Layout} active={isActive} />
   // ... (5 total nav buttons)
-
   {/* Right: Status Indicators */}
   <StatusBadge label="LIVE FEED" count="3/3" />
   <StatusBadge label="AI CORE" status="READY" />
@@ -167,6 +174,7 @@ px-6:      24px  (Header horizontal)
 ```
 
 **Visual Features:**
+
 - Active tab: Green glow shadow + bottom indicator line
 - Hover states: Scale transform, border color change
 - Glass blur: `backdrop-filter: blur(10px) saturate(180%)`
@@ -181,11 +189,11 @@ px-6:      24px  (Header horizontal)
 **Layout:** Vertical scrollable card list
 
 **Signal Card Anatomy:**
+
 ```tsx
 <div className="card-signal">
   {/* Visual Indicator */}
   <div className="side-bar-glow" /> {/* Green/Red 1px bar with glow */}
-
   {/* Header Row */}
   <div className="flex justify-between">
     <div>
@@ -197,7 +205,6 @@ px-6:      24px  (Header horizontal)
       <Zap /> 87% {/* Color-coded by score */}
     </div>
   </div>
-
   {/* Details Grid (2x2) */}
   <div className="grid grid-cols-2 gap-y-2">
     <div>
@@ -217,7 +224,6 @@ px-6:      24px  (Header horizontal)
       <value>2.5:1</value>
     </div>
   </div>
-
   {/* Footer */}
   <div className="flex justify-between border-t">
     <p className="reasoning-text">EMA crossover + RSI divergence...</p>
@@ -229,6 +235,7 @@ px-6:      24px  (Header horizontal)
 ```
 
 **Visual Features:**
+
 - **Side Glow Bar:** 1px vertical line with `box-shadow: 0 0 8px rgba(color, 0.5)`
 - **Confidence Badge:** Color gradient based on score:
   - 85%+: Green accent glow
@@ -243,6 +250,7 @@ px-6:      24px  (Header horizontal)
   - `TRENDING`: Green accent
 
 **Interaction:**
+
 - Click "Execute" → Populates ExecutionPanel with signal values
 - Real-time updates via WebSocket
 - Auto-expiry: Signals older than 4 hours fade out
@@ -256,11 +264,14 @@ px-6:      24px  (Header horizontal)
 **Data Sources:** CVD, Buy/Sell pressure, Liquidations, Whale trades
 
 **Component Structure:**
+
 ```tsx
 <div className="order-flow-panel">
   {/* Header */}
   <div className="flex justify-between">
-    <h3><Zap /> Order Flow</h3>
+    <h3>
+      <Zap /> Order Flow
+    </h3>
     <StatusBadge live={isConnected} />
   </div>
 
@@ -286,16 +297,18 @@ px-6:      24px  (Header horizontal)
   <div className="pressure-bar">
     <div className="labels">BUY PRESSURE | SELL PRESSURE</div>
     <div className="bar-visual">
-      <div className="buy-bar" style={{width: '65%'}} />
-      <div className="sell-bar" style={{width: '35%'}} />
+      <div className="buy-bar" style={{ width: "65%" }} />
+      <div className="sell-bar" style={{ width: "35%" }} />
     </div>
     <div className="values">$12.3M | $6.8M</div>
   </div>
 
   {/* Liquidations List (Top 3) */}
   <div className="liquidations-card">
-    <h4><AlertTriangle /> RECENT LIQUIDATIONS</h4>
-    {recentLiqs.map(liq => (
+    <h4>
+      <AlertTriangle /> RECENT LIQUIDATIONS
+    </h4>
+    {recentLiqs.map((liq) => (
       <div className="liq-row">
         <span className="side">LONG REKT</span>
         <span className="value">$234K</span>
@@ -305,8 +318,10 @@ px-6:      24px  (Header horizontal)
 
   {/* Whale Trades List (Top 3) */}
   <div className="whale-card">
-    <h4><DollarSign /> WHALE ACTIVITY</h4>
-    {whaleTrades.map(trade => (
+    <h4>
+      <DollarSign /> WHALE ACTIVITY
+    </h4>
+    {whaleTrades.map((trade) => (
       <div className="trade-row">
         <span className="side">BUY</span>
         <span className="value">$1.2M</span>
@@ -317,6 +332,7 @@ px-6:      24px  (Header horizontal)
 ```
 
 **Visual Features:**
+
 - **CVD Trend Analysis:** Live delta calculation with bullish/bearish color coding
 - **Pressure Bar:** Dual-sided gradient bar (green vs red)
 - **Liquidation Alerts:** Yellow accent with `AlertTriangle` icon
@@ -332,17 +348,20 @@ px-6:      24px  (Header horizontal)
 **Purpose:** Primary price action visualization with indicators
 
 **Header Controls:**
+
 ```tsx
 <div className="chart-header">
   {/* Left: Pair + Timeframe */}
   <div className="flex items-center gap-4">
-    <h2><Activity /> BTCUSDT.P • 1H</h2>
+    <h2>
+      <Activity /> BTCUSDT.P • 1H
+    </h2>
 
     {/* Timeframe Selector */}
     <div className="timeframe-tabs">
-      {['15m', '1H', '4H', '1D'].map(tf => (
+      {["15m", "1H", "4H", "1D"].map((tf) => (
         <button
-          className={active ? 'tab-active' : 'tab-inactive'}
+          className={active ? "tab-active" : "tab-inactive"}
           onClick={() => setTimeframe(tf)}
         >
           {tf}
@@ -355,9 +374,15 @@ px-6:      24px  (Header horizontal)
   <div className="flex gap-2">
     {/* Zoom Controls */}
     <div className="zoom-group">
-      <button><ZoomIn /></button>
-      <button><ZoomOut /></button>
-      <button><Maximize2 /></button>
+      <button>
+        <ZoomIn />
+      </button>
+      <button>
+        <ZoomOut />
+      </button>
+      <button>
+        <Maximize2 />
+      </button>
     </div>
 
     {/* Toggle Buttons */}
@@ -375,6 +400,7 @@ px-6:      24px  (Header horizontal)
 ```
 
 **Chart Configuration:**
+
 ```typescript
 {
   layout: {
@@ -401,6 +427,7 @@ px-6:      24px  (Header horizontal)
 ```
 
 **Indicator System (Tactical v2):**
+
 ```
 BASE INDICATORS:
 - EMA Fast (Blue): Adaptive 15/21/27 based on volatility regime
@@ -419,6 +446,7 @@ REGIME DETECTION:
 ```
 
 **Visual Style:**
+
 - Candles: Green `#10b981` up, Red `#ef4444` down
 - Background: `bg-gradient-to-b from-black/20 to-black/40`
 - Border: `border border-white/5` with rounded corners
@@ -433,19 +461,20 @@ REGIME DETECTION:
 **Switch:** Two-tab toggle (Positions | Intel Feed)
 
 **Tab Structure:**
+
 ```tsx
 <div className="bottom-panel card-premium">
   {/* Tab Headers */}
   <div className="tab-bar">
     <button
-      className={activeTab === 'POSITIONS' ? 'tab-active' : 'tab-inactive'}
-      onClick={() => setBottomView('POSITIONS')}
+      className={activeTab === "POSITIONS" ? "tab-active" : "tab-inactive"}
+      onClick={() => setBottomView("POSITIONS")}
     >
       <Wallet /> POSITIONS
     </button>
     <button
-      className={activeTab === 'INTEL' ? 'tab-active' : 'tab-inactive'}
-      onClick={() => setBottomView('INTEL')}
+      className={activeTab === "INTEL" ? "tab-active" : "tab-inactive"}
+      onClick={() => setBottomView("INTEL")}
     >
       <Globe /> INTEL FEED
     </button>
@@ -453,18 +482,23 @@ REGIME DETECTION:
 
   {/* Tab Content */}
   <div className="tab-content">
-    {activeTab === 'POSITIONS' ? <PositionsPanel /> : <IntelDeck />}
+    {activeTab === "POSITIONS" ? <PositionsPanel /> : <IntelDeck />}
   </div>
 </div>
 ```
 
 **Positions Panel Design:**
+
 ```tsx
 <div className="positions-grid">
-  {positions.map(pos => (
+  {positions.map((pos) => (
     <div className="position-card">
       {/* Side Indicator Bar */}
-      <div className={`side-bar ${pos.type === 'LONG' ? 'bg-green-500' : 'bg-red-500'}`} />
+      <div
+        className={`side-bar ${
+          pos.type === "LONG" ? "bg-green-500" : "bg-red-500"
+        }`}
+      />
 
       {/* Header */}
       <div className="flex justify-between">
@@ -506,6 +540,7 @@ REGIME DETECTION:
 ```
 
 **Visual Features:**
+
 - **Real-time PnL:** Color-coded profit (green) or loss (red)
 - **Liquidation Warning:** Yellow badge with AlertTriangle icon
 - **Close Button:** Hover shows red color with X icon
@@ -520,6 +555,7 @@ REGIME DETECTION:
 **Metrics Displayed:** BTC Price, Sentiment, VIX, BTC Dominance
 
 **Card Design:**
+
 ```tsx
 <div className="metric-card group hover:scale-[1.02]">
   {/* Trend Badge (Top Right) */}
@@ -531,14 +567,10 @@ REGIME DETECTION:
   <div className="title">BTC PRICE</div>
 
   {/* Main Value (Large, Animated) */}
-  <div className="value text-2xl animate-on-change">
-    $89,240
-  </div>
+  <div className="value text-2xl animate-on-change">$89,240</div>
 
   {/* Sub Value */}
-  <div className="sub-value text-xs text-gray-500">
-    +2.34%
-  </div>
+  <div className="sub-value text-xs text-gray-500">+2.34%</div>
 
   {/* Bottom Accent Line (Hover) */}
   <div className="accent-line opacity-0 group-hover:opacity-100" />
@@ -546,17 +578,20 @@ REGIME DETECTION:
 ```
 
 **Animation:** Value change triggers:
+
 - `scale-110` pulse for 600ms
 - Text glow effect
 - Fade-in new value
 
 **Color Coding:**
+
 - **BTC Price:** Green if positive change, red if negative
 - **Sentiment:** Green (>60), Yellow (40-60), Red (<40)
 - **VIX:** Red if >20 (high volatility), green if <15
 - **BTC Dominance:** Yellow (neutral)
 
 **Visual Polish:**
+
 - Glass card with border glow on hover
 - Trend icon badge in top-right corner
 - Gradient accent line bottom (appears on hover)
@@ -570,24 +605,23 @@ REGIME DETECTION:
 **Features:** Side selection, order type, leverage, position sizing, confirmation modal
 
 **Panel Structure:**
+
 ```tsx
 <div className="execution-panel card-premium">
   {/* Header with Live Mode Toggle */}
   <div className="flex justify-between">
-    <h2><PlayCircle /> EXECUTION ENGINE</h2>
+    <h2>
+      <PlayCircle /> EXECUTION ENGINE
+    </h2>
     <button className="live-mode-toggle">
-      <Zap /> {isLive ? 'TESTNET LIVE' : 'PAPER MODE'}
+      <Zap /> {isLive ? "TESTNET LIVE" : "PAPER MODE"}
     </button>
   </div>
 
   {/* Order Type Tabs */}
   <div className="order-tabs">
-    <button className={orderType === 'MARKET' ? 'active' : ''}>
-      MARKET
-    </button>
-    <button className={orderType === 'LIMIT' ? 'active' : ''}>
-      LIMIT
-    </button>
+    <button className={orderType === "MARKET" ? "active" : ""}>MARKET</button>
+    <button className={orderType === "LIMIT" ? "active" : ""}>LIMIT</button>
   </div>
 
   {/* Side Selection (Long/Short) */}
@@ -602,7 +636,9 @@ REGIME DETECTION:
 
   {/* Leverage Slider */}
   <div className="leverage-control">
-    <label>Leverage: <span className="text-yellow-400">{leverage}x</span></label>
+    <label>
+      Leverage: <span className="text-yellow-400">{leverage}x</span>
+    </label>
     <input type="range" min="1" max="20" value={leverage} />
   </div>
 
@@ -615,33 +651,44 @@ REGIME DETECTION:
   {/* Stop Loss & Take Profit */}
   <div className="grid grid-cols-2 gap-2">
     <div>
-      <label><Shield /> Stop Loss</label>
+      <label>
+        <Shield /> Stop Loss
+      </label>
       <input type="text" placeholder="88,000" />
     </div>
     <div>
-      <label><Target /> Take Profit</label>
+      <label>
+        <Target /> Take Profit
+      </label>
       <input type="text" placeholder="92,000" />
     </div>
   </div>
 
   {/* Position Size Display (Calculated) */}
   <div className="position-summary">
-    <div>Position: <span className="font-bold">0.0234 BTC</span></div>
-    <div>Margin: <span className="font-bold">$416.32</span></div>
+    <div>
+      Position: <span className="font-bold">0.0234 BTC</span>
+    </div>
+    <div>
+      Margin: <span className="font-bold">$416.32</span>
+    </div>
   </div>
 
   {/* Execute Button */}
   <button className="execute-btn-large">
-    <ArrowRight /> {side === 'LONG' ? 'GO LONG' : 'GO SHORT'}
+    <ArrowRight /> {side === "LONG" ? "GO LONG" : "GO SHORT"}
   </button>
 </div>
 ```
 
 **Confirmation Modal (Overlay):**
+
 ```tsx
 <div className="modal-overlay">
   <div className="confirmation-modal">
-    <h3><Shield /> CONFIRM {isLive ? 'LIVE' : 'PAPER'} ORDER</h3>
+    <h3>
+      <Shield /> CONFIRM {isLive ? "LIVE" : "PAPER"} ORDER
+    </h3>
 
     {/* Warning Banner (Live Mode Only) */}
     {isLive && (
@@ -653,11 +700,21 @@ REGIME DETECTION:
 
     {/* Order Summary */}
     <div className="order-summary-grid">
-      <div>SIDE: <span className="font-bold">LONG</span></div>
-      <div>SIZE: <span>0.0234 BTC</span></div>
-      <div>ENTRY: <span>$89,240</span></div>
-      <div>LEVERAGE: <span className="text-yellow-400">5x</span></div>
-      <div>MARGIN: <span>$416.32</span></div>
+      <div>
+        SIDE: <span className="font-bold">LONG</span>
+      </div>
+      <div>
+        SIZE: <span>0.0234 BTC</span>
+      </div>
+      <div>
+        ENTRY: <span>$89,240</span>
+      </div>
+      <div>
+        LEVERAGE: <span className="text-yellow-400">5x</span>
+      </div>
+      <div>
+        MARGIN: <span>$416.32</span>
+      </div>
     </div>
 
     {/* Actions */}
@@ -670,6 +727,7 @@ REGIME DETECTION:
 ```
 
 **Visual Features:**
+
 - **Live Mode Toggle:**
   - OFF (Paper): Gray border, no glow
   - ON (Live): Yellow border + glow `shadow-[0_0_10px_rgba(234,179,8,0.2)]`
@@ -682,6 +740,7 @@ REGIME DETECTION:
   - Disabled state when invalid inputs
 
 **Interaction Flow:**
+
 1. User sets side, leverage, SL/TP
 2. Position size auto-calculates based on risk %
 3. Click execute → Confirmation modal appears
@@ -697,6 +756,7 @@ REGIME DETECTION:
 **Integration:** Gemini API for natural language queries
 
 **Component Structure:**
+
 ```tsx
 <div className="ai-command-panel card-premium">
   {/* Header */}
@@ -708,14 +768,12 @@ REGIME DETECTION:
 
   {/* Chat Messages */}
   <div className="messages-container">
-    {messages.map(msg => (
-      <div className={`message ${msg.role === 'user' ? 'user-msg' : 'ai-msg'}`}>
+    {messages.map((msg) => (
+      <div className={`message ${msg.role === "user" ? "user-msg" : "ai-msg"}`}>
         <div className="message-avatar">
-          {msg.role === 'user' ? <User /> : <Brain />}
+          {msg.role === "user" ? <User /> : <Brain />}
         </div>
-        <div className="message-content">
-          {msg.content}
-        </div>
+        <div className="message-content">{msg.content}</div>
       </div>
     ))}
   </div>
@@ -748,6 +806,7 @@ REGIME DETECTION:
 ```
 
 **Visual Style:**
+
 - **User Messages:** Right-aligned, blue accent background
 - **AI Messages:** Left-aligned, purple accent background
 - **Quick Actions:** Horizontal scrollable pill buttons
@@ -761,21 +820,25 @@ REGIME DETECTION:
 ### Breakpoint Strategy
 
 **Desktop (Primary Target):**
+
 - Minimum: 1280px width
 - Optimal: 1920px+ (Full HD)
 - Layout: 3-column grid as designed
 
 **Tablet (1024px - 1279px):**
+
 - NOT OPTIMIZED (Dashboard is desktop-first)
 - May show horizontal scroll
 - Consider hiding right sidebar on <1280px
 
 **Mobile (<1024px):**
+
 - NOT SUPPORTED
 - Trading terminals are desktop applications
 - Recommend full desktop experience
 
 **Adaptation Notes:**
+
 - Chart panel remains dominant at all sizes
 - Sidebars collapse or stack on smaller screens
 - Header navigation may switch to hamburger menu
@@ -788,6 +851,7 @@ REGIME DETECTION:
 ### Transitions
 
 **Duration Scale:**
+
 ```css
 --duration-fast: 150ms   /* Hover states, button clicks */
 --duration-normal: 200ms /* Panel switches, color changes */
@@ -796,6 +860,7 @@ REGIME DETECTION:
 ```
 
 **Easing Functions:**
+
 ```css
 --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1)  /* Material Design standard */
 --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55)  /* Playful bounce */
@@ -804,64 +869,81 @@ REGIME DETECTION:
 ### Hover Effects
 
 **Cards:**
+
 - Transform: `translateY(-2px)`
 - Border: Brightness increase
 - Shadow: Elevation increase
 - Duration: 200ms
 
 **Buttons:**
+
 - Background: Shimmer effect (100% width sweep)
 - Scale: `scale-[1.02]`
 - Glow: Shadow expansion
 
 **Nav Tabs:**
+
 - Active: Green glow + bottom indicator line
 - Inactive: Gray, hover shows white
 
 ### Loading States
 
 **Signal Panel:**
+
 ```tsx
-{isScanning && (
-  <div className="loading-state">
-    <Activity className="animate-pulse" />
-    <span>Analyzing Market Structure...</span>
-  </div>
-)}
+{
+  isScanning && (
+    <div className="loading-state">
+      <Activity className="animate-pulse" />
+      <span>Analyzing Market Structure...</span>
+    </div>
+  );
+}
 ```
 
 **Metric Cards:**
+
 ```tsx
-{loading && (
-  <div className="skeleton-loader">
-    <div className="skeleton h-3 w-2/3 mb-3" />
-    <div className="skeleton h-6 w-full mb-2" />
-    <div className="skeleton h-2 w-1/2" />
-  </div>
-)}
+{
+  loading && (
+    <div className="skeleton-loader">
+      <div className="skeleton h-3 w-2/3 mb-3" />
+      <div className="skeleton h-6 w-full mb-2" />
+      <div className="skeleton h-2 w-1/2" />
+    </div>
+  );
+}
 ```
 
 **Animation:** Shimmer effect on skeleton elements
+
 ```css
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 ```
 
 ### Real-time Updates
 
 **Price Changes:**
+
 - Pulse effect: `scale-110` for 600ms
 - Glow: `text-shadow: 0 0 10px rgba(34,197,94,0.6)`
 - Color flash: Green (up) or red (down)
 
 **New Signal Alert:**
+
 - Slide in from left
 - Subtle bounce on entry
 - Glow pulse on side indicator bar
 
 **Order Fill Notification:**
+
 - Toast notification (top-right)
 - Sound effect (optional)
 - Position card animates into positions panel
@@ -873,12 +955,14 @@ REGIME DETECTION:
 ### Keyboard Navigation
 
 **Tab Order:**
+
 1. Header navigation (TERMINAL → SWARM → CORTEX → BACKTEST → JOURNAL)
 2. Left sidebar (Signals → Scan button → Order flow)
 3. Center chart (Timeframe → Zoom → Toggle buttons)
 4. Right sidebar (Metrics → Execution inputs → AI input)
 
 **Focus Indicators:**
+
 ```css
 *:focus-visible {
   outline: none;
@@ -886,9 +970,11 @@ REGIME DETECTION:
 }
 ```
 
-**Keyboard Shortcuts (Planned):**
-- `L` - Quick Long order
-- `S` - Quick Short order
+- **Keyboard Shortcuts:** ✅ **Implemented**
+  - `Shift + L`: Set Long
+  - `Shift + S`: Set Short
+  - `Alt + 1-5`: Switch Views
+  - `Esc`: Close Modals order
 - `Esc` - Close modal
 - `Ctrl+K` - Open command palette
 - `/` - Focus AI input
@@ -896,6 +982,7 @@ REGIME DETECTION:
 ### Screen Reader Support
 
 **ARIA Labels:**
+
 ```tsx
 <button
   aria-label="Execute long position"
@@ -913,6 +1000,7 @@ REGIME DETECTION:
 ```
 
 **Semantic HTML:**
+
 - `<main>` for primary content area
 - `<header>` for top navigation
 - `<section>` for distinct panels
@@ -921,6 +1009,7 @@ REGIME DETECTION:
 ### Color Contrast
 
 **WCAG AA Compliance:**
+
 - Text on dark backgrounds: Minimum 4.5:1 ratio
 - Gray-200 (#e5e7eb) on Black (#000000): **14.6:1** ✅
 - Green-400 (#10b981) on Black: **7.1:1** ✅
@@ -935,17 +1024,23 @@ REGIME DETECTION:
 ### Rendering Strategy
 
 **React.memo Usage:**
+
 ```tsx
-export const MetricCard = React.memo<MetricCardProps>((props) => {
-  // Only re-render when value changes
-}, (prev, next) => prev.value === next.value);
+export const MetricCard = React.memo<MetricCardProps>(
+  (props) => {
+    // Only re-render when value changes
+  },
+  (prev, next) => prev.value === next.value
+);
 ```
 
 **Virtualization:**
+
 - Signal list: Virtual scrolling for 100+ signals (planned)
 - Trade history: Windowed rendering for performance
 
 **Debouncing:**
+
 - Chart updates: Max 60fps (16ms throttle)
 - AI input: 300ms debounce before API call
 - Position PnL: 1000ms update interval
@@ -953,18 +1048,21 @@ export const MetricCard = React.memo<MetricCardProps>((props) => {
 ### Bundle Optimization
 
 **Code Splitting:**
+
 ```tsx
-const AgentSwarm = lazy(() => import('./components/AgentSwarm/SwarmCore'));
-const MLCortex = lazy(() => import('./components/MLCortex'));
-const BacktestPanel = lazy(() => import('./components/BacktestPanel'));
+const AgentSwarm = lazy(() => import("./components/AgentSwarm/SwarmCore"));
+const MLCortex = lazy(() => import("./components/MLCortex"));
+const BacktestPanel = lazy(() => import("./components/BacktestPanel"));
 ```
 
 **Lazy Loading:**
+
 - Modal components load on-demand
 - Heavy views (Swarm, Cortex) split into separate chunks
 - Chart library dynamically imported
 
 **Image Optimization:**
+
 - No images in current design (SVG icons only)
 - Future: WebP format, lazy loading, responsive srcset
 
@@ -975,6 +1073,7 @@ const BacktestPanel = lazy(() => import('./components/BacktestPanel'));
 ### Global State (Zustand)
 
 **Store Structure:**
+
 ```typescript
 interface AppState {
   // Market Data
@@ -1007,6 +1106,7 @@ interface AppState {
 ```
 
 **Persistence:**
+
 ```typescript
 {
   name: 'ipcha-mistabra-storage',
@@ -1024,17 +1124,20 @@ interface AppState {
 ### Local Component State
 
 **Chart Panel:**
+
 - `showSignals: boolean` - Toggle AI overlays
 - `showTactical: boolean` - Toggle indicator system
 - `isScriptModalOpen: boolean` - Pine Script editor
 
 **Execution Panel:**
+
 - `side: 'LONG' | 'SHORT'` - Order direction
 - `leverage: number` - Leverage slider value
 - `showConfirmation: boolean` - Confirmation modal
 - `isSubmitting: boolean` - Loading state
 
 **Active Signals:**
+
 - `safeSignals: TradeSignal[]` - Filtered signal list
 - Uses global `isScanning` from store
 
@@ -1045,6 +1148,7 @@ interface AppState {
 ### Glass Morphism
 
 **Implementation:**
+
 ```css
 .card-premium {
   background: rgba(255, 255, 255, 0.05);
@@ -1057,6 +1161,7 @@ interface AppState {
 ```
 
 **Usage:**
+
 - All cards (signals, metrics, execution panel)
 - Header navigation bar
 - Modal overlays
@@ -1065,6 +1170,7 @@ interface AppState {
 ### Neon Glow Effects
 
 **Bullish Glow:**
+
 ```css
 .border-glow-bullish {
   box-shadow: 0 0 15px rgba(34, 197, 94, 0.25);
@@ -1076,12 +1182,14 @@ interface AppState {
 ```
 
 **Application:**
+
 - Active signals side bar
 - Long execute button
 - Metric card accent lines (hover)
 - Chart buy markers
 
 **Bearish Glow:**
+
 ```css
 .border-glow-bearish {
   box-shadow: 0 0 15px rgba(248, 113, 113, 0.15);
@@ -1089,6 +1197,7 @@ interface AppState {
 ```
 
 **Application:**
+
 - Short signals
 - Short execute button
 - Sell markers on chart
@@ -1097,6 +1206,7 @@ interface AppState {
 ### Terminal Aesthetic
 
 **Core Elements:**
+
 - Monospace fonts for data display
 - Green/Red semantic colors (trading standard)
 - Black background with minimal white borders
@@ -1104,6 +1214,7 @@ interface AppState {
 - Compact micro-text (10px) for dense information
 
 **Inspired By:**
+
 - Bloomberg Terminal
 - TradingView Pro
 - Professional brokerage platforms
@@ -1116,6 +1227,7 @@ interface AppState {
 ### 1. Visibility of System Status
 
 ✅ **Implemented:**
+
 - Live feed indicator (3/3 connections)
 - AI Core status badge (READY)
 - Scanning status (SCANNING vs LIVE)
@@ -1125,6 +1237,7 @@ interface AppState {
 ### 2. Match Between System and Real World
 
 ✅ **Implemented:**
+
 - Trading terminology (Long/Short, SL/TP, R:R)
 - Color conventions (Green up, Red down)
 - Price format ($89,240 not 89240.00)
@@ -1133,6 +1246,7 @@ interface AppState {
 ### 3. User Control and Freedom
 
 ✅ **Implemented:**
+
 - Close position button (X icon)
 - Cancel order confirmation
 - Toggle indicators on/off
@@ -1142,6 +1256,7 @@ interface AppState {
 ### 4. Consistency and Standards
 
 ✅ **Implemented:**
+
 - Consistent card design (glass morphism)
 - Uniform color coding (green bullish, red bearish)
 - Standard icon usage (Lucide icon library)
@@ -1150,6 +1265,7 @@ interface AppState {
 ### 5. Error Prevention
 
 ✅ **Implemented:**
+
 - Order confirmation modal before execution
 - Live mode warning banner
 - Input validation (stop loss < entry for long)
@@ -1158,6 +1274,7 @@ interface AppState {
 ### 6. Recognition Rather Than Recall
 
 ✅ **Implemented:**
+
 - Icons paired with labels
 - Color-coded metrics (no need to remember meaning)
 - Persistent header navigation
@@ -1166,6 +1283,7 @@ interface AppState {
 ### 7. Flexibility and Efficiency of Use
 
 ✅ **Implemented:**
+
 - Signal "Execute" button auto-populates execution panel
 - Quick timeframe switcher
 - Keyboard shortcuts (planned)
@@ -1174,6 +1292,7 @@ interface AppState {
 ### 8. Aesthetic and Minimalist Design
 
 ✅ **Implemented:**
+
 - No unnecessary decorations
 - Every element has purpose
 - Compact information density
@@ -1183,6 +1302,7 @@ interface AppState {
 ### 9. Help Users Recognize, Diagnose, and Recover from Errors
 
 ⚠️ **Needs Improvement:**
+
 - Error messages exist but could be more descriptive
 - No inline validation hints on inputs
 - Network errors not clearly displayed
@@ -1190,6 +1310,7 @@ interface AppState {
 ### 10. Help and Documentation
 
 ⚠️ **Needs Improvement:**
+
 - No tooltip explanations for complex metrics
 - Missing onboarding tour
 - No help button or documentation link
@@ -1199,11 +1320,13 @@ interface AppState {
 ## DESIGN STRENGTHS
 
 ### 1. Information Density
+
 - **Pros:** Maximum data visible without scrolling
 - **Measurement:** 15+ data points visible in viewport
 - **Trade-off:** Requires larger screens (1280px+)
 
 ### 2. Real-time Responsiveness
+
 - **WebSocket Integration:** Live price updates, order flow, signals
 - **Update Frequency:**
   - Price: Real-time (WebSocket)
@@ -1211,17 +1334,20 @@ interface AppState {
   - Signals: Every 5 minutes (on-demand scan)
 
 ### 3. Visual Hierarchy
+
 - **Primary Focus:** Chart (50% of screen, 78% of center column)
 - **Secondary:** Signals (left) + Execution (right)
 - **Tertiary:** Metrics, Intel, AI commands
 - **Clear prioritization guides user attention**
 
 ### 4. Professional Aesthetics
+
 - **Glass morphism is modern yet functional**
 - **Glow effects provide feedback without distraction**
 - **Dark theme reduces eye strain during long sessions**
 
 ### 5. Modular Architecture
+
 - **Each panel is independent React component**
 - **Easy to rearrange, hide, or add new panels**
 - **Clean separation of concerns**
@@ -1231,6 +1357,7 @@ interface AppState {
 ## DESIGN WEAKNESSES
 
 ### 1. Overwhelming for Beginners
+
 - **Too much information at once**
 - **No guided onboarding**
 - **Steep learning curve for UI navigation**
@@ -1238,6 +1365,7 @@ interface AppState {
 **Recommendation:** Add optional tutorial overlay on first launch
 
 ### 2. Limited Mobile Support
+
 - **Desktop-only design**
 - **No responsive breakpoints below 1024px**
 - **Not accessible to mobile traders**
@@ -1245,6 +1373,7 @@ interface AppState {
 **Recommendation:** Build companion mobile app with simplified view
 
 ### 3. Accessibility Gaps
+
 - **No keyboard shortcuts implemented**
 - **Limited screen reader support**
 - **Missing tooltip explanations**
@@ -1252,6 +1381,7 @@ interface AppState {
 **Recommendation:** ARIA labels, keyboard nav, hover tooltips
 
 ### 4. Performance Concerns
+
 - **Multiple WebSocket connections**
 - **Heavy chart rendering**
 - **Potential memory leaks with long sessions**
@@ -1259,6 +1389,7 @@ interface AppState {
 **Recommendation:** Implement connection pooling, chart data limits
 
 ### 5. Error Handling UX
+
 - **Generic error messages**
 - **No retry mechanisms**
 - **Unclear when services are down**
@@ -1272,6 +1403,7 @@ interface AppState {
 ### Shared Components
 
 **1. Card Wrapper (`card-premium` class)**
+
 ```css
 Usage: All panels (signals, metrics, execution, order flow)
 Props: None (CSS class)
@@ -1279,6 +1411,7 @@ Variations: Hover effects, border colors
 ```
 
 **2. StatusBadge**
+
 ```tsx
 interface StatusBadgeProps {
   label: string;
@@ -1291,6 +1424,7 @@ Usage: Header, Order Flow, AI Command
 ```
 
 **3. TrendBadge**
+
 ```tsx
 interface TrendBadgeProps {
   trend: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
@@ -1301,6 +1435,7 @@ Returns: Colored arrow icon (ArrowUpRight, ArrowDownRight, Minus)
 ```
 
 **4. ConfidenceBadge**
+
 ```tsx
 interface ConfidenceBadgeProps {
   score: number; // 0-100
@@ -1317,16 +1452,19 @@ Color: Gradient based on score
 ### Phase 1: Usability Improvements
 
 1. **Onboarding Tour**
+
    - 5-step interactive walkthrough
    - Highlight key features
    - "Skip" and "Next" buttons
 
 2. **Tooltip System**
+
    - Hover over metrics for explanations
    - Use Floating UI library
    - 300ms delay before showing
 
 3. **Keyboard Shortcuts**
+
    - `Ctrl+K` - Command palette
    - `L` / `S` - Quick long/short
    - `Esc` - Close modals
@@ -1340,16 +1478,19 @@ Color: Gradient based on score
 ### Phase 2: Advanced Features
 
 1. **Multi-Chart Layout**
+
    - Split screen: 4 charts simultaneously
    - Compare different timeframes
    - Correlations between assets
 
 2. **Custom Layouts**
+
    - Save panel arrangements
    - Export/import workspace configs
    - Preset layouts (Scalping, Swing, Research)
 
 3. **Alert System**
+
    - Price alerts with desktop notifications
    - Signal webhooks (Discord, Telegram)
    - Liquidation proximity warnings
@@ -1362,11 +1503,13 @@ Color: Gradient based on score
 ### Phase 3: AI Enhancements
 
 1. **Voice Commands**
+
    - "Show me BTC 4H chart"
    - "Place long order with 5x leverage"
    - Speech-to-text integration
 
 2. **Predictive Alerts**
+
    - AI predicts high-probability setups
    - Auto-scan notifications
    - Personalized signal filtering
@@ -1378,11 +1521,13 @@ Color: Gradient based on score
 ### Phase 4: Social Features
 
 1. **Signal Sharing**
+
    - Share signals via URL
    - Social badges for accuracy
    - Leaderboard for top performers
 
 2. **Trade Copying**
+
    - Follow expert traders
    - Auto-copy positions
    - Risk limits per copier
@@ -1399,6 +1544,7 @@ Color: Gradient based on score
 ### CSS Custom Properties
 
 **Colors:**
+
 ```css
 --bg-primary: #000000;
 --bg-secondary: #0a0a0a;
@@ -1414,6 +1560,7 @@ Color: Gradient based on score
 ```
 
 **Spacing:**
+
 ```css
 --space-xs: 4px;
 --space-sm: 8px;
@@ -1424,6 +1571,7 @@ Color: Gradient based on score
 ```
 
 **Border Radius:**
+
 ```css
 --radius-sm: 4px;
 --radius-md: 8px;
@@ -1432,6 +1580,7 @@ Color: Gradient based on score
 ```
 
 **Shadows:**
+
 ```css
 --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
@@ -1441,6 +1590,7 @@ Color: Gradient based on score
 ```
 
 **Typography:**
+
 ```css
 --text-xs: 10px;
 --text-sm: 12px;
@@ -1456,30 +1606,35 @@ Color: Gradient based on score
 ## ACCEPTANCE CRITERIA FOR UI QUALITY
 
 ### Visual Consistency
+
 - [ ] All cards use `card-premium` class
 - [ ] Consistent spacing (8px gaps)
 - [ ] Uniform border colors (`border-white/10`)
 - [ ] Color palette limited to 5 semantic colors
 
 ### Interaction Feedback
+
 - [ ] All buttons have hover states
 - [ ] Loading states show spinners/skeletons
 - [ ] Success/error feedback visible
 - [ ] Modals have backdrop blur
 
 ### Performance
+
 - [ ] Chart renders at 60fps
 - [ ] No layout shifts during data load
 - [ ] Smooth transitions (no jank)
 - [ ] Memory usage stable over 1 hour
 
 ### Accessibility
+
 - [ ] Tab navigation works across all panels
 - [ ] Focus indicators visible
 - [ ] Color contrast meets WCAG AA
 - [ ] Screen reader labels present
 
 ### Responsiveness
+
 - [ ] Layout works at 1280px min width
 - [ ] No horizontal scroll on 1920px
 - [ ] Text scales appropriately
@@ -1490,34 +1645,43 @@ Color: Gradient based on score
 ## DESIGN COMPARISON: COMPETITORS
 
 ### TradingView
+
 **Similarities:**
+
 - Dark theme, chart-dominant layout
 - Timeframe selector buttons
 - Side panels for indicators/watchlists
 
 **Differences:**
+
 - IPCHA: More AI-focused (signals, command center)
 - TradingView: Social features (chat, ideas)
 - IPCHA: Order flow intelligence (CVD, liquidations)
 
 ### Bloomberg Terminal
+
 **Similarities:**
+
 - Information density, professional aesthetic
 - Multi-panel layout, real-time data
 - Terminal-style typography
 
 **Differences:**
+
 - IPCHA: Modern glass morphism vs. Bloomberg's flat design
 - Bloomberg: Text-heavy vs. IPCHA's visual indicators
 - IPCHA: Crypto-specific metrics (BTC dominance, funding rate)
 
 ### Binance Futures
+
 **Similarities:**
+
 - Order entry panel on right
 - Chart in center, order book on left
 - Live mode toggle for real trading
 
 **Differences:**
+
 - IPCHA: AI-powered signals vs. manual trading only
 - Binance: Order book depth vs. IPCHA's order flow
 - IPCHA: Intelligence-first vs. execution-first
@@ -1529,6 +1693,7 @@ Color: Gradient based on score
 ### Overall Design Score: 8.5/10
 
 **Strengths:**
+
 - **Visual Polish:** 9/10 - Glass morphism, glow effects, professional aesthetics
 - **Information Architecture:** 9/10 - Clear hierarchy, logical grouping
 - **Real-time Functionality:** 9/10 - WebSocket integration, live updates
@@ -1536,6 +1701,7 @@ Color: Gradient based on score
 - **Interaction Design:** 8/10 - Smooth animations, clear feedback
 
 **Weaknesses:**
+
 - **Accessibility:** 6/10 - Missing keyboard shortcuts, limited ARIA labels
 - **Mobile Support:** 2/10 - Desktop-only, no responsive design
 - **Onboarding:** 4/10 - No tutorial, steep learning curve
@@ -1543,9 +1709,11 @@ Color: Gradient based on score
 - **Documentation:** 5/10 - No in-app help, tooltips missing
 
 ### Recommendation
+
 **Ready for advanced users, needs onboarding for newcomers.**
 
 The dashboard excels in visual design and real-time functionality but requires accessibility improvements and user guidance features. Prioritize:
+
 1. Tooltip system for metric explanations
 2. Keyboard shortcuts for power users
 3. Onboarding tour for first-time users

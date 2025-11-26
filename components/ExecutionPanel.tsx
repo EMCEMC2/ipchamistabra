@@ -12,10 +12,12 @@ export const ExecutionPanel: React.FC = () => {
         addPosition: onExecute, 
         activeTradeSetup: initialValues,
         isLiveMode,
-        setIsLiveMode
+        setIsLiveMode,
+        executionSide: side,
+        setExecutionSide: setSide
     } = useStore();
 
-    const [side, setSide] = useState<'LONG' | 'SHORT'>('LONG');
+    // const [side, setSide] = useState<'LONG' | 'SHORT'>('LONG'); // Removed local state
     const [orderType, setOrderType] = useState<'MARKET' | 'LIMIT'>('MARKET');
     const [leverage, setLeverage] = useState(5);
     const [riskPercent, setRiskPercent] = useState(1); // 1% risk

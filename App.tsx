@@ -27,6 +27,7 @@ import { ApiKeyModal } from './components/ApiKeyModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { usePositionMonitor } from './hooks/usePositionMonitor';
 import { aggrService } from './services/aggrService';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
 type ViewMode = 'TERMINAL' | 'SWARM' | 'CORTEX' | 'JOURNAL' | 'BACKTEST';
 type BottomViewMode = 'INTEL' | 'POSITIONS';
@@ -56,6 +57,9 @@ function App() {
   const [activeView, setActiveView] = useState<ViewMode>('TERMINAL');
   const [bottomView, setBottomView] = useState<BottomViewMode>('POSITIONS');
   const [isApiKeyMissing, setIsApiKeyMissing] = useState(false);
+
+  // Keyboard Shortcuts
+  useKeyboardShortcuts({ setActiveView });
 
   // WebSocket Management for Live Mode
   useEffect(() => {
