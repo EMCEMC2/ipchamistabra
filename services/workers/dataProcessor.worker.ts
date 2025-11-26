@@ -115,7 +115,22 @@ class DataProcessor {
     const oneMinAgo = now - 60000;
     const recentTrades = this.trades.filter(t => t.timestamp > oneMinAgo);
 
-    if (recentTrades.length === 0) return null;
+    if (recentTrades.length === 0) {
+        // Return empty stats if we are connected, so UI shows "Live" with 0 volume
+        return {
+            totalVolume: 0,
+            buyVolume: 0,
+            sellVolume: 0,
+            largeTradeCount: 0,
+            liquidationCount: 0,
+            liquidationVolume: 0,
+            cvd: this.cvdWindow.latest || { timestamp: now, buyVolume: 0, sellVolume: 0, delta: 0, cumulativeDelta: 0 },
+            pressure: { buyPressure: 50, sellPressure: 50, netPressure: 0, dominantSide: 'neutral', strength: 'weak' },
+            exchanges: [],
+            recentLiquidations: [],
+            recentLargeTrades: []
+        };
+    }
 
     const buyTrades = recentTrades.filter(t => t.side === 'buy');
     const sellTrades = recentTrades.filter(t => t.side === 'sell');
@@ -202,6 +217,7 @@ class DataProcessor {
   private connectBinance() {
     const connectTrades = () => {
         const ws = new WebSocket('wss://fstream.binance.com/ws/btcusdt@aggTrade');
+        ws.onopen = () => console.log('[Worker] Binance WS Connected');
         ws.onmessage = (e) => {
             try {
                 const data = JSON.parse(e.data);
@@ -215,7 +231,9 @@ class DataProcessor {
                     usdValue: parseFloat(data.p) * parseFloat(data.q)
                 };
                 this.processTrade(trade);
-            } catch (err) {}
+            } catch (err) {
+                console.error('[Worker] Binance Parse Error:', err);
+            }
         };
         ws.onclose = () => this.reconnectWithBackoff('binance-trades', connectTrades);
         this.wsConnections.set('binance-trades', ws);
