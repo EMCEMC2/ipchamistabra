@@ -63,47 +63,41 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   return (
     <div
       className={`
-        card-premium h-full relative overflow-hidden group
+        card-premium h-full relative overflow-hidden group !p-3 flex flex-col justify-between
         transition-all duration-300 ease-out
         hover:scale-[1.02] hover:border-white/20
         ${getTrendGlow()}
       `}
     >
-
-      {/* Trend Indicator Badge */}
-      <div className="absolute top-2 right-2 opacity-60 group-hover:opacity-100 transition-opacity duration-200">
-        <div className={`flex items-center justify-center w-6 h-6 rounded-md border ${getTrendColor()}`}>
+      {/* Header Row: Title & Trend Icon */}
+      <div className="flex items-start justify-between relative z-10">
+        <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+          {title}
+        </div>
+        
+        {/* Trend Icon Badge */}
+        <div className={`flex items-center justify-center w-5 h-5 rounded border ${getTrendColor()}`}>
           {getTrendIcon()}
         </div>
       </div>
 
-      {/* Icon (if provided) */}
-      {icon && (
-        <div className="absolute top-2 left-2 opacity-20 text-white text-xl">
-          {icon}
+      {/* Content Row: Value & SubValue */}
+      <div className="relative z-10 mt-1">
+        <div className={`
+          text-xl font-bold ${color} tracking-tight leading-none
+          transition-all duration-300
+          ${isAnimating ? 'scale-105 text-glow-bullish' : 'scale-100'}
+        `}>
+          {value !== undefined && value !== null && value !== '' ? value : '-'}
         </div>
-      )}
-
-      {/* Title */}
-      <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2 relative z-10">
-        {title}
+        
+        {/* Sub Value */}
+        {subValue && (
+          <div className="text-[10px] text-gray-500 mt-1 font-mono leading-none">
+            {subValue}
+          </div>
+        )}
       </div>
-
-      {/* Value with Animation */}
-      <div className={`
-        text-2xl font-bold ${color} tracking-tight mb-1 relative z-10
-        transition-all duration-300
-        ${isAnimating ? 'scale-110 text-glow-bullish' : 'scale-100'}
-      `}>
-        {value !== undefined && value !== null && value !== '' ? value : '-'}
-      </div>
-
-      {/* Sub Value */}
-      {subValue && (
-        <div className="text-xs text-gray-500 mt-1 relative z-10 font-mono">
-          {subValue}
-        </div>
-      )}
 
       {/* Bottom Accent Line */}
       <div className={`
