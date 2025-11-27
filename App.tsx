@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Activity, Terminal, Layout, Users, Brain, BookOpen, LineChart, Target, Globe, Wallet } from 'lucide-react';
+import { Terminal, Layout, Users, Brain, BookOpen, LineChart, Target, Globe } from 'lucide-react';
 import { ChartPanel } from './components/ChartPanel';
 import { IntelDeck } from './components/IntelDeck';
 import { MetricCard } from './components/MetricCard';
@@ -313,14 +313,8 @@ function App() {
                 </div>
 
                 {/* Active Signals (Bottom 50%) */}
-                <div className="h-[50%] flex flex-col">
-                  <div className="flex items-center gap-1.5 mb-1.5 px-1">
-                    <Activity size={12} className="text-blue-400" />
-                    <span className="text-[11px] font-bold tracking-wide text-gray-200">SIGNALS</span>
-                  </div>
-                  <div className="flex-1 min-h-0">
-                    <ActiveSignals onTrade={handleSignalExecute} />
-                  </div>
+                <div className="h-[50%] flex flex-col min-h-0">
+                  <ActiveSignals onTrade={handleSignalExecute} />
                 </div>
               </>
             )}
