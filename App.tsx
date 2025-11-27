@@ -305,21 +305,21 @@ function App() {
           <div className="col-span-3 flex flex-col gap-2 h-full overflow-hidden">
             {activeView === 'TERMINAL' && (
               <>
-                {/* Active Signals (Top 60%) */}
-                <div className="h-[60%] flex flex-col">
+                {/* Order Flow (Top 50%) */}
+                <div className="h-[50%] flex flex-col">
+                  <div className="flex-1 min-h-0">
+                    <AggrOrderFlow />
+                  </div>
+                </div>
+
+                {/* Active Signals (Bottom 50%) */}
+                <div className="h-[50%] flex flex-col">
                   <div className="flex items-center gap-1.5 mb-1.5 px-1">
                     <Activity size={12} className="text-blue-400" />
                     <span className="text-[11px] font-bold tracking-wide text-gray-200">SIGNALS</span>
                   </div>
                   <div className="flex-1 min-h-0">
                     <ActiveSignals onTrade={handleSignalExecute} />
-                  </div>
-                </div>
-
-                {/* Order Flow (Bottom 40%) */}
-                <div className="h-[40%] flex flex-col">
-                  <div className="flex-1 min-h-0">
-                    <AggrOrderFlow />
                   </div>
                 </div>
               </>
