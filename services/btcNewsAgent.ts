@@ -64,18 +64,21 @@ class BTCNewsAgent {
       return;
     }
 
-    console.log('[BTC News Agent] Starting...');
+    console.log('[BTC News Agent] 🚀 Starting...');
     this.isRunning = true;
     this.callbacks.add(callback);
 
     // Fetch news immediately
+    console.log('[BTC News Agent] Fetching initial news...');
     await this.fetchNews();
 
-    // Setup auto-refresh every 5 minutes
+    // Setup auto-refresh every 1 minute for testing (change to 5 later)
     this.updateInterval = setInterval(async () => {
-      console.log('[BTC News Agent] Auto-refresh triggered');
+      console.log('[BTC News Agent] ⏰ Auto-refresh triggered');
       await this.fetchNews();
-    }, 5 * 60 * 1000); // 5 minutes
+    }, 1 * 60 * 1000); // 1 minute for testing
+
+    console.log('[BTC News Agent] ✅ Started with 1-minute auto-refresh');
   }
 
   /**
@@ -100,14 +103,18 @@ class BTCNewsAgent {
    * Fetch latest BTC news using Gemini with Google Search
    */
   private async fetchNews(): Promise<void> {
+    console.log('[BTC News Agent] 📰 fetchNews() called');
     try {
       const apiKey = this.getApiKey();
+      console.log('[BTC News Agent] API Key status:', apiKey ? `Present (${apiKey.length} chars)` : 'Missing');
+
       if (!apiKey) {
-        console.warn('[BTC News Agent] No API key, using fallback');
+        console.warn('[BTC News Agent] ❌ No API key, using fallback');
         this.broadcastNews(FALLBACK_NEWS);
         return;
       }
 
+      console.log('[BTC News Agent] Initializing Gemini AI...');
       const ai = new GoogleGenAI({ apiKey });
 
       const prompt = `

@@ -150,7 +150,7 @@ export const ExecutionPanelPro: React.FC = () => {
       highlight ? 'border-blue-500 shadow-[0_0_30px_rgba(59,130,246,0.4)] ring-1 ring-blue-500/50' : 'border-terminal-border'
     }`}>
       {/* === ZONE A: ORDER LOGIC === */}
-      <div className="shrink-0 border-b border-terminal-border">
+      <div className="shrink-0 border-b border-terminal-border bg-terminal-card relative z-10">
         {/* Row 1: Order Type Tabs */}
         <div className="flex items-center border-b border-terminal-border">
           {(['LIMIT', 'MARKET', 'STOP', 'OCO'] as const).map(type => (
@@ -238,9 +238,9 @@ export const ExecutionPanelPro: React.FC = () => {
       </div>
 
       {/* === ZONE B: MICRO DEPTH === */}
-      <div className="flex-1 min-h-0 flex flex-col text-[10px] font-mono">
+      <div className="flex-1 min-h-0 flex flex-col text-[10px] font-mono overflow-hidden relative z-0">
         {/* Asks (Sells) - Top 5, Reverse Order */}
-        <div className="flex flex-col-reverse">
+        <div className="flex flex-col-reverse justify-end flex-1 overflow-hidden">
           {asks.slice(0, 5).reverse().map(([askPrice, askSize], i) => {
             const sizeFloat = parseFloat(askSize);
             const maxSize = Math.max(...asks.slice(0, 5).map(([, s]) => parseFloat(s)));
@@ -250,7 +250,7 @@ export const ExecutionPanelPro: React.FC = () => {
               <button
                 key={i}
                 onClick={() => setPrice(parseFloat(askPrice).toFixed(2))}
-                className="flex justify-between items-center px-2 py-0.5 hover:bg-red-500/10 relative transition-colors"
+                className="flex justify-between items-center px-2 py-0.5 hover:bg-red-500/10 relative transition-colors shrink-0"
               >
                 <div className="absolute inset-0 bg-red-500/5 origin-right" style={{ width: `${barWidth}%` }} />
                 <span className="text-red-400 relative z-10">{parseFloat(askPrice).toFixed(2)}</span>
@@ -261,12 +261,12 @@ export const ExecutionPanelPro: React.FC = () => {
         </div>
 
         {/* Spread Indicator */}
-        <div className="px-2 py-1 bg-yellow-500/10 border-y border-yellow-500/20 text-center text-[9px] text-yellow-400 font-bold">
+        <div className="px-2 py-1 bg-yellow-500/10 border-y border-yellow-500/20 text-center text-[9px] text-yellow-400 font-bold shrink-0">
           SPREAD: {spread.toFixed(2)} USDT
         </div>
 
         {/* Bids (Buys) - Top 5 */}
-        <div className="flex flex-col">
+        <div className="flex flex-col justify-start flex-1 overflow-hidden">
           {bids.slice(0, 5).map(([bidPrice, bidSize], i) => {
             const sizeFloat = parseFloat(bidSize);
             const maxSize = Math.max(...bids.slice(0, 5).map(([, s]) => parseFloat(s)));
@@ -276,7 +276,7 @@ export const ExecutionPanelPro: React.FC = () => {
               <button
                 key={i}
                 onClick={() => setPrice(parseFloat(bidPrice).toFixed(2))}
-                className="flex justify-between items-center px-2 py-0.5 hover:bg-green-500/10 relative transition-colors"
+                className="flex justify-between items-center px-2 py-0.5 hover:bg-green-500/10 relative transition-colors shrink-0"
               >
                 <div className="absolute inset-0 bg-green-500/5 origin-right" style={{ width: `${barWidth}%` }} />
                 <span className="text-green-400 relative z-10">{parseFloat(bidPrice).toFixed(2)}</span>
@@ -288,7 +288,7 @@ export const ExecutionPanelPro: React.FC = () => {
       </div>
 
       {/* === ZONE C: THE TRIGGER === */}
-      <div className="shrink-0 border-t border-terminal-border p-2 space-y-2">
+      <div className="shrink-0 border-t border-terminal-border p-2 space-y-2 bg-terminal-card relative z-10">
         {/* Quick Size Percentages */}
         <div className="flex gap-1">
           {[25, 50, 75, 100].map(pct => (
