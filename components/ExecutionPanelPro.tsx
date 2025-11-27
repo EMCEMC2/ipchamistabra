@@ -65,14 +65,14 @@ export const ExecutionPanelPro: React.FC = () => {
     }
   }, [activeTradeSetup]);
 
-  // WebSocket Order Book Feed (Binance)
+  // WebSocket Order Book Feed (Binance) - 20 levels for professional depth analysis
   useEffect(() => {
-    const ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@depth10@100ms');
+    const ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@depth20@100ms');
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      setBids(data.bids?.slice(0, 5) || []);
-      setAsks(data.asks?.slice(0, 5) || []);
+      setBids(data.bids?.slice(0, 20) || []);
+      setAsks(data.asks?.slice(0, 20) || []);
 
       if (data.bids?.[0] && data.asks?.[0]) {
         const spreadValue = parseFloat(data.asks[0][0]) - parseFloat(data.bids[0][0]);
@@ -386,11 +386,11 @@ export const ExecutionPanelPro: React.FC = () => {
 
       {/* === ZONE B: MICRO DEPTH === */}
       <div className="flex-1 min-h-0 flex flex-col text-[10px] font-mono overflow-hidden relative z-0">
-        {/* Asks (Sells) - Top 5, Reverse Order */}
-        <div className="flex flex-col-reverse justify-end flex-1 overflow-hidden">
-          {asks.slice(0, 5).reverse().map(([askPrice, askSize], i) => {
+        {/* Asks (Sells) - 20 Levels, Reverse Order, Scrollable */}
+        <div className="flex flex-col-reverse justify-end flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-red-500/20 scrollbar-track-transparent">
+          {asks.slice(0, 20).reverse().map(([askPrice, askSize], i) => {
             const sizeFloat = parseFloat(askSize);
-            const maxSize = Math.max(...asks.slice(0, 5).map(([, s]) => parseFloat(s)));
+            const maxSize = Math.max(...asks.slice(0, 20).map(([, s]) => parseFloat(s)));
             const barWidth = (sizeFloat / maxSize) * 100;
 
             return (
@@ -412,11 +412,11 @@ export const ExecutionPanelPro: React.FC = () => {
           SPREAD: {spread.toFixed(2)} USDT
         </div>
 
-        {/* Bids (Buys) - Top 5 */}
-        <div className="flex flex-col justify-start flex-1 overflow-hidden">
-          {bids.slice(0, 5).map(([bidPrice, bidSize], i) => {
+        {/* Bids (Buys) - 20 Levels, Scrollable */}
+        <div className="flex flex-col justify-start flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-green-500/20 scrollbar-track-transparent">
+          {bids.slice(0, 20).map(([bidPrice, bidSize], i) => {
             const sizeFloat = parseFloat(bidSize);
-            const maxSize = Math.max(...bids.slice(0, 5).map(([, s]) => parseFloat(s)));
+            const maxSize = Math.max(...bids.slice(0, 20).map(([, s]) => parseFloat(s)));
             const barWidth = (sizeFloat / maxSize) * 100;
 
             return (
