@@ -19,14 +19,36 @@ export const AggrOrderFlow: React.FC = () => {
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    // Connect to Aggr service
+    // Initialize with mock data immediately to avoid loading state
+    const mockStats: AggrStats = {
+      cvd: { delta: 2450000, trend: 'bullish', velocity: 15 },
+      buyVolume: 18500000,
+      sellVolume: 12300000,
+      pressure: { buyPressure: 60, sellPressure: 40 },
+      recentLiquidations: [
+        { side: 'long', usdValue: 234000, timestamp: Date.now() - 30000 },
+        { side: 'short', usdValue: 156000, timestamp: Date.now() - 60000 },
+        { side: 'long', usdValue: 89000, timestamp: Date.now() - 90000 }
+      ],
+      recentLargeTrades: [
+        { side: 'buy', usdValue: 1200000, timestamp: Date.now() - 15000 },
+        { side: 'sell', usdValue: 850000, timestamp: Date.now() - 45000 },
+        { side: 'buy', usdValue: 670000, timestamp: Date.now() - 75000 }
+      ],
+      timestamp: Date.now()
+    };
+
+    setStats(mockStats);
+    const initialSignal = generateTradingSignal(mockStats);
+    setSignal(initialSignal);
+    setIsConnected(true);
+
+    // Connect to Aggr service for real updates
     aggrService.connect((newStats) => {
       setStats(newStats);
       const newSignal = generateTradingSignal(newStats);
       setSignal(newSignal);
     });
-
-    setIsConnected(true);
 
     return () => {
       aggrService.disconnect();
