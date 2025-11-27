@@ -1,9 +1,27 @@
 import express from 'express';
 import axios from 'axios';
+import rateLimit from 'express-rate-limit';
 import { config } from '../config';
 import { binanceSigner } from '../services/binanceSigner';
 
 const router = express.Router();
+
+// Rate limiters for different endpoint types
+const orderRateLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute window
+    max: 10, // 10 orders per minute
+    message: { error: 'Rate Limited', details: 'Too many orders. Max 10 per minute.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+const readRateLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute window
+    max: 60, // 60 reads per minute
+    message: { error: 'Rate Limited', details: 'Too many requests. Max 60 per minute.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
 
 // Helper for Binance Requests
 const binanceRequest = async (method: 'GET' | 'POST' | 'DELETE' | 'PUT', endpoint: string, params: any = {}) => {
@@ -38,11 +56,13 @@ const authMiddleware = (req: express.Request, res: express.Response, next: expre
     const clientKey = req.headers['x-trading-key'];
     const serverKey = process.env.TRADING_API_KEY;
 
-    // If no key configured on server, warn but allow (or block? safer to block)
-    // For this fix, we'll block if key is set, or block if missing.
+    // SECURITY: Block ALL requests if API key is not configured
     if (!serverKey) {
-        console.warn('WARNING: TRADING_API_KEY not set on server. Allowing request (INSECURE).');
-        return next();
+        console.error('SECURITY: TRADING_API_KEY not configured. Blocking request.');
+        return res.status(503).json({
+            error: 'Service Unavailable',
+            details: 'Trading API not configured. Set TRADING_API_KEY environment variable.'
+        });
     }
 
     if (clientKey !== serverKey) {
@@ -54,8 +74,8 @@ const authMiddleware = (req: express.Request, res: express.Response, next: expre
 // Apply Auth
 router.use(authMiddleware);
 
-// Place Order
-router.post('/order', async (req, res) => {
+// Place Order (rate limited: 10/min)
+router.post('/order', orderRateLimiter, async (req, res) => {
     try {
         const { symbol, side, type, quantity, price, timeInForce } = req.body;
 
@@ -81,8 +101,8 @@ router.post('/order', async (req, res) => {
     }
 });
 
-// Cancel Order
-router.delete('/order', async (req, res) => {
+// Cancel Order (rate limited: 10/min)
+router.delete('/order', orderRateLimiter, async (req, res) => {
     try {
         const { symbol, orderId } = req.body;
         const result = await binanceRequest('DELETE', '/fapi/v1/order', { symbol, orderId });
@@ -92,8 +112,8 @@ router.delete('/order', async (req, res) => {
     }
 });
 
-// Get Positions
-router.get('/positions', async (req, res) => {
+// Get Positions (rate limited: 60/min)
+router.get('/positions', readRateLimiter, async (req, res) => {
     try {
         const result = await binanceRequest('GET', '/fapi/v2/positionRisk');
         res.json(result);
@@ -102,8 +122,8 @@ router.get('/positions', async (req, res) => {
     }
 });
 
-// Get Balance
-router.get('/balance', async (req, res) => {
+// Get Balance (rate limited: 60/min)
+router.get('/balance', readRateLimiter, async (req, res) => {
     try {
         const result = await binanceRequest('GET', '/fapi/v2/balance');
         res.json(result);

@@ -13,6 +13,8 @@ const MONITOR_INTERVAL_MS = 1000; // Check every 1 second
 export function usePositionMonitor() {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastLogRef = useRef<number>(0);
+  // Mutex: Track positions currently being closed to prevent race conditions
+  const closingPositionsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     console.log('[Position Monitor] Starting...');
@@ -32,6 +34,11 @@ export function usePositionMonitor() {
 
       // Process each position
       positions.forEach((position) => {
+        // Skip if position is already being closed (mutex check)
+        if (closingPositionsRef.current.has(position.id)) {
+          return;
+        }
+
         // 1. Calculate current PnL
         const { pnlUSD, pnlPercent } = calculatePositionPnL(position, price);
 
@@ -42,12 +49,15 @@ export function usePositionMonitor() {
         const { shouldClose, reason } = checkPositionClose(position, price);
 
         if (shouldClose && reason) {
+          // Add to mutex BEFORE closing to prevent race condition
+          closingPositionsRef.current.add(position.id);
+
           // Close the position
           closePosition(position.id, pnlUSD);
 
           // Add to journal
           addJournalEntry({
-            id: `journal-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            id: `journal-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
             date: Date.now(),
             pair: position.pair,
             type: position.type,
@@ -66,11 +76,14 @@ export function usePositionMonitor() {
           });
 
           // Log the close
-          const emoji = reason === 'TAKE_PROFIT' ? '✅' : reason === 'STOP_LOSS' ? '🛑' : '💀';
+          const emoji = reason === 'TAKE_PROFIT' ? '[TP]' : reason === 'STOP_LOSS' ? '[SL]' : '[LIQ]';
           console.log(
             `[Position Monitor] ${emoji} CLOSED ${position.type} @ $${price.toFixed(2)} | ` +
             `Reason: ${reason} | PnL: ${pnlUSD > 0 ? '+' : ''}$${pnlUSD.toFixed(2)} (${pnlPercent > 0 ? '+' : ''}${pnlPercent.toFixed(2)}%)`
           );
+
+          // Remove from mutex after close is complete
+          closingPositionsRef.current.delete(position.id);
         }
       });
 

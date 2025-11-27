@@ -4,7 +4,7 @@
  * Architecture: Grid & Density > Stacked Blocks
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Shield, Zap, AlertTriangle } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { Position } from '../types';
@@ -86,6 +86,17 @@ export const ExecutionPanelPro: React.FC = () => {
   // Calculate order cost
   const orderCostUSDT = parseFloat(price) * parseFloat(sizeBTC || '0');
   const marginRequired = orderCostUSDT / leverage;
+
+  // Memoize max sizes for order book bars (prevents 40x recalculation per render)
+  const maxAskSize = useMemo(() => {
+    const sizes = asks.slice(0, 20).map(([, s]) => parseFloat(s));
+    return sizes.length > 0 ? Math.max(...sizes) : 1;
+  }, [asks]);
+
+  const maxBidSize = useMemo(() => {
+    const sizes = bids.slice(0, 20).map(([, s]) => parseFloat(s));
+    return sizes.length > 0 ? Math.max(...sizes) : 1;
+  }, [bids]);
 
   // Quick size percentages
   const handleQuickSize = (percentage: number) => {
@@ -234,11 +245,14 @@ export const ExecutionPanelPro: React.FC = () => {
       {/* === ZONE A: ORDER LOGIC === */}
       <div className="shrink-0 border-b border-terminal-border bg-terminal-card relative z-10">
         {/* Row 1: Order Type Tabs */}
-        <div className="flex items-center border-b border-terminal-border">
+        <div className="flex items-center border-b border-terminal-border" role="tablist" aria-label="Order type selection">
           {(['LIMIT', 'MARKET', 'STOP', 'OCO'] as const).map(type => (
             <button
               key={type}
               onClick={() => setOrderType(type)}
+              role="tab"
+              aria-selected={orderType === type}
+              aria-label={`${type} order type`}
               className={`flex-1 py-1.5 text-[10px] font-bold tracking-wide transition-colors ${
                 orderType === type
                   ? 'bg-blue-500/10 text-blue-400 border-b-2 border-blue-500'
@@ -256,6 +270,7 @@ export const ExecutionPanelPro: React.FC = () => {
             <select
               value={marginMode}
               onChange={(e) => setMarginMode(e.target.value as any)}
+              aria-label="Margin mode selection"
               className="bg-black border border-white/10 rounded px-2 py-0.5 text-[10px] text-gray-300 outline-none"
             >
               <option value="CROSS">CROSS</option>
@@ -271,6 +286,7 @@ export const ExecutionPanelPro: React.FC = () => {
               onChange={(e) => setLeverage(parseInt(e.target.value) || 1)}
               min="1"
               max="20"
+              aria-label="Leverage multiplier"
               className="w-12 bg-black border border-white/10 rounded px-2 py-0.5 text-[10px] text-yellow-400 font-mono text-right outline-none"
             />
             <span className="text-[10px] text-gray-500 font-bold">x</span>
@@ -356,7 +372,7 @@ export const ExecutionPanelPro: React.FC = () => {
           {/* Stop Loss */}
           <div>
             <label className="block text-[9px] text-gray-500 font-mono mb-1 uppercase">
-              Stop Loss
+              Stop Loss <span className="text-red-400">*</span>
             </label>
             <input
               type="number"
@@ -364,6 +380,8 @@ export const ExecutionPanelPro: React.FC = () => {
               onChange={(e) => setStopLoss(e.target.value)}
               placeholder="Required"
               required
+              aria-label="Stop loss price (required)"
+              aria-required="true"
               className="w-full bg-[#0f0f0f] border border-[#2a2a2a] rounded-sm px-2 py-1.5 text-[11px] text-red-400 font-mono text-right outline-none focus:border-red-500 transition-colors placeholder:text-gray-700"
             />
           </div>
@@ -378,6 +396,7 @@ export const ExecutionPanelPro: React.FC = () => {
               value={takeProfit}
               onChange={(e) => setTakeProfit(e.target.value)}
               placeholder="Optional"
+              aria-label="Take profit price (optional)"
               className="w-full bg-[#0f0f0f] border border-[#2a2a2a] rounded-sm px-2 py-1.5 text-[11px] text-green-400 font-mono text-right outline-none focus:border-green-500 transition-colors placeholder:text-gray-700"
             />
           </div>
@@ -390,13 +409,14 @@ export const ExecutionPanelPro: React.FC = () => {
         <div className="flex flex-col-reverse justify-end flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-red-500/20 scrollbar-track-transparent">
           {asks.slice(0, 20).reverse().map(([askPrice, askSize], i) => {
             const sizeFloat = parseFloat(askSize);
-            const maxSize = Math.max(...asks.slice(0, 20).map(([, s]) => parseFloat(s)));
-            const barWidth = (sizeFloat / maxSize) * 100;
+            const barWidth = (sizeFloat / maxAskSize) * 100;
 
             return (
               <button
                 key={i}
                 onClick={() => setPrice(parseFloat(askPrice).toFixed(2))}
+                role="button"
+                aria-label={`Set price to ${parseFloat(askPrice).toFixed(2)} USDT, ask size ${sizeFloat.toFixed(4)} BTC`}
                 className="flex justify-between items-center px-2 py-0.5 hover:bg-red-500/10 relative transition-colors shrink-0"
               >
                 <div className="absolute inset-0 bg-red-500/5 origin-right" style={{ width: `${barWidth}%` }} />
@@ -416,13 +436,14 @@ export const ExecutionPanelPro: React.FC = () => {
         <div className="flex flex-col justify-start flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-green-500/20 scrollbar-track-transparent">
           {bids.slice(0, 20).map(([bidPrice, bidSize], i) => {
             const sizeFloat = parseFloat(bidSize);
-            const maxSize = Math.max(...bids.slice(0, 20).map(([, s]) => parseFloat(s)));
-            const barWidth = (sizeFloat / maxSize) * 100;
+            const barWidth = (sizeFloat / maxBidSize) * 100;
 
             return (
               <button
                 key={i}
                 onClick={() => setPrice(parseFloat(bidPrice).toFixed(2))}
+                role="button"
+                aria-label={`Set price to ${parseFloat(bidPrice).toFixed(2)} USDT, bid size ${sizeFloat.toFixed(4)} BTC`}
                 className="flex justify-between items-center px-2 py-0.5 hover:bg-green-500/10 relative transition-colors shrink-0"
               >
                 <div className="absolute inset-0 bg-green-500/5 origin-right" style={{ width: `${barWidth}%` }} />
@@ -471,6 +492,7 @@ export const ExecutionPanelPro: React.FC = () => {
           <button
             onClick={() => handleExecute('BUY')}
             disabled={isSubmitting}
+            aria-label={`Buy long ${sizeBTC} BTC at ${price} USDT, cost approximately ${orderCostUSDT.toFixed(2)} USDT`}
             className="btn-premium flex-col h-auto py-3 bg-green-500/10 border border-green-500/50 text-green-400 hover:bg-green-500/20 hover:border-green-400 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="text-[11px] font-bold tracking-wide">BUY LONG</span>
@@ -480,6 +502,7 @@ export const ExecutionPanelPro: React.FC = () => {
           <button
             onClick={() => handleExecute('SELL')}
             disabled={isSubmitting}
+            aria-label={`Sell short ${sizeBTC} BTC at ${price} USDT, cost approximately ${orderCostUSDT.toFixed(2)} USDT`}
             className="btn-premium flex-col h-auto py-3 bg-red-500/10 border border-red-500/50 text-red-400 hover:bg-red-500/20 hover:border-red-400 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="text-[11px] font-bold tracking-wide">SELL SHORT</span>

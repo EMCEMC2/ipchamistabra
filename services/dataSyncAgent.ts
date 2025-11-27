@@ -6,7 +6,7 @@
 
 import { z } from 'zod';
 import { useStore } from '../store/useStore';
-import { ChartDataPoint, Position, TradeSignal } from '../types';
+import { ChartDataPoint, Position } from '../types';
 import { AggrStats } from '../types/aggrTypes';
 import { errorMonitor, captureError, captureWarning, addBreadcrumb } from './errorMonitor';
 
@@ -47,7 +47,7 @@ export interface ConsistencyResult {
 
 export interface SyncAlert {
   id: string;
-  type: 'DATA_STALE' | 'VALIDATION_ERROR' | 'CONSISTENCY_FAIL' | 'SOURCE_ERROR' | 'AUTO_FIX';
+  type: 'DATA_STALE' | 'VALIDATION_ERROR' | 'CONSISTENCY_FAIL' | 'SOURCE_ERROR' | 'AUTO_FIX' | 'HEALTH_DEGRADED';
   severity: 'critical' | 'high' | 'medium' | 'low';
   sourceId?: DataSourceId;
   message: string;
@@ -208,8 +208,8 @@ class DataSyncAgent {
     } catch (e) {
       if (e instanceof z.ZodError) {
         result.isValid = false;
-        e.errors.forEach(err => {
-          result.errors.push({ field: 'price', message: err.message, value: price });
+        (e.issues || []).forEach((issue: z.ZodIssue) => {
+          result.errors.push({ field: 'price', message: issue.message, value: price });
         });
       }
     }
@@ -272,10 +272,10 @@ class DataSyncAgent {
       } catch (e) {
         invalidCandles.push(index);
         if (e instanceof z.ZodError) {
-          e.errors.forEach(err => {
+          (e.issues || []).forEach((issue: z.ZodIssue) => {
             result.errors.push({
-              field: `chartData[${index}].${err.path.join('.')}`,
-              message: err.message,
+              field: `chartData[${index}].${issue.path.join('.')}`,
+              message: issue.message,
               value: candle
             });
           });
@@ -310,10 +310,10 @@ class DataSyncAgent {
     } catch (e) {
       if (e instanceof z.ZodError) {
         result.isValid = false;
-        e.errors.forEach(err => {
+        e.issues.forEach((issue) => {
           result.errors.push({
-            field: err.path.join('.'),
-            message: err.message,
+            field: issue.path.join('.'),
+            message: issue.message,
             value: position
           });
         });
@@ -374,10 +374,10 @@ class DataSyncAgent {
     } catch (e) {
       if (e instanceof z.ZodError) {
         result.isValid = false;
-        e.errors.forEach(err => {
+        e.issues.forEach((issue) => {
           result.errors.push({
-            field: err.path.join('.'),
-            message: err.message,
+            field: issue.path.join('.'),
+            message: issue.message,
             value: data
           });
         });
@@ -410,12 +410,12 @@ class DataSyncAgent {
     results.push(this.checkPriceChartSync(state.price, state.chartData));
 
     // Check 2: Position PnL calculations are correct
-    state.positions.forEach(pos => {
+    state.positions.forEach((pos: Position) => {
       results.push(this.checkPositionPnL(pos, state.price));
     });
 
     // Check 3: Liquidation prices are valid
-    state.positions.forEach(pos => {
+    state.positions.forEach((pos: Position) => {
       results.push(this.validateLiquidationPrice(pos));
     });
 
@@ -678,7 +678,7 @@ class DataSyncAgent {
     if (existingAlert) return;
 
     const alert: SyncAlert = {
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
       type,
       severity,
       sourceId,

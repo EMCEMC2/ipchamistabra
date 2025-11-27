@@ -17,7 +17,6 @@
   --space-3xl: 64px;
 
   /* ========================================
-  /* ========================================
      SEMANTIC COLORS - Deep Void Theme
      ======================================== */
 
@@ -32,7 +31,7 @@
   /* Text */
   --text-primary: #f8fafc;        /* Slate 50 */
   --text-secondary: #94a3b8;      /* Slate 400 */
-  --text-tertiary: #64748b;       /* Slate 500 */
+  --text-tertiary: #7c8a9e;       /* Slate 500 adjusted - WCAG AA compliant (4.5:1 on #030508) */
   --text-inverse: #030508;        /* Deep Void */
 
   /* Borders */
@@ -199,7 +198,7 @@
      GLASSMORPHISM
      ======================================== */
   --glass-bg: hsla(240 4% 18% / 0.6);
-  --glass-border: hsla(255 255 255 / 0.1);
+  --glass-border: hsla(0 0% 100% / 0.1);
   --glass-blur: blur(12px);
   --glass-saturate: saturate(180%);
 
@@ -207,7 +206,6 @@
      DATA VISUALIZATION COLORS
      ======================================== */
 
-  /* Chart colors */
   /* Chart colors */
   --chart-bullish-candle: #00ff9d;
   --chart-bearish-candle: #ff0055;

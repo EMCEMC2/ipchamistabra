@@ -50,6 +50,9 @@ export class AggrTradeService {
     // We already connected in constructor listeners, but here we might want to ensure worker is "connected" to WS
     workerManager.connect((stats) => {
       this.latestStats = stats;
+      // Sync with DataSyncAgent
+      dataSyncAgent.updateOrderFlowStats(stats);
+      dataSyncAgent.markDataUpdated('ORDER_FLOW');
       if (onStatsUpdate) onStatsUpdate(stats);
     });
   }
