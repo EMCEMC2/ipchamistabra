@@ -185,26 +185,40 @@ class BTCNewsAgent {
       throw new Error(`RSS payload missing items for ${sourceName}`);
     }
 
-    return data.items.map((item: any, idx: number): IntelItem => {
-      const published = Date.parse(item.pubDate || item.pubdate || item.date || '');
-      const title: string = item.title || 'Untitled';
-      const lowerTitle = title.toLowerCase();
+    return data.items
+      .filter((item: any) => {
+        const title = (item.title || '').toLowerCase();
+        const description = (item.description || '').toLowerCase();
+        const content = `${title} ${description}`;
 
-      const category = this.classifyCategory(lowerTitle, item.categories || []);
-      const btcSentiment = this.classifySentiment(lowerTitle);
-      const severity = this.classifySeverity(lowerTitle);
+        // Only include Bitcoin-related news
+        return content.includes('bitcoin') ||
+               content.includes('btc') ||
+               content.includes('satoshi') ||
+               content.includes('bitcoin etf') ||
+               content.includes('btc price') ||
+               content.includes('bitcoin price');
+      })
+      .map((item: any, idx: number): IntelItem => {
+        const published = Date.parse(item.pubDate || item.pubdate || item.date || '');
+        const title: string = item.title || 'Untitled';
+        const lowerTitle = title.toLowerCase();
 
-      return {
-        id: item.guid || item.link || `${sourceName}-${idx}-${Date.now()}`,
-        title,
-        severity,
-        category,
-        timestamp: isNaN(published) ? Date.now() : published,
-        source: item.author || item.creator || sourceName,
-        summary: item.description ? this.stripHtml(item.description).slice(0, 240) : (item.contentSnippet || item.content || title),
-        btcSentiment
-      };
-    });
+        const category = this.classifyCategory(lowerTitle, item.categories || []);
+        const btcSentiment = this.classifySentiment(lowerTitle);
+        const severity = this.classifySeverity(lowerTitle);
+
+        return {
+          id: item.guid || item.link || `${sourceName}-${idx}-${Date.now()}`,
+          title,
+          severity,
+          category,
+          timestamp: isNaN(published) ? Date.now() : published,
+          source: item.author || item.creator || sourceName,
+          summary: item.description ? this.stripHtml(item.description).slice(0, 240) : (item.contentSnippet || item.content || title),
+          btcSentiment
+        };
+      });
   }
 
   private stripHtml(html: string): string {
