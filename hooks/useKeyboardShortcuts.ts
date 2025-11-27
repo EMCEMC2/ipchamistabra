@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useStore } from '../store/useStore';
+import { addBreadcrumb } from '../services/errorMonitor';
 
 type ViewMode = 'TERMINAL' | 'SWARM' | 'CORTEX' | 'JOURNAL' | 'BACKTEST';
 
@@ -8,7 +9,7 @@ interface ShortcutOptions {
 }
 
 export const useKeyboardShortcuts = ({ setActiveView }: ShortcutOptions) => {
-  const { setExecutionSide } = useStore();
+  const { setExecutionSide, positions, closePosition, resetDailyPnL } = useStore();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
