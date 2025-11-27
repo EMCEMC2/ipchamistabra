@@ -9,9 +9,9 @@ import { AgentRole } from '../../types';
 import clsx from 'clsx';
 
 export const AgentSwarm: React.FC = () => {
-    const agents = useStore((state) => state.agents);
+    const agents = useStore((state) => state.agents) || [];
     const isScanning = useStore((state) => state.isScanning);
-    const councilLogs = useStore((state) => state.councilLogs);
+    const councilLogs = useStore((state) => state.councilLogs) || [];
     const updateAgentStatus = useStore((state) => state.updateAgentStatus);
     const addCouncilLog = useStore((state) => state.addCouncilLog);
     const setIsScanning = useStore((state) => state.setIsScanning);

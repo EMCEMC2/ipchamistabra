@@ -5,9 +5,10 @@ import { calculatePositionPnL } from '../utils/tradingCalculations';
 
 export const PositionsPanel: React.FC = () => {
     const { positions, price, closePosition, addJournalEntry } = useStore();
+    const safePositions = positions || [];
 
     const handleClose = (positionId: string) => {
-        const position = positions.find(p => p.id === positionId);
+        const position = safePositions.find(p => p.id === positionId);
         if (!position) return;
 
         const { pnlUSD, pnlPercent } = calculatePositionPnL(position, price);
@@ -36,7 +37,7 @@ export const PositionsPanel: React.FC = () => {
         });
     };
 
-    if (positions.length === 0) {
+    if (safePositions.length === 0) {
         return (
             <div className="h-full flex flex-col items-center justify-center text-terminal-muted opacity-60">
                 <Wallet size={32} className="mb-2 opacity-50" />
@@ -47,7 +48,7 @@ export const PositionsPanel: React.FC = () => {
 
     return (
         <div className="h-full flex flex-col gap-2 overflow-y-auto custom-scrollbar p-1">
-            {positions.map((pos) => {
+            {safePositions.map((pos) => {
                 const { pnlUSD, pnlPercent } = calculatePositionPnL(pos, price);
                 const isProfit = pnlUSD >= 0;
 

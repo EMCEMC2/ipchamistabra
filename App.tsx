@@ -95,7 +95,7 @@ function App() {
     // Expire signals older than 4 hours (14400000ms)
     const currentTime = Date.now();
     const SIGNAL_EXPIRY = 4 * 60 * 60 * 1000; // 4 hours
-    const signals = useStore.getState().signals;
+    const signals = useStore.getState().signals || [];
     const validSignals = signals.filter(s => currentTime - s.timestamp < SIGNAL_EXPIRY);
 
     if (validSignals.length < signals.length) {

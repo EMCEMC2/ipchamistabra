@@ -8,6 +8,7 @@ import ReactMarkdown from 'react-markdown';
 
 export const TradeJournal: React.FC = () => {
   const { journal: entries, addJournalEntry: onAddEntry } = useStore();
+  const safeEntries = entries || [];
   const [isAdding, setIsAdding] = useState(false);
   const [newEntry, setNewEntry] = useState<Partial<JournalEntry>>({
     pair: 'BTCUSDT',
@@ -161,7 +162,7 @@ export const TradeJournal: React.FC = () => {
         )}
 
         <div className="flex-1 overflow-y-auto space-y-3 pr-2">
-          {entries.map(entry => (
+          {safeEntries.map(entry => (
             <div key={entry.id} className="p-3 bg-terminal-bg/30 border border-terminal-border rounded hover:bg-terminal-bg/50 transition-colors group">
               <div className="flex justify-between items-start mb-2">
                 <div className="flex items-center gap-2">
@@ -220,7 +221,7 @@ export const TradeJournal: React.FC = () => {
             </div>
           ))}
 
-          {entries.length === 0 && !isAdding && (
+          {safeEntries.length === 0 && !isAdding && (
             <div className="flex flex-col items-center justify-center h-full text-terminal-muted opacity-50">
               <BookOpen size={32} className="mb-2" />
               <span className="text-xs font-mono">NO JOURNAL ENTRIES</span>
