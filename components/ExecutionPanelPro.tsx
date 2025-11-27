@@ -10,6 +10,7 @@ import { useStore } from '../store/useStore';
 import { Position } from '../types';
 import { calculatePositionSize, calculateLiquidationPrice } from '../utils/tradingCalculations';
 import { binanceApi } from '../services/binanceApi';
+import { captureError, captureCritical, addBreadcrumb } from '../services/errorMonitor';
 
 type OrderBookLevel = [string, string];
 
@@ -143,6 +144,8 @@ export const ExecutionPanelPro: React.FC = () => {
     setErrorMsg(null);
     setIsSubmitting(true);
 
+    addBreadcrumb(`Executing ${side} order`, 'execution', { size: sizeBTC, price, leverage });
+
     const size = parseFloat(sizeBTC);
     const liqPrice = calculateLiquidationPrice(executionPrice, leverage, side === 'BUY' ? 'LONG' : 'SHORT');
 
@@ -151,6 +154,7 @@ export const ExecutionPanelPro: React.FC = () => {
         // Cast orderType to any to support STOP/OCO if API allows, or restrict UI
         await binanceApi.placeOrder('BTCUSDT', side, orderType as any, size);
         console.log(`[LIVE] ${side} ${size} BTC @ ${executionPrice}`);
+        addBreadcrumb(`LIVE order executed: ${side} ${size} BTC`, 'execution');
       } else {
         // Paper Trading
         const position: Position = {
@@ -169,10 +173,27 @@ export const ExecutionPanelPro: React.FC = () => {
         };
         addPosition(position);
         console.log(`[PAPER] ${side} ${size} BTC @ ${executionPrice}`);
+        addBreadcrumb(`Paper trade executed: ${side} ${size} BTC`, 'execution');
       }
 
       setShowConfirmation(false);
     } catch (err: any) {
+      const errorContext = {
+        side,
+        size,
+        price: executionPrice,
+        leverage,
+        isLiveMode,
+        orderType
+      };
+
+      if (isLiveMode) {
+        // CRITICAL: Live trading errors need immediate attention
+        captureCritical(err, 'Live Order Execution Failed', errorContext);
+      } else {
+        captureError(err, 'Paper Trade Execution Failed', errorContext);
+      }
+
       console.error('Execution Error:', err);
       setErrorMsg(err.message || 'Order Failed');
     } finally {

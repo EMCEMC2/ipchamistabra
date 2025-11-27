@@ -11,10 +11,12 @@ import { captureError, addBreadcrumb } from './errorMonitor';
 
 export const fetchGlobalData = async () => {
     try {
+        addBreadcrumb('Fetching global market data', 'marketData');
+
         // Parallel fetch for efficiency - NOW USING REAL APIs (not AI search)
         const [macro, derivatives, sentiment, intel] = await Promise.all([
             fetchMacroData(), // REAL Yahoo Finance + CoinGecko
-            fetchDerivativesMetrics(), // REAL CoinGlass API
+            fetchDerivativesMetrics(), // REAL Binance Futures API
             getSentimentAnalysis(), // REAL Fear & Greed Index
             isAiAvailable() ? scanGlobalIntel() : Promise.resolve([]) // Gate AI call
         ]);
@@ -33,8 +35,13 @@ export const fetchGlobalData = async () => {
             intel: intel
         });
 
+        addBreadcrumb('Global data synced successfully', 'marketData');
         console.log("✅ Global Data Synced (REAL APIs)");
     } catch (error) {
+        captureError(error as Error, 'Global Data Sync Failed', {
+            macro: 'failed',
+            timestamp: Date.now()
+        });
         console.error("❌ Global Data Sync Error:", error);
     }
 };
