@@ -95,7 +95,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
         transition-all duration-300
         ${isAnimating ? 'scale-110 text-glow-bullish' : 'scale-100'}
       `}>
-        {value}
+        {value !== undefined && value !== null && value !== '' ? value : '-'}
       </div>
 
       {/* Sub Value */}
