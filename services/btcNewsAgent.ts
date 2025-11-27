@@ -169,10 +169,14 @@ class BTCNewsAgent {
       }
 
       console.log('[BTC News Agent] Response length:', text.length, 'chars');
+      console.log('[BTC News Agent] Raw response preview:', text.substring(0, 500));
 
       // Parse JSON response
       const newsData = this.cleanAndParseJSON<IntelItem[]>(text);
+      console.log('[BTC News Agent] Parsed news data:', newsData);
+
       if (!newsData || newsData.length === 0) {
+        console.error('[BTC News Agent] Failed to parse news data. Raw text:', text);
         throw new Error('Invalid or empty news data');
       }
 
@@ -229,28 +233,55 @@ class BTCNewsAgent {
    */
   private cleanAndParseJSON<T>(text: string): T | null {
     try {
-      let clean = text.replace(/```json/g, '').replace(/```/g, '');
-      clean = clean.replace(/\[\d+\]/g, ''); // Remove citations
+      console.log('[BTC News Agent] Attempting to parse JSON...');
 
+      // Remove markdown code blocks
+      let clean = text.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+
+      // Remove Google Search citations like [1], [2], etc.
+      clean = clean.replace(/\[\d+\]/g, '');
+
+      // Remove any leading/trailing whitespace
+      clean = clean.trim();
+
+      // Find the start of JSON (either [ or {)
       const firstOpenBrace = clean.indexOf('{');
       const firstOpenBracket = clean.indexOf('[');
 
       let startIndex = -1;
-      if (firstOpenBrace !== -1 && (firstOpenBracket === -1 || firstOpenBrace < firstOpenBracket)) {
-        startIndex = firstOpenBrace;
-      } else if (firstOpenBracket !== -1) {
+      let isArray = false;
+
+      if (firstOpenBracket !== -1 && (firstOpenBrace === -1 || firstOpenBracket < firstOpenBrace)) {
         startIndex = firstOpenBracket;
+        isArray = true;
+      } else if (firstOpenBrace !== -1) {
+        startIndex = firstOpenBrace;
+        isArray = false;
       }
 
-      if (startIndex !== -1) {
-        const lastIndex = clean.lastIndexOf(clean[startIndex] === '{' ? '}' : ']');
-        if (lastIndex !== -1) {
-          clean = clean.substring(startIndex, lastIndex + 1);
-        }
+      if (startIndex === -1) {
+        console.error('[BTC News Agent] No JSON found in response');
+        return null;
       }
 
-      return JSON.parse(clean);
-    } catch (e) {
+      // Extract JSON by finding matching closing bracket/brace
+      const endChar = isArray ? ']' : '}';
+      const lastIndex = clean.lastIndexOf(endChar);
+
+      if (lastIndex === -1 || lastIndex <= startIndex) {
+        console.error('[BTC News Agent] No matching closing bracket found');
+        return null;
+      }
+
+      clean = clean.substring(startIndex, lastIndex + 1);
+      console.log('[BTC News Agent] Extracted JSON:', clean.substring(0, 200), '...');
+
+      const parsed = JSON.parse(clean);
+      console.log('[BTC News Agent] Successfully parsed JSON');
+      return parsed;
+    } catch (e: any) {
+      console.error('[BTC News Agent] JSON parse error:', e.message);
+      console.error('[BTC News Agent] Failed text preview:', text.substring(0, 500));
       return null;
     }
   }

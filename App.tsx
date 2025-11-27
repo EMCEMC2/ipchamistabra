@@ -29,7 +29,7 @@ import { usePositionMonitor } from './hooks/usePositionMonitor';
 import { aggrService } from './services/aggrService';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
-type ViewMode = 'TERMINAL' | 'SWARM' | 'CORTEX' | 'JOURNAL' | 'BACKTEST';
+type ViewMode = 'TERMINAL' | 'SWARM' | 'CORTEX' | 'JOURNAL' | 'BACKTEST' | 'LIVEFEED';
 type BottomViewMode = 'INTEL' | 'POSITIONS';
 
 function App() {
@@ -266,6 +266,7 @@ function App() {
           {/* Navigation Tabs - Premium Edition */}
           <div className="flex items-center gap-2 border-l border-white/10 pl-8 h-10">
             <NavButton id="TERMINAL" label="TERMINAL" icon={Layout} />
+            <NavButton id="LIVEFEED" label="LIVE FEED" icon={Globe} />
             <NavButton id="SWARM" label="SWARM" icon={Users} />
             <NavButton id="CORTEX" label="ML CORTEX" icon={Brain} />
             <NavButton id="BACKTEST" label="BACKTEST" icon={LineChart} />
@@ -336,37 +337,15 @@ function App() {
                 </div>
 
                 {/* Bottom Tabs: Intel vs Positions (22% height) */}
-                <div className="h-[22%] flex flex-col min-h-0 card-premium">
-                  {/* Tab Headers */}
-                  <div className="flex items-center border-b border-white/5 bg-white/5">
-                     <button
-                        onClick={() => setBottomView('POSITIONS')}
-                        className={`flex items-center gap-2 px-4 py-1.5 text-[10px] font-bold tracking-wide transition-colors ${
-                            bottomView === 'POSITIONS' 
-                            ? 'text-green-400 border-b-2 border-green-400 bg-green-500/5' 
-                            : 'text-gray-500 hover:text-gray-300'
-                        }`}
-                     >
-                        <Wallet size={12} /> POSITIONS
-                     </button>
-                     <button
-                        onClick={() => setBottomView('INTEL')}
-                        className={`flex items-center gap-2 px-4 py-1.5 text-[10px] font-bold tracking-wide transition-colors ${
-                            bottomView === 'INTEL' 
-                            ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-500/5' 
-                            : 'text-gray-500 hover:text-gray-300'
-                        }`}
-                     >
-                        <Globe size={12} /> INTEL FEED
-                     </button>
-                  </div>
-
-                  {/* Tab Content */}
-                  <div className="flex-1 min-h-0 overflow-hidden">
-                     {bottomView === 'POSITIONS' ? <PositionsPanel /> : <IntelDeck />}
-                  </div>
+                <div className="h-[22%] flex flex-col min-h-0">
+                  <PositionsPanel />
                 </div>
               </>
+            )}
+            {activeView === 'LIVEFEED' && (
+              <div className="h-full w-full">
+                <IntelDeck />
+              </div>
             )}
             {activeView === 'SWARM' && <AgentSwarm />}
             {activeView === 'CORTEX' && <MLCortex />}

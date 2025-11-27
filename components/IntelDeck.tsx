@@ -1,4 +1,5 @@
 
+// VERSION: 2025-11-27-V2 - BTC News Agent Active
 import React, { useEffect, useState } from 'react';
 import { Globe, Zap, AlertTriangle, Activity, RefreshCw } from 'lucide-react';
 import { IntelItem } from '../types';
