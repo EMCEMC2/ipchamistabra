@@ -23,7 +23,7 @@ export const BacktestPanel: React.FC = () => {
       // Fetch historical data
       const candles = await fetchHistoricalCandles('BTCUSDT', '15m', days);
 
-      if (candles.length < 200) {
+      if (!candles || candles.length < 200) {
         alert('Insufficient data. Try fewer days or check your connection.');
         setIsRunning(false);
         return;

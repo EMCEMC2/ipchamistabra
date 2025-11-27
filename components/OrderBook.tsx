@@ -27,7 +27,7 @@ export const OrderBook: React.FC = () => {
           const rawAsks = data.result.a;
 
           // Calculate Spread
-          if (rawBids.length > 0 && rawAsks.length > 0) {
+          if (rawBids && rawBids.length > 0 && rawAsks && rawAsks.length > 0) {
               const bestBid = parseFloat(rawBids[0][0]);
               const bestAsk = parseFloat(rawAsks[0][0]);
               const spread = bestAsk - bestBid;

@@ -96,6 +96,8 @@ function App() {
     const currentTime = Date.now();
     const SIGNAL_EXPIRY = 4 * 60 * 60 * 1000; // 4 hours
     const signals = useStore.getState().signals || [];
+    if (!signals) return;
+    
     const validSignals = signals.filter(s => currentTime - s.timestamp < SIGNAL_EXPIRY);
 
     if (validSignals.length < signals.length) {
@@ -193,7 +195,7 @@ function App() {
 
   // Calculate Technicals when Chart Data updates
   useEffect(() => {
-    if (chartData.length < 50) return;
+    if (!chartData || chartData.length < 50) return;
 
     const closes = chartData.map(c => c.close);
     const highs = chartData.map(c => c.high);
@@ -201,24 +203,24 @@ function App() {
 
     // Calculate Indicators
     const rsiArray = calculateRSI(closes, 14);
-    const rsi = rsiArray[rsiArray.length - 1] || 50;
+    const rsi = (rsiArray && rsiArray.length > 0) ? rsiArray[rsiArray.length - 1] : 50;
 
     const macdData = calculateMACD(closes, 12, 26, 9);
-    const macdHist = macdData.histogram[macdData.histogram.length - 1] || 0;
-    const macdSignal = macdData.signalLine[macdData.signalLine.length - 1] || 0;
-    const macdVal = macdData.macdLine[macdData.macdLine.length - 1] || 0;
+    const macdHist = (macdData.histogram && macdData.histogram.length > 0) ? macdData.histogram[macdData.histogram.length - 1] : 0;
+    const macdSignal = (macdData.signalLine && macdData.signalLine.length > 0) ? macdData.signalLine[macdData.signalLine.length - 1] : 0;
+    const macdVal = (macdData.macdLine && macdData.macdLine.length > 0) ? macdData.macdLine[macdData.macdLine.length - 1] : 0;
 
     const adxData = calculateADX(highs, lows, closes, 14);
-    const adx = adxData.adx[adxData.adx.length - 1] || 0;
+    const adx = (adxData.adx && adxData.adx.length > 0) ? adxData.adx[adxData.adx.length - 1] : 0;
 
     const atrArray = calculateATR(highs, lows, closes, 14);
-    const atr = atrArray[atrArray.length - 1] || 0;
+    const atr = (atrArray && atrArray.length > 0) ? atrArray[atrArray.length - 1] : 0;
 
     // Trend Detection (EMA 21 vs 55)
     const ema21 = calculateEMA(closes, 21);
     const ema55 = calculateEMA(closes, 55);
-    const last21 = ema21[ema21.length - 1];
-    const last55 = ema55[ema55.length - 1];
+    const last21 = (ema21 && ema21.length > 0) ? ema21[ema21.length - 1] : 0;
+    const last55 = (ema55 && ema55.length > 0) ? ema55[ema55.length - 1] : 0;
     const trend = last21 > last55 ? 'BULLISH' : 'BEARISH';
 
     setTechnicals({

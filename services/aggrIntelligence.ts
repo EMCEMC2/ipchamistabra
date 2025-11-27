@@ -148,8 +148,8 @@ export function analyzeCascade(cascade: CascadeEvent): IntelItem {
   const title = `${cascade.severity.toUpperCase()} Liquidation Cascade`;
   const summary =
     `$${(cascade.totalLiquidated / 1000000).toFixed(1)}M ${cascade.side}s liquidated ` +
-    `across ${cascade.exchanges.length} exchanges in ${duration.toFixed(1)} minutes. ` +
-    `Exchanges: ${cascade.exchanges.join(', ')}. ` +
+    `across ${(cascade.exchanges || []).length} exchanges in ${duration.toFixed(1)} minutes. ` +
+    `Exchanges: ${(cascade.exchanges || []).join(', ')}. ` +
     `Expect ${cascade.side === 'long' ? 'continued selling pressure' : 'short covering rally'}.`;
 
   return {
@@ -197,7 +197,7 @@ export function analyzeLargeTrade(trade: AggrTrade): IntelItem | null {
  * Analyze exchange flow imbalance
  */
 export function analyzeExchangeFlow(stats: AggrStats): IntelItem | null {
-  if (stats.exchanges.length === 0) return null;
+  if (!stats.exchanges || stats.exchanges.length === 0) return null;
 
   // Find dominant exchange
   const dominant = stats.exchanges[0];
@@ -274,7 +274,7 @@ export function generateTradingSignal(stats: AggrStats): TradingSignal {
   // Liquidation Risk (20% weight)
   if (stats.liquidationVolume > 0) {
     const liqPercent = (stats.liquidationVolume / stats.totalVolume) * 100;
-    if (liqPercent > 10) {
+    if (liqPercent > 10 && stats.recentLiquidations) {
       const recentLongs = stats.recentLiquidations.filter(l => l.side === 'long').length;
       const recentShorts = stats.recentLiquidations.filter(l => l.side === 'short').length;
 
@@ -291,7 +291,7 @@ export function generateTradingSignal(stats: AggrStats): TradingSignal {
   }
 
   // Exchange Flow (10% weight)
-  if (stats.exchanges.length > 0) {
+  if (stats.exchanges && stats.exchanges.length > 0) {
     const topExchange = stats.exchanges[0];
     const netFlowPercent = (topExchange.netFlow / (topExchange.buyVolume + topExchange.sellVolume)) * 100;
 

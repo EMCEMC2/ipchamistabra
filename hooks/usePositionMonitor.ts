@@ -20,7 +20,7 @@ export function usePositionMonitor() {
     intervalRef.current = setInterval(() => {
       const { positions, price, updatePositionPnl, closePosition, addJournalEntry } = useStore.getState();
 
-      if (positions.length === 0) {
+      if (!positions || positions.length === 0) {
         // No positions, no work to do
         return;
       }
