@@ -73,20 +73,7 @@ export const calculateATR = (high: number[], low: number[], close: number[], per
         tr.push(Math.max(hl, hc, lc));
     }
 
-    // ATR is smoothed moving average of TR
-    // Typically RMA (Running Moving Average) or SMA for first.
-    // Let's use simple SMA for first, then smooth.
-    const atr: number[] = [];
-    let sumTR = 0;
-    for (let i = 0; i < period; i++) sumTR += tr[i];
-    atr.push(sumTR / period);
-
-    for (let i = period; i < tr.length; i++) {
-        const prevATR = atr[atr.length - 1];
-        atr.push((prevATR * (period - 1) + tr[i]) / period);
-    }
-
-    return atr;
+    return calculateRMA(tr, period);
 };
 
 export const calculateADX = (high: number[], low: number[], close: number[], period: number = 14) => {
@@ -176,21 +163,28 @@ export const calculateTR = (data: ChartDataPoint[]): number[] => {
 
 export const calculateRMA = (src: number[], length: number): number[] => {
     const rma: number[] = [];
-    let alpha = 1 / length;
+    const alpha = 1 / length;
+
+    // Pad initial values with NaN
+    for (let i = 0; i < length - 1; i++) {
+        rma.push(NaN);
+    }
+
+    // Calculate initial SMA
     let sum = 0;
-
-    // Initialize with SMA for first value
-    for (let i = 0; i < length; i++) sum += src[i] || 0;
+    for (let i = 0; i < length; i++) {
+        sum += src[i];
+    }
     let prev = sum / length;
-    rma[length - 1] = prev;
+    rma.push(prev);
 
-    for (let i = 0; i < length - 1; i++) rma.push(NaN); // pad
-
+    // Calculate RMA for the rest
     for (let i = length; i < src.length; i++) {
-        const val = alpha * src[i] + (1 - alpha) * prev;
+        const val = (prev * (length - 1) + src[i]) / length;
         rma.push(val);
         prev = val;
     }
+
     return rma;
 };
 

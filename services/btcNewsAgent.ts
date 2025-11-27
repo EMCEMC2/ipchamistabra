@@ -1,13 +1,10 @@
 /**
  * BTC NEWS AGENT
- * Continuously fetches live Bitcoin-related news from multiple reliable sources
- * Auto-updates every 5 minutes with real-time market intelligence
+ * Tries real RSS sources first (no AI key needed) and falls back to mocked data with fresh timestamps.
+ * Auto-updates every minute (test cadence) so UI always has fresh headlines.
  */
 
 import { IntelItem } from '../types';
-import { GoogleGenAI } from "@google/genai";
-
-const FAST_MODEL_ID = "gemini-2.0-flash";
 
 // Mock data for fallback (when API fails)
 const FALLBACK_NEWS: IntelItem[] = [
@@ -105,95 +102,23 @@ class BTCNewsAgent {
   private async fetchNews(): Promise<void> {
     console.log('[BTC News Agent] 📰 fetchNews() called');
     try {
-      const apiKey = this.getApiKey();
-      console.log('[BTC News Agent] API Key status:', apiKey ? `Present (${apiKey.length} chars)` : 'Missing');
-
-      if (!apiKey) {
-        console.warn('[BTC News Agent] ❌ No API key, using fallback');
-        this.broadcastNews(FALLBACK_NEWS);
+      // 1) Try real RSS sources first (fast, keyless, low-latency)
+      const rssNews = await this.fetchFromRssSources();
+      if (rssNews.length > 0) {
+        console.log(`[BTC News Agent] ✅ RSS fetch success: ${rssNews.length} items`);
+        this.latestNews = rssNews;
+        this.broadcastNews(rssNews);
         return;
       }
 
-      console.log('[BTC News Agent] Initializing Gemini AI...');
-      const ai = new GoogleGenAI({ apiKey });
-
-      const prompt = `
-        ROLE: Bitcoin News Intelligence Officer
-        TASK: Find the LATEST REAL-TIME Bitcoin news from the past 24 hours.
-
-        FOCUS AREAS:
-        1. Price action & market movements
-        2. Institutional activity (ETFs, whale movements)
-        3. Regulatory developments
-        4. Macroeconomic impacts (Fed, inflation, DXY)
-        5. On-chain metrics (exchange flows, miner activity)
-
-        REQUIREMENTS:
-        - Find 5-7 REAL news items from the LAST 24 HOURS
-        - Prioritize HIGH-IMPACT news (market-moving events)
-        - Include TIMESTAMP-accurate news (not old articles)
-        - Analyze BTC sentiment for each: BULLISH, BEARISH, or NEUTRAL
-
-        OUTPUT FORMAT:
-        You must return ONLY a raw JSON array. 
-        Do NOT use markdown code blocks (no \`\`\`json).
-        Do NOT include any introduction or explanation text.
-        
-        [
-          {
-            "id": "unique_timestamp_id",
-            "title": "Clear, concise headline",
-            "severity": "HIGH" | "MEDIUM" | "LOW",
-            "category": "NEWS" | "MACRO" | "WHALE" | "ONCHAIN",
-            "timestamp": ${Date.now()},
-            "source": "Actual source name (CoinDesk, Bloomberg, etc.)",
-            "summary": "One sentence explaining BTC impact",
-            "btcSentiment": "BULLISH" | "BEARISH" | "NEUTRAL"
-          }
-        ]
-
-        IMPORTANT: Use real-time Google Search to find ACTUAL current news. Do NOT fabricate.
-      `;
-
-      console.log('[BTC News Agent] Calling Gemini API with Google Search...');
-      const response = await ai.models.generateContent({
-        model: FAST_MODEL_ID,
-        contents: prompt,
-        config: {
-          tools: [{ googleSearch: {} }],
-          responseMimeType: "application/json",
-        }
-      });
-
-      console.log('[BTC News Agent] API Response received');
-      const text = response.text;
-      if (!text) {
-        console.error('[BTC News Agent] ❌ No response text from API');
-        throw new Error('No response from API');
-      }
-
-      console.log('[BTC News Agent] Response length:', text.length, 'chars');
-      console.log('[BTC News Agent] Raw response preview:', text.substring(0, 500));
-
-      // Parse JSON response
-      const newsData = this.cleanAndParseJSON<IntelItem[]>(text);
-      console.log('[BTC News Agent] Parsed news data:', newsData);
-
-      if (!newsData || newsData.length === 0) {
-        console.error('[BTC News Agent] Failed to parse news data. Raw text:', text);
-        throw new Error('Invalid or empty news data');
-      }
-
-      // Validate and ensure IDs are unique
-      const validatedNews = newsData.map((item, index) => ({
+      // 2) If RSS fails, fall back to mock with fresh timestamps
+      console.warn('[BTC News Agent] RSS fetch failed, using fresh fallback');
+      const freshFallback = FALLBACK_NEWS.map((item, index) => ({
         ...item,
-        id: item.id || `news-${Date.now()}-${index}`,
-        timestamp: item.timestamp || Date.now() - (index * 60000) // Fallback timestamps
+        timestamp: Date.now() - (index * 60000)
       }));
-
-      console.log(`[BTC News Agent] ✅ Fetched ${validatedNews.length} news items`);
-      this.latestNews = validatedNews;
-      this.broadcastNews(validatedNews);
+      this.latestNews = freshFallback;
+      this.broadcastNews(freshFallback);
 
     } catch (error: any) {
       console.error('[BTC News Agent] ❌ Error fetching news:', error.message);
@@ -222,105 +147,91 @@ class BTCNewsAgent {
   }
 
   /**
-   * Get API key from environment or localStorage
+   * Fetch BTC headlines from multiple RSS sources via a public RSS-to-JSON bridge.
    */
-  private getApiKey(): string | null {
-    const fromProcessEnv = process.env.API_KEY;
-    const fromImportMeta = import.meta.env.VITE_GEMINI_API_KEY;
-    const fromStorage = typeof window !== 'undefined' ? localStorage.getItem('GEMINI_API_KEY') : null;
+  private async fetchFromRssSources(): Promise<IntelItem[]> {
+    const sources = [
+      { name: 'CoinDesk', url: 'https://www.coindesk.com/arc/outboundfeeds/rss/?output=xml' },
+      { name: 'Cointelegraph', url: 'https://cointelegraph.com/rss' },
+      { name: 'Bitcoin Magazine', url: 'https://bitcoinmagazine.com/.rss' },
+      { name: 'Decrypt', url: 'https://decrypt.co/feed' }
+    ];
 
-    return (fromProcessEnv || fromImportMeta || fromStorage || '').trim() || null;
+    const requests = sources.map(src => this.fetchRss(src.url, src.name));
+    const results = await Promise.allSettled(requests);
+
+    const items: IntelItem[] = results
+      .filter((r): r is PromiseFulfilledResult<IntelItem[]> => r.status === 'fulfilled')
+      .flatMap(r => r.value);
+
+    // Deduplicate by title and sort by recency
+    const deduped = Array.from(
+      new Map(items.map(item => [item.title, item])).values()
+    ).sort((a, b) => b.timestamp - a.timestamp);
+
+    return deduped.slice(0, 12);
   }
 
   /**
-   * Clean and parse JSON from AI response
+   * Fetch and normalize a single RSS feed through rss2json.
    */
-  private cleanAndParseJSON<T>(text: string): T | null {
-    try {
-      console.log(`[BTC News Agent ${Date.now()}] 🔍 Parsing response...`);
-      
-      // 1. Log raw response for debugging (with unique timestamp to bypass cache visual fatigue)
-      if (text.length > 500) {
-        console.log(`[BTC News Agent] Raw Start: ${text.substring(0, 500)}...`);
-        console.log(`[BTC News Agent] Raw End: ...${text.substring(text.length - 200)}`);
-      } else {
-        console.log('[BTC News Agent] Raw Response:', text);
-      }
+  private async fetchRss(rssUrl: string, sourceName: string): Promise<IntelItem[]> {
+    const bridgeUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`;
+    const res = await fetch(bridgeUrl);
+    if (!res.ok) throw new Error(`RSS fetch failed for ${sourceName}`);
 
-      // 2. Robust JSON Array Extraction
-      // Look for the first '[' that is followed eventually by a '{' (indicating array of objects)
-      // or just the first '[' if we want to be generic. 
-      // Given we expect IntelItem[], we look for `[` followed by `{`
-      
-      let jsonString = '';
-      
-      // Regex to find a JSON array of objects: [ ... { ... } ... ]
-      // We use a simple approach: Find first `[` and last `]`
-      const firstBracket = text.indexOf('[');
-      const lastBracket = text.lastIndexOf(']');
-      
-      if (firstBracket !== -1 && lastBracket > firstBracket) {
-        jsonString = text.substring(firstBracket, lastBracket + 1);
-      } else {
-        // Fallback: Try to find an object `{` if array failed
-        const firstBrace = text.indexOf('{');
-        const lastBrace = text.lastIndexOf('}');
-        if (firstBrace !== -1 && lastBrace > firstBrace) {
-          jsonString = text.substring(firstBrace, lastBrace + 1);
-        }
-      }
-
-      if (!jsonString) {
-        console.error('[BTC News Agent] ❌ No JSON brackets found in response.');
-        return null;
-      }
-
-      // 3. Clean the extracted string
-      // Remove markdown code blocks if they were captured inside
-      jsonString = jsonString.replace(/```json/g, '').replace(/```/g, '');
-      
-      // Remove citations like [1], [2] ONLY if they are likely outside strings? 
-      // Actually, JSON.parse handles [1] inside strings fine. 
-      // The risk is if the text was `[1] [ {"id":...} ]`. 
-      // Our substring logic took from first `[` to last `]`.
-      // So we might have `1] [ {"id":...} ]`. This is invalid JSON.
-      
-      // Better strategy: Use a regex to find the specific pattern `[` followed by whitespace/newlines then `{`
-      const arrayMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
-      if (arrayMatch) {
-        jsonString = arrayMatch[0];
-      }
-
-      // Clean citations (carefully) - simplistic approach: remove [number]
-      // We'll only do this if the parse fails first, to avoid breaking valid data.
-      
-      try {
-        const parsed = JSON.parse(jsonString);
-        console.log('[BTC News Agent] ✅ Successfully parsed JSON directly');
-        return parsed;
-      } catch (directError) {
-        console.warn('[BTC News Agent] Direct parse failed, attempting cleanup...');
-        
-        // Cleanup 1: Remove citations [1]
-        let cleaned = jsonString.replace(/\[\d+\]/g, '');
-        
-        // Cleanup 2: Fix common trailing commas
-        cleaned = cleaned.replace(/,\s*]/g, ']').replace(/,\s*}/g, '}');
-
-        try {
-          const parsedClean = JSON.parse(cleaned);
-          console.log('[BTC News Agent] ✅ Successfully parsed JSON after cleanup');
-          return parsedClean;
-        } catch (cleanError) {
-          console.error('[BTC News Agent] 💥 Final JSON parse failed');
-          console.error('[BTC News Agent] Problematic String:', cleaned.substring(0, 200) + '...');
-          return null;
-        }
-      }
-    } catch (e: any) {
-      console.error('[BTC News Agent] Unexpected error in parser:', e.message);
-      return null;
+    const data = await res.json();
+    if (!data?.items || !Array.isArray(data.items)) {
+      throw new Error(`RSS payload missing items for ${sourceName}`);
     }
+
+    return data.items.map((item: any, idx: number): IntelItem => {
+      const published = Date.parse(item.pubDate || item.pubdate || item.date || '');
+      const title: string = item.title || 'Untitled';
+      const lowerTitle = title.toLowerCase();
+
+      const category = this.classifyCategory(lowerTitle, item.categories || []);
+      const btcSentiment = this.classifySentiment(lowerTitle);
+      const severity = this.classifySeverity(lowerTitle);
+
+      return {
+        id: item.guid || item.link || `${sourceName}-${idx}-${Date.now()}`,
+        title,
+        severity,
+        category,
+        timestamp: isNaN(published) ? Date.now() : published,
+        source: item.author || item.creator || sourceName,
+        summary: item.description ? this.stripHtml(item.description).slice(0, 240) : (item.contentSnippet || item.content || title),
+        btcSentiment
+      };
+    });
+  }
+
+  private stripHtml(html: string): string {
+    if (!html) return '';
+    return html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+  }
+
+  private classifyCategory(lowerTitle: string, categories: string[]): IntelItem['category'] {
+    const joined = `${lowerTitle} ${categories.join(' ').toLowerCase()}`;
+    if (joined.includes('regulat') || joined.includes('sec') || joined.includes('policy')) return 'MACRO';
+    if (joined.includes('whale') || joined.includes('address') || joined.includes('transfer')) return 'WHALE';
+    if (joined.includes('on-chain') || joined.includes('onchain') || joined.includes('miners') || joined.includes('hash')) return 'ONCHAIN';
+    return 'NEWS';
+  }
+
+  private classifySentiment(lowerTitle: string): IntelItem['btcSentiment'] {
+    const bull = ['surge', 'inflow', 'buy', 'approval', 'record high', 'bull', 'etf inflow'];
+    const bear = ['hack', 'ban', 'sell-off', 'liquidation', 'outflow', 'fud', 'lawsuit'];
+    if (bull.some(k => lowerTitle.includes(k))) return 'BULLISH';
+    if (bear.some(k => lowerTitle.includes(k))) return 'BEARISH';
+    return 'NEUTRAL';
+  }
+
+  private classifySeverity(lowerTitle: string): IntelItem['severity'] {
+    if (lowerTitle.includes('hack') || lowerTitle.includes('breach') || lowerTitle.includes('etf') || lowerTitle.includes('sec')) return 'HIGH';
+    if (lowerTitle.includes('whale') || lowerTitle.includes('upgrade') || lowerTitle.includes('merge') || lowerTitle.includes('lawsuit')) return 'MEDIUM';
+    return 'LOW';
   }
 
   /**
