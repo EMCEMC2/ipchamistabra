@@ -33,10 +33,43 @@ const binanceRequest = async (method: 'GET' | 'POST' | 'DELETE' | 'PUT', endpoin
     }
 };
 
+// Auth Middleware
+const authMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const clientKey = req.headers['x-trading-key'];
+    const serverKey = process.env.TRADING_API_KEY;
+
+    // If no key configured on server, warn but allow (or block? safer to block)
+    // For this fix, we'll block if key is set, or block if missing.
+    if (!serverKey) {
+        console.warn('WARNING: TRADING_API_KEY not set on server. Allowing request (INSECURE).');
+        return next();
+    }
+
+    if (clientKey !== serverKey) {
+        return res.status(401).json({ error: 'Unauthorized', details: 'Invalid Trading Key' });
+    }
+    next();
+};
+
+// Apply Auth
+router.use(authMiddleware);
+
 // Place Order
 router.post('/order', async (req, res) => {
     try {
         const { symbol, side, type, quantity, price, timeInForce } = req.body;
+
+        // Validation
+        if (!symbol || !side || !type || !quantity) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+        if (quantity <= 0) {
+            return res.status(400).json({ error: 'Quantity must be positive' });
+        }
+        if (type === 'LIMIT' && (!price || price <= 0)) {
+            return res.status(400).json({ error: 'Price is required for LIMIT orders' });
+        }
+
         const params: any = { symbol, side, type, quantity };
         if (price) params.price = price;
         if (timeInForce) params.timeInForce = timeInForce;

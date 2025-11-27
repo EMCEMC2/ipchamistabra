@@ -31,6 +31,8 @@ export const ExecutionPanelPro: React.FC = () => {
   const [sizeBTC, setSizeBTC] = useState<string>('0.01');
   const [sizeUSDT, setSizeUSDT] = useState<string>('');
   const [sizeMode, setSizeMode] = useState<'BTC' | 'USDT'>('BTC');
+  const [stopLoss, setStopLoss] = useState<string>('');
+  const [takeProfit, setTakeProfit] = useState<string>('');
 
   // === ZONE B: MICRO DEPTH ===
   const [bids, setBids] = useState<OrderBookLevel[]>([]);
@@ -114,8 +116,8 @@ export const ExecutionPanelPro: React.FC = () => {
           entryPrice: executionPrice,
           size: size,
           leverage: leverage,
-          stopLoss: 0, // Set separately
-          takeProfit: 0, // Set separately
+          stopLoss: parseFloat(stopLoss) || 0,
+          takeProfit: parseFloat(takeProfit) || 0,
           timestamp: Date.now(),
           pnl: 0,
           pnlPercent: 0,
@@ -232,6 +234,37 @@ export const ExecutionPanelPro: React.FC = () => {
               step="0.001"
               className="w-full bg-[#0f0f0f] border border-[#2a2a2a] rounded-sm px-2 py-1.5 text-[11px] text-white font-mono text-right outline-none focus:border-blue-500 transition-colors"
               style={{ fontVariantNumeric: 'tabular-nums' }}
+            />
+          </div>
+        </div>
+
+        {/* Row 4: SL/TP Inputs */}
+        <div className="grid grid-cols-2 gap-2 px-2 pb-2">
+          {/* Stop Loss */}
+          <div>
+            <label className="block text-[9px] text-gray-500 font-mono mb-1 uppercase">
+              Stop Loss
+            </label>
+            <input
+              type="number"
+              value={stopLoss}
+              onChange={(e) => setStopLoss(e.target.value)}
+              placeholder="Optional"
+              className="w-full bg-[#0f0f0f] border border-[#2a2a2a] rounded-sm px-2 py-1.5 text-[11px] text-red-400 font-mono text-right outline-none focus:border-red-500 transition-colors placeholder:text-gray-700"
+            />
+          </div>
+
+          {/* Take Profit */}
+          <div>
+            <label className="block text-[9px] text-gray-500 font-mono mb-1 uppercase">
+              Take Profit
+            </label>
+            <input
+              type="number"
+              value={takeProfit}
+              onChange={(e) => setTakeProfit(e.target.value)}
+              placeholder="Optional"
+              className="w-full bg-[#0f0f0f] border border-[#2a2a2a] rounded-sm px-2 py-1.5 text-[11px] text-green-400 font-mono text-right outline-none focus:border-green-500 transition-colors placeholder:text-gray-700"
             />
           </div>
         </div>

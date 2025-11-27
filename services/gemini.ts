@@ -4,6 +4,14 @@ import { ChatMessage, GroundingSource, TradeSignal, JournalEntry, IntelItem, Age
 import { z } from 'zod';
 import { validateSignal, calculateRiskReward, parsePrice, classifyMarketRegime } from '../utils/tradingCalculations';
 
+export const isAiAvailable = (): boolean => {
+  const fromProcessEnv = process.env.API_KEY;
+  const fromImportMeta = import.meta.env.VITE_GEMINI_API_KEY;
+  const fromStorage = typeof window !== 'undefined' ? localStorage.getItem('GEMINI_API_KEY') : null;
+  const apiKey = (fromProcessEnv || fromImportMeta || fromStorage || "").trim();
+  return !!apiKey;
+};
+
 const getAiClient = () => {
   const fromProcessEnv = process.env.API_KEY;
   const fromImportMeta = import.meta.env.VITE_GEMINI_API_KEY;

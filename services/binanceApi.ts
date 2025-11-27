@@ -1,6 +1,7 @@
 import { useStore } from '../store/useStore';
 
-const BACKEND_URL = 'http://localhost:3000/api/trading';
+const BACKEND_URL = import.meta.env.VITE_TRADING_API_URL || 'http://localhost:3000/api/trading';
+const TRADING_KEY = import.meta.env.VITE_TRADING_API_KEY || '';
 
 export const binanceApi = {
     // Generic Helper
@@ -9,7 +10,8 @@ export const binanceApi = {
             const response = await fetch(`${BACKEND_URL}${endpoint}`, {
                 method,
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'x-trading-key': TRADING_KEY
                 },
                 body: body ? JSON.stringify(body) : undefined
             });
@@ -28,6 +30,9 @@ export const binanceApi = {
 
     // Trading Actions
     placeOrder: async (symbol: string, side: 'BUY' | 'SELL', type: 'MARKET' | 'LIMIT', quantity: number, price?: number) => {
+        if (quantity <= 0) throw new Error('Quantity must be greater than 0');
+        if (type === 'LIMIT' && (!price || price <= 0)) throw new Error('Price is required for LIMIT orders');
+
         return binanceApi.request('/order', 'POST', {
             symbol,
             side,

@@ -167,19 +167,23 @@ export function checkPositionClose(
   }
 
   // Check stop loss
-  if (type === 'LONG' && currentPrice <= stopLoss) {
-    return { shouldClose: true, reason: 'STOP_LOSS' };
-  }
-  if (type === 'SHORT' && currentPrice >= stopLoss) {
-    return { shouldClose: true, reason: 'STOP_LOSS' };
+  if (stopLoss > 0) {
+    if (type === 'LONG' && currentPrice <= stopLoss) {
+      return { shouldClose: true, reason: 'STOP_LOSS' };
+    }
+    if (type === 'SHORT' && currentPrice >= stopLoss) {
+      return { shouldClose: true, reason: 'STOP_LOSS' };
+    }
   }
 
   // Check take profit
-  if (type === 'LONG' && currentPrice >= takeProfit) {
-    return { shouldClose: true, reason: 'TAKE_PROFIT' };
-  }
-  if (type === 'SHORT' && currentPrice <= takeProfit) {
-    return { shouldClose: true, reason: 'TAKE_PROFIT' };
+  if (takeProfit > 0) {
+    if (type === 'LONG' && currentPrice >= takeProfit) {
+      return { shouldClose: true, reason: 'TAKE_PROFIT' };
+    }
+    if (type === 'SHORT' && currentPrice <= takeProfit) {
+      return { shouldClose: true, reason: 'TAKE_PROFIT' };
+    }
   }
 
   return { shouldClose: false, reason: null };

@@ -3,7 +3,8 @@ import { useStore } from '../store/useStore';
 import {
     getSentimentAnalysis,
     scanGlobalIntel,
-    scanMarketForSignals
+    scanMarketForSignals,
+    isAiAvailable
 } from './gemini';
 import { fetchMacroData, fetchDerivativesMetrics } from './macroDataService';
 
@@ -14,7 +15,7 @@ export const fetchGlobalData = async () => {
             fetchMacroData(), // REAL Yahoo Finance + CoinGecko
             fetchDerivativesMetrics(), // REAL CoinGlass API
             getSentimentAnalysis(), // REAL Fear & Greed Index
-            scanGlobalIntel() // Still AI-powered (for news), but not for metrics
+            isAiAvailable() ? scanGlobalIntel() : Promise.resolve([]) // Gate AI call
         ]);
 
         useStore.setState({
@@ -106,8 +107,13 @@ export const fetchSignals = async () => {
             Technicals: ${JSON.stringify(technicals || {})}
         `;
 
-        // Step 3: Get AI signals with Tactical v2 context
-        const rawSignals = await scanMarketForSignals(context, tacticalResult);
+        // Step 3: Get AI signals with Tactical v2 context (ONLY IF KEY EXISTS)
+        let rawSignals: any[] = [];
+        if (isAiAvailable()) {
+            rawSignals = await scanMarketForSignals(context, tacticalResult);
+        } else {
+            console.log('[Signal Gen] Skipping AI scan (No API Key)');
+        }
 
         // Step 4: Combine signals (prioritize Tactical v2 if strong)
         const signals = rawSignals.map(s => ({
