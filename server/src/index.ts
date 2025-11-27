@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { config } from './config';
 import { tradingRoutes } from './routes/trading';
+import { macroRoutes } from './routes/macro';
 
 const app = express();
 
@@ -11,6 +12,7 @@ app.use(express.json());
 
 // Routes
 app.use('/api/trading', tradingRoutes);
+app.use('/api/macro', macroRoutes);
 
 // Health Check
 app.get('/health', (req, res) => {

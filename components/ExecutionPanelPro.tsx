@@ -31,6 +31,7 @@ export const ExecutionPanelPro: React.FC = () => {
   const [sizeBTC, setSizeBTC] = useState<string>('0.01');
   const [sizeUSDT, setSizeUSDT] = useState<string>('');
   const [sizeMode, setSizeMode] = useState<'BTC' | 'USDT'>('BTC');
+  const [riskPercent, setRiskPercent] = useState<string>('1.0');
   const [stopLoss, setStopLoss] = useState<string>('');
   const [takeProfit, setTakeProfit] = useState<string>('');
 
@@ -88,6 +89,30 @@ export const ExecutionPanelPro: React.FC = () => {
     setSizeBTC(maxSizeBTC.toFixed(4));
   };
 
+  // Risk-based position sizing
+  const calculateRiskBasedSize = () => {
+    const entryPrice = parseFloat(price);
+    const slPrice = parseFloat(stopLoss);
+    const riskPct = parseFloat(riskPercent);
+
+    if (!entryPrice || !slPrice || !riskPct || riskPct <= 0) {
+      setErrorMsg('Enter entry price, stop loss, and risk % to calculate position size');
+      return;
+    }
+
+    // Calculate risk per BTC
+    const riskPerBTC = Math.abs(entryPrice - slPrice);
+
+    // Calculate dollar risk (account balance * risk %)
+    const dollarRisk = balance * (riskPct / 100);
+
+    // Calculate position size: Dollar Risk / Risk per BTC
+    const positionSizeBTC = dollarRisk / riskPerBTC;
+
+    setSizeBTC(positionSizeBTC.toFixed(4));
+    setErrorMsg(null);
+  };
+
   // Execute Order
   const handleExecute = async (side: 'BUY' | 'SELL') => {
     if (!sizeBTC || parseFloat(sizeBTC) <= 0) {
@@ -95,10 +120,29 @@ export const ExecutionPanelPro: React.FC = () => {
       return;
     }
 
+    // CRITICAL: Stop loss is now MANDATORY
+    if (!stopLoss || parseFloat(stopLoss) <= 0) {
+      setErrorMsg('Stop Loss is required. Enter a stop loss price.');
+      return;
+    }
+
+    // Validate stop loss is on correct side
+    const executionPrice = parseFloat(price);
+    const slPrice = parseFloat(stopLoss);
+
+    if (side === 'BUY' && slPrice >= executionPrice) {
+      setErrorMsg('Stop Loss must be BELOW entry price for LONG positions');
+      return;
+    }
+
+    if (side === 'SELL' && slPrice <= executionPrice) {
+      setErrorMsg('Stop Loss must be ABOVE entry price for SHORT positions');
+      return;
+    }
+
     setErrorMsg(null);
     setIsSubmitting(true);
 
-    const executionPrice = parseFloat(price);
     const size = parseFloat(sizeBTC);
     const liqPrice = calculateLiquidationPrice(executionPrice, leverage, side === 'BUY' ? 'LONG' : 'SHORT');
 
@@ -238,6 +282,39 @@ export const ExecutionPanelPro: React.FC = () => {
           </div>
         </div>
 
+        {/* Row 3.5: Risk-Based Position Sizing */}
+        <div className="px-2 pb-2">
+          <div className="bg-blue-500/5 border border-blue-500/20 rounded-sm p-2">
+            <label className="flex items-center gap-1 text-[9px] text-blue-400 font-mono mb-1.5 uppercase">
+              <Shield size={10} />
+              Risk % Calculator
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                value={riskPercent}
+                onChange={(e) => setRiskPercent(e.target.value)}
+                step="0.1"
+                min="0.1"
+                max="5"
+                placeholder="1.0"
+                className="flex-1 bg-[#0f0f0f] border border-[#2a2a2a] rounded-sm px-2 py-1.5 text-[11px] text-blue-400 font-mono text-right outline-none focus:border-blue-500 transition-colors"
+                style={{ fontVariantNumeric: 'tabular-nums' }}
+              />
+              <span className="text-[10px] text-gray-500 font-mono">%</span>
+              <button
+                onClick={calculateRiskBasedSize}
+                className="px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded-sm text-[9px] text-blue-400 font-bold uppercase tracking-wide transition-colors"
+              >
+                Calc Size
+              </button>
+            </div>
+            <div className="text-[8px] text-gray-500 font-mono mt-1">
+              Risk {riskPercent || '0'}% = ${((balance * (parseFloat(riskPercent) / 100)) || 0).toFixed(2)} max loss
+            </div>
+          </div>
+        </div>
+
         {/* Row 4: SL/TP Inputs */}
         <div className="grid grid-cols-2 gap-2 px-2 pb-2">
           {/* Stop Loss */}
@@ -249,7 +326,8 @@ export const ExecutionPanelPro: React.FC = () => {
               type="number"
               value={stopLoss}
               onChange={(e) => setStopLoss(e.target.value)}
-              placeholder="Optional"
+              placeholder="Required"
+              required
               className="w-full bg-[#0f0f0f] border border-[#2a2a2a] rounded-sm px-2 py-1.5 text-[11px] text-red-400 font-mono text-right outline-none focus:border-red-500 transition-colors placeholder:text-gray-700"
             />
           </div>

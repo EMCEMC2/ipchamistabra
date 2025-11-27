@@ -9,6 +9,7 @@ interface MetricCardProps {
   color?: string;
   icon?: React.ReactNode;
   loading?: boolean;
+  freshness?: 'fresh' | 'stale' | 'critical'; // Data freshness indicator
 }
 
 export const MetricCard: React.FC<MetricCardProps> = ({
@@ -18,8 +19,15 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   trend,
   color = 'text-green-400',
   icon,
-  loading = false
+  loading = false,
+  freshness
 }) => {
+
+  const getFreshnessDotColor = () => {
+    if (!freshness || freshness === 'fresh') return 'bg-green-400';
+    if (freshness === 'stale') return 'bg-yellow-400';
+    return 'bg-red-400';
+  };
   const [isAnimating, setIsAnimating] = useState(false);
   const [previousValue, setPreviousValue] = useState<string | number>(value);
 
@@ -71,10 +79,18 @@ export const MetricCard: React.FC<MetricCardProps> = ({
     >
       {/* Header Row: Title & Trend Icon */}
       <div className="flex items-center justify-between relative z-10 w-full">
-        <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider truncate pr-2">
-          {title}
+        <div className="flex items-center gap-1.5">
+          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider truncate pr-2">
+            {title}
+          </div>
+          {/* Freshness Indicator Dot */}
+          {freshness && (
+            <div className={`w-1.5 h-1.5 rounded-full ${getFreshnessDotColor()} ${freshness === 'fresh' ? 'animate-pulse' : ''}`}
+                 title={freshness === 'fresh' ? 'Data is fresh' : freshness === 'stale' ? 'Data is stale (>5s)' : 'Data is critical (>15s)'}
+            />
+          )}
         </div>
-        
+
         {/* Trend Icon Badge */}
         <div className={`flex items-center justify-center w-5 h-5 rounded border shrink-0 ${getTrendColor()}`}>
           {getTrendIcon()}

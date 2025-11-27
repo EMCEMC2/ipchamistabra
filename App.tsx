@@ -22,6 +22,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { usePositionMonitor } from './hooks/usePositionMonitor';
 import { aggrService } from './services/aggrService';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { useDataFreshness } from './hooks/useDataFreshness';
 
 type ViewMode = 'TERMINAL' | 'SWARM' | 'CORTEX' | 'JOURNAL' | 'BACKTEST' | 'LIVEFEED';
 type BottomViewMode = 'INTEL' | 'POSITIONS';
@@ -41,11 +42,16 @@ function App() {
     technicals, setTechnicals, // Global technicals
     isScanning, // Scanning state
     setActiveTradeSetup,
+    lastMacroUpdate, lastPriceUpdate, // Freshness timestamps
 
     // Phase 2: Live Trading (Testnet)
     isLiveMode,
     setIsLiveMode
   } = useStore();
+
+  // Data freshness monitoring
+  const priceFreshness = useDataFreshness(lastPriceUpdate, 2); // Price should update every 2s
+  const macroFreshness = useDataFreshness(lastMacroUpdate, 60); // Macro updates every 60s
 
   // Local State for Dashboard
   const [activeView, setActiveView] = useState<ViewMode>('TERMINAL');
@@ -351,6 +357,7 @@ function App() {
                 subValue={`${priceChange > 0 ? '+' : ''}${priceChange}%`}
                 color={priceChange >= 0 ? 'text-green-400' : 'text-red-400'}
                 trend={mapTrend(trends.price)}
+                freshness={priceFreshness}
               />
               <MetricCard
                 title="SENTIMENT"
@@ -358,6 +365,7 @@ function App() {
                 subValue={`Score: ${sentimentScore || 50}`}
                 color={sentimentScore > 60 ? 'text-green-400' : sentimentScore < 40 ? 'text-red-400' : 'text-yellow-400'}
                 trend={mapTrend(trends.sentiment)}
+                freshness={macroFreshness}
               />
               <MetricCard
                 title="VIX"
@@ -365,6 +373,7 @@ function App() {
                 subValue="Volatility"
                 color={vix > 20 ? 'text-red-400' : 'text-green-400'}
                 trend={mapTrend(trends.vix)}
+                freshness={macroFreshness}
               />
               <MetricCard
                 title="BTC DOM"
@@ -372,6 +381,7 @@ function App() {
                 subValue="Dominance"
                 color="text-yellow-400"
                 trend={mapTrend(trends.btcd)}
+                freshness={macroFreshness}
               />
             </div>
 

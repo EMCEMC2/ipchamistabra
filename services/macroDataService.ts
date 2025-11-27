@@ -1,12 +1,51 @@
 /**
  * REAL MACRO DATA SERVICE
  * Fetches VIX, DXY, BTC Dominance from actual APIs (no AI search hallucinations)
+ * Now uses backend proxy to avoid CORS issues
  */
 
 export interface MacroData {
   vix: number;
   dxy: number;
   btcd: number;
+  fundingRate?: number; // Optional: BTC perpetual funding rate (%)
+}
+
+// Backend proxy URL (adjust port if needed)
+const PROXY_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+
+/**
+ * Fetch BTC Perpetual Funding Rate from Binance Futures
+ * Positive = longs pay shorts (bullish sentiment)
+ * Negative = shorts pay longs (bearish sentiment)
+ * Typical range: -0.1% to +0.1% (per 8 hours)
+ */
+export async function fetchFundingRate(): Promise<number> {
+  try {
+    // Binance Futures API - no auth needed for public data
+    const response = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex?symbol=BTCUSDT', {
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Binance Futures API failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const fundingRate = parseFloat(data.lastFundingRate) * 100; // Convert to percentage
+
+    if (isNaN(fundingRate)) {
+      throw new Error('Invalid funding rate data');
+    }
+
+    console.log(`[Macro Data] Funding Rate: ${fundingRate.toFixed(4)}% (Binance)`);
+    return fundingRate;
+  } catch (error) {
+    console.warn('[Macro Data] Funding Rate fetch failed:', error);
+    return 0;
+  }
 }
 
 /**
@@ -117,23 +156,50 @@ async function fetchDXY(): Promise<number> {
 /**
  * Fetch all macro data in parallel
  * Returns real data from APIs, not AI search results
+ * Now uses backend proxy to avoid CORS issues
  */
 export async function fetchMacroData(): Promise<MacroData> {
-  console.log('[Macro Data] Fetching from REAL APIs (not AI search)...');
+  console.log('[Macro Data] Fetching from backend proxy (CORS-safe)...');
 
-  // Fetch all in parallel for speed
-  const [vix, dxy, btcd] = await Promise.all([
-    fetchVIX(),
-    fetchDXY(),
-    fetchBTCDominance()
-  ]);
+  try {
+    // Use backend proxy for CORS-free fetching (VIX, DXY, BTC.D)
+    const response = await fetch(`${PROXY_URL}/api/macro/all`);
 
-  return { vix, dxy, btcd };
+    if (!response.ok) {
+      throw new Error(`Proxy failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    // Fetch funding rate directly from Binance (no CORS issue)
+    const fundingRate = await fetchFundingRate();
+
+    console.log('[Macro Data] VIX:', data.vix, '| DXY:', data.dxy, '| BTC.D:', data.btcd, '| Funding:', fundingRate.toFixed(4) + '%');
+
+    return {
+      vix: data.vix || 0,
+      dxy: data.dxy || 0,
+      btcd: data.btcd || 0,
+      fundingRate
+    };
+  } catch (error) {
+    console.warn('[Macro Data] Proxy failed, falling back to direct API calls:', error);
+
+    // Fallback to direct API calls if proxy is down
+    const [vix, dxy, btcd, fundingRate] = await Promise.all([
+      fetchVIX(),
+      fetchDXY(),
+      fetchBTCDominance(),
+      fetchFundingRate()
+    ]);
+
+    return { vix, dxy, btcd, fundingRate };
+  }
 }
 
 /**
- * Fetch derivatives metrics (Open Interest, Funding Rate) from CoinGlass API (free tier)
- * Alternative to Gemini search hallucinations
+ * Fetch derivatives metrics (Open Interest, Funding Rate) from Binance Futures API
+ * Now using REAL Binance data instead of CoinGlass or AI search
  */
 export async function fetchDerivativesMetrics(): Promise<{
   openInterest: string;
@@ -141,29 +207,38 @@ export async function fetchDerivativesMetrics(): Promise<{
   longShortRatio: number;
 }> {
   try {
-    // CoinGlass API (free, no key for basic data)
-    // Note: This is a fallback. Real implementation would use their official API.
-    const response = await fetch('https://fapi.coinglass.com/api/futures/openInterest/chart?symbol=BTC&interval=0');
+    // Fetch Open Interest and Funding Rate from Binance Futures (no auth needed)
+    const [oiRes, fundingRes] = await Promise.allSettled([
+      fetch('https://fapi.binance.com/fapi/v1/openInterest?symbol=BTCUSDT'),
+      fetch('https://fapi.binance.com/fapi/v1/premiumIndex?symbol=BTCUSDT')
+    ]);
 
-    if (!response.ok) {
-      throw new Error('CoinGlass API failed');
+    let openInterest = 'N/A';
+    let fundingRate = 'N/A';
+    const longShortRatio = 1.0; // Requires account API
+
+    // Parse Open Interest
+    if (oiRes.status === 'fulfilled' && oiRes.value.ok) {
+      const data = await oiRes.value.json();
+      const oiValue = parseFloat(data.openInterest);
+      if (!isNaN(oiValue)) {
+        openInterest = `${(oiValue / 1000).toFixed(1)}K BTC`; // Convert to K BTC
+      }
     }
 
-    const data = await response.json();
+    // Parse Funding Rate
+    if (fundingRes.status === 'fulfilled' && fundingRes.value.ok) {
+      const data = await fundingRes.value.json();
+      const rate = parseFloat(data.lastFundingRate) * 100; // Convert to percentage
+      if (!isNaN(rate)) {
+        fundingRate = `${rate >= 0 ? '+' : ''}${rate.toFixed(4)}%`;
+      }
+    }
 
-    // Extract latest OI
-    const latestOI = data.data[data.data.length - 1]?.openInterest || 0;
-    const formattedOI = `$${(latestOI / 1_000_000_000).toFixed(2)}B`;
-
-    // Funding rate and L/S ratio require separate API endpoints or paid tier
-    // Marking as N/A instead of fake values
-    const fundingRate = 'N/A';
-    const longShortRatio = 0;
-
-    console.log(`[Derivatives] OI: ${formattedOI} | Funding: ${fundingRate} | L/S: ${longShortRatio}`);
+    console.log(`[Derivatives] OI: ${openInterest} | Funding: ${fundingRate} | L/S: ${longShortRatio}`);
 
     return {
-      openInterest: formattedOI,
+      openInterest,
       fundingRate,
       longShortRatio
     };

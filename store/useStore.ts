@@ -46,6 +46,8 @@ interface MarketState {
     trend: string;
   };
   latestAnalysis: string;
+  lastMacroUpdate: number; // Timestamp of last macro data update
+  lastPriceUpdate: number; // Timestamp of last price update
 }
 
 interface UserState {
@@ -109,6 +111,8 @@ export const useStore = create<AppState>()(
       timeframe: '15m',
       technicals: { rsi: 0, macd: { histogram: 0, signal: 0, macd: 0 }, adx: 0, atr: 0, trend: 'NEUTRAL' },
       latestAnalysis: "",
+      lastMacroUpdate: 0,
+      lastPriceUpdate: 0,
 
       // User State (PERSISTED - survives refresh)
       balance: 50000,
@@ -133,8 +137,8 @@ export const useStore = create<AppState>()(
       councilLogs: [],
 
       // Actions
-      setMarketMetrics: (metrics) => set((state) => ({ ...state, ...metrics })),
-      setPrice: (price) => set({ price }),
+      setMarketMetrics: (metrics) => set((state) => ({ ...state, ...metrics, lastMacroUpdate: Date.now() })),
+      setPrice: (price) => set({ price, lastPriceUpdate: Date.now() }),
       setPriceChange: (priceChange) => set({ priceChange }),
       setChartData: (data) => set({ chartData: data }),
       setSignals: (signals) => set({ signals }),

@@ -78,11 +78,56 @@ class RollingWindow {
   private lastResetTime: number = Date.now();
   private resetHour: number = 0;
 
+  // Track buy/sell volumes for display
+  private buyVolume: number = 0;
+  private sellVolume: number = 0;
+
   constructor(maxSize: number = 60, resetHour: number = 0) {
     this.maxSize = maxSize;
     this.resetHour = resetHour;
   }
 
+  // NEW METHOD: Add individual trade delta (CORRECT CVD calculation)
+  addTradeDelta(tradeDelta: number): void {
+    const now = Date.now();
+    const currentHour = new Date(now).getUTCHours();
+
+    // Daily reset at UTC 0
+    if (currentHour === this.resetHour && now - this.lastResetTime > 3600000) {
+      this.sessionStartCVD = this.cumulativeSum;
+      this.lastResetTime = now;
+      this.buyVolume = 0;
+      this.sellVolume = 0;
+    }
+
+    // Accumulate individual trade delta
+    this.cumulativeSum += tradeDelta;
+
+    // Track buy/sell volumes for display
+    if (tradeDelta > 0) {
+      this.buyVolume += tradeDelta;
+    } else {
+      this.sellVolume += Math.abs(tradeDelta);
+    }
+
+    // Session CVD (since last reset)
+    const sessionCVD = this.cumulativeSum - this.sessionStartCVD;
+
+    const cvdData: CVDData = {
+      timestamp: now,
+      buyVolume: this.buyVolume / 1000000, // Convert to millions for display
+      sellVolume: this.sellVolume / 1000000,
+      delta: tradeDelta / 1000000,
+      cumulativeDelta: sessionCVD / 1000000 // Session CVD in millions
+    };
+
+    this.data.push(cvdData);
+    if (this.data.length > this.maxSize) {
+      this.data.shift();
+    }
+  }
+
+  // LEGACY METHOD: Deprecated - kept for backward compatibility
   add(buyVolume: number, sellVolume: number): CVDData {
     const now = Date.now();
     const currentHour = new Date(now).getUTCHours();
@@ -206,8 +251,8 @@ class DataProcessor {
     const sellVolume = sellTrades.reduce((sum, t) => sum + t.usdValue, 0);
     const totalVolume = buyVolume + sellVolume;
 
-    // Update CVD
-    const cvd = this.cvdWindow.add(buyVolume, sellVolume);
+    // CVD is now updated per-trade in processTrade(), just get latest value
+    const cvd = this.cvdWindow.latest || { timestamp: Date.now(), buyVolume: 0, sellVolume: 0, delta: 0, cumulativeDelta: 0 };
 
     // Pressure
     const pressure = this.calculatePressure(recentTrades);
@@ -453,10 +498,14 @@ class DataProcessor {
 
   private processTrade(trade: AggrTrade) {
       this.trades.push(trade);
-      
+
+      // CRITICAL FIX: Update CVD with individual trade delta (not aggregated)
+      const tradeDelta = trade.side === 'buy' ? trade.usdValue : -trade.usdValue;
+      this.cvdWindow.addTradeDelta(tradeDelta);
+
       // Throttled log to confirm data flow
       if (this.trades.length % 100 === 0) {
-        this.log(`Processed ${this.trades.length} trades. Latest: $${trade.price}`);
+        this.log(`Processed ${this.trades.length} trades. Latest: $${trade.price} | CVD: ${this.cvdWindow.latest?.cumulativeDelta.toFixed(2)}M`);
       }
 
       const cutoff = Date.now() - 60000;
