@@ -21,21 +21,26 @@ export const AggrOrderFlow: React.FC = () => {
   useEffect(() => {
     // Initialize with mock data immediately to avoid loading state
     const mockStats: AggrStats = {
-      cvd: { delta: 2450000, trend: 'bullish', velocity: 15 },
+      cvd: { delta: 2450000, cumulativeDelta: 15000000, timestamp: Date.now(), buyVolume: 5000000, sellVolume: 2550000 },
       buyVolume: 18500000,
       sellVolume: 12300000,
-      pressure: { buyPressure: 60, sellPressure: 40 },
+      pressure: { buyPressure: 60, sellPressure: 40, netPressure: 20, dominantSide: 'buy', strength: 'moderate' },
       recentLiquidations: [
-        { side: 'long', usdValue: 234000, timestamp: Date.now() - 30000 },
-        { side: 'short', usdValue: 156000, timestamp: Date.now() - 60000 },
-        { side: 'long', usdValue: 89000, timestamp: Date.now() - 90000 }
+        { side: 'long', usdValue: 234000, timestamp: Date.now() - 30000, exchange: 'Binance', price: 95000, amount: 2.4 },
+        { side: 'short', usdValue: 156000, timestamp: Date.now() - 60000, exchange: 'Bybit', price: 94800, amount: 1.6 },
+        { side: 'long', usdValue: 89000, timestamp: Date.now() - 90000, exchange: 'OKX', price: 95100, amount: 0.9 }
       ],
       recentLargeTrades: [
-        { side: 'buy', usdValue: 1200000, timestamp: Date.now() - 15000 },
-        { side: 'sell', usdValue: 850000, timestamp: Date.now() - 45000 },
-        { side: 'buy', usdValue: 670000, timestamp: Date.now() - 75000 }
+        { side: 'buy', usdValue: 1200000, timestamp: Date.now() - 15000, exchange: 'Binance', price: 95000, amount: 12.6, isLiquidation: false },
+        { side: 'sell', usdValue: 850000, timestamp: Date.now() - 45000, exchange: 'Bybit', price: 94800, amount: 8.9, isLiquidation: false },
+        { side: 'buy', usdValue: 670000, timestamp: Date.now() - 75000, exchange: 'OKX', price: 95100, amount: 7.0, isLiquidation: false }
       ],
-      timestamp: Date.now()
+
+      totalVolume: 30800000,
+      largeTradeCount: 15,
+      liquidationCount: 8,
+      liquidationVolume: 450000,
+      exchanges: []
     };
 
     setStats(mockStats);

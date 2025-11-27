@@ -143,7 +143,7 @@ export const IntelDeck: React.FC = () => {
                                         }`}>
                                             {item.btcSentiment}
                                         </span>
-                                        <span className="text-[9px] text-gray-500">{new Date(item.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                        <span className="text-[9px] text-gray-500">{new Date(item.timestamp).toLocaleTimeString('en-IL', {hour: '2-digit', minute:'2-digit', timeZone: 'Asia/Jerusalem'})}</span>
                                     </div>
                                     {item.severity === 'HIGH' && (
                                         <AlertTriangle size={10} className="text-red-400" />

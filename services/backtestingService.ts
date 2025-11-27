@@ -125,7 +125,8 @@ export function backtestTacticalV2(
   for (let i = 200; i < data.length; i++) {
     // If in trade, check exit conditions
     if (currentTrade) {
-      const holdBars = i - data.findIndex(d => d.time === currentTrade.entryTime);
+      const trade = currentTrade; // Capture for closure safety
+      const holdBars = i - data.findIndex(d => d.time === trade.entryTime);
       const currentPrice = data[i].close;
       const currentHigh = data[i].high;
       const currentLow = data[i].low;

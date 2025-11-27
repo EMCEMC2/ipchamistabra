@@ -185,7 +185,7 @@ export const AgentSwarm: React.FC = () => {
                                 className="flex gap-3"
                             >
                                 <span className="text-terminal-muted/50 shrink-0">
-                                    [{new Date(log.timestamp).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}]
+                                    [{new Date(log.timestamp).toLocaleTimeString('en-IL', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Jerusalem' })}]
                                 </span>
                                 <div>
                                     <span className={clsx(

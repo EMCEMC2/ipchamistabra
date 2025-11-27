@@ -163,16 +163,19 @@ export const startMarketDataSync = () => {
     let chartInterval = setInterval(fetchChartData, getChartInterval());
 
     // Subscribe to timeframe changes to adjust polling
-    const unsubscribe = useStore.subscribe(
-        (state) => state.timeframe,
-        () => {
+    // Subscribe to timeframe changes to adjust polling
+    let lastTimeframe = useStore.getState().timeframe;
+    const unsubscribe = useStore.subscribe((state) => {
+        const newTimeframe = state.timeframe;
+        if (newTimeframe !== lastTimeframe) {
+            lastTimeframe = newTimeframe;
             clearInterval(chartInterval);
             chartInterval = setInterval(fetchChartData, getChartInterval());
             if (import.meta.env.DEV) {
                 console.log(`[MarketData] Chart polling adjusted: ${getChartInterval()}ms`);
             }
         }
-    );
+    });
 
     return () => {
         clearInterval(globalInterval);

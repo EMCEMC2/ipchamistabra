@@ -101,7 +101,7 @@ export const AiCommandCenter: React.FC = () => {
                   {item.category}
                 </span>
                 <span className="text-[9px] text-gray-500 font-mono">
-                  {new Date(item.timestamp).toLocaleTimeString()}
+                  {new Date(item.timestamp).toLocaleTimeString('en-IL', {hour: '2-digit', minute:'2-digit', timeZone: 'Asia/Jerusalem'})}
                 </span>
               </div>
               

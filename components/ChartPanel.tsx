@@ -167,189 +167,165 @@ export const ChartPanel: React.FC = () => {
       return;
     }
 
-    // 1. Basic Candle Data
-    candleSeriesRef.current.setData(safeData.map(d => ({
-      time: d.time as Time, open: d.open, high: d.high, low: d.low, close: d.close
-    })));
+    // 2. Run Tactical Engine (Memoized)
+    const { adaptiveFastData, adaptiveSlowData, ema200Data, markers, clusterLines } = useMemo(() => {
+      if (!showTactical || safeData.length === 0) {
+        return { adaptiveFastData: [], adaptiveSlowData: [], ema200Data: [], markers: [], clusterLines: [] };
+      }
 
-    if (!showTactical) {
-      emaFastSeriesRef.current?.setData([]);
-      emaSlowSeriesRef.current?.setData([]);
-      ema200SeriesRef.current?.setData([]);
-      candleSeriesRef.current.setMarkers([]);
-      // Clear Clusters
+      const closes = safeData.map(d => d.close);
+
+      // 2a. Calculate Base EMAs
+      const emaFast_Low = calculateEMA(closes, 27);
+      const emaFast_Norm = calculateEMA(closes, 21);
+      const emaFast_High = calculateEMA(closes, 15);
+
+      const emaSlow_Low = calculateEMA(closes, 72);
+      const emaSlow_Norm = calculateEMA(closes, 55);
+      const emaSlow_High = calculateEMA(closes, 39);
+
+      const ema200Arr = calculateEMA(closes, 200);
+      const rsiArr = calculateRSI(closes, 14);
+
+      // 2b. Calculate Regime
+      const tr = calculateTR(safeData);
+      const atr = calculateRMA(tr, 14);
+      const atrSMA = calculateSMA(atr, 100);
+      const atrStd = calculateStdev(atr, 100);
+
+      const adaptiveFast: any[] = [];
+      const adaptiveSlow: any[] = [];
+      const ema200: any[] = [];
+      const newMarkers: SeriesMarker<Time>[] = [];
+
+      // 2d. Support/Resistance Clustering
+      const lookback = 100;
+      const recentData = safeData.slice(-lookback);
+      const clusterPrices = [...recentData.map(d => d.high), ...recentData.map(d => d.low), ...recentData.map(d => d.close)].sort((a, b) => a - b);
+
+      const clusters: { sum: number, count: number }[] = [];
+      const threshold = (recentData[0]?.close || 100) * 0.005;
+
+      if (clusterPrices.length > 0) {
+        let currentCluster = { sum: clusterPrices[0], count: 1 };
+        for (let i = 1; i < clusterPrices.length; i++) {
+          if (clusterPrices[i] - (currentCluster.sum / currentCluster.count) < threshold) {
+            currentCluster.sum += clusterPrices[i];
+            currentCluster.count++;
+          } else {
+            clusters.push(currentCluster);
+            currentCluster = { sum: clusterPrices[i], count: 1 };
+          }
+        }
+        clusters.push(currentCluster);
+      }
+
+      const sortedClusters = clusters.sort((a, b) => b.count - a.count).slice(0, 5).map(c => c.sum / c.count);
+      const currentPrice = closes[closes.length - 1];
+      const nearestSupp = sortedClusters.filter(p => p < currentPrice).sort((a, b) => b - a)[0];
+      const nearestRes = sortedClusters.filter(p => p > currentPrice).sort((a, b) => a - b)[0];
+
+      const newClusterLines: number[] = [];
+      if (nearestSupp) newClusterLines.push(nearestSupp);
+      if (nearestRes) newClusterLines.push(nearestRes);
+
+      // 2e. Iterate for Indicators & Signals
+      let lastSignalTime = -999;
+
+      for (let i = 0; i < safeData.length; i++) {
+        const normATR = atrStd[i] && atrStd[i] > 0 ? (atr[i] - atrSMA[i]) / atrStd[i] : 0;
+        const regime = normATR < -0.5 ? 0 : normATR > 1.0 ? 2 : 1;
+
+        let minScore = 4.0;
+        let cooldown = 5;
+
+        if (regime === 0) { minScore = 5.5; cooldown = 12; }
+        else if (regime === 2) { minScore = 4.0; cooldown = 5; }
+        else { minScore = 4.5; cooldown = 8; }
+
+        const valFast = regime === 0 ? emaFast_Low[i] : regime === 2 ? emaFast_High[i] : emaFast_Norm[i];
+        const valSlow = regime === 0 ? emaSlow_Low[i] : regime === 2 ? emaSlow_High[i] : emaSlow_Norm[i];
+
+        adaptiveFast.push({ time: safeData[i].time as Time, value: valFast });
+        adaptiveSlow.push({ time: safeData[i].time as Time, value: valSlow });
+        ema200.push({ time: safeData[i].time as Time, value: ema200Arr[i] });
+
+        if (i > 200) {
+          let bullScore = 0;
+          let bearScore = 0;
+
+          if (closes[i] > ema200Arr[i]) bullScore += 1.0; else bearScore += 1.0;
+          if (valFast > valSlow) bullScore += 1.5; else bearScore += 1.5;
+
+          const rsiVal = rsiArr[i];
+          if (rsiVal > 55) bullScore += 0.5;
+          if (rsiVal < 45) bearScore += 0.5;
+          if (rsiVal > 65) bullScore += 0.5;
+          if (rsiVal < 35) bearScore += 0.5;
+
+          const prevFast = regime === 0 ? emaFast_Low[i - 1] : regime === 2 ? emaFast_High[i - 1] : emaFast_Norm[i - 1];
+          const prevSlow = regime === 0 ? emaSlow_Low[i - 1] : regime === 2 ? emaSlow_High[i - 1] : emaSlow_Norm[i - 1];
+
+          if (prevFast <= prevSlow && valFast > valSlow) bullScore += 2.5;
+          if (prevFast >= prevSlow && valFast < valSlow) bearScore += 2.5;
+
+          const barsSinceLast = i - lastSignalTime;
+          if (bullScore >= minScore && bearScore < 2 && barsSinceLast > cooldown) {
+            newMarkers.push({ time: safeData[i].time as Time, position: 'belowBar', color: '#10b981', shape: 'arrowUp', text: 'BUY' });
+            lastSignalTime = i;
+          } else if (bearScore >= minScore && bullScore < 2 && barsSinceLast > cooldown) {
+            newMarkers.push({ time: safeData[i].time as Time, position: 'aboveBar', color: '#ef4444', shape: 'arrowDown', text: 'SELL' });
+            lastSignalTime = i;
+          }
+        }
+      }
+
+      return {
+        adaptiveFastData: adaptiveFast,
+        adaptiveSlowData: adaptiveSlow,
+        ema200Data: ema200,
+        markers: newMarkers,
+        clusterLines: newClusterLines
+      };
+    }, [safeData, showTactical]);
+
+    // 3. Update Series (Effect)
+    useEffect(() => {
+      if (!candleSeriesRef.current) return;
+
+      // Update Candles
+      candleSeriesRef.current.setData(safeData.map(d => ({
+        time: d.time as Time, open: d.open, high: d.high, low: d.low, close: d.close
+      })));
+
+      if (!showTactical) {
+        emaFastSeriesRef.current?.setData([]);
+        emaSlowSeriesRef.current?.setData([]);
+        ema200SeriesRef.current?.setData([]);
+        candleSeriesRef.current.setMarkers([]);
+        clusterLinesRef.current.forEach(l => candleSeriesRef.current?.removePriceLine(l));
+        clusterLinesRef.current = [];
+        return;
+      }
+
+      emaFastSeriesRef.current?.setData(adaptiveFastData);
+      emaSlowSeriesRef.current?.setData(adaptiveSlowData);
+      ema200SeriesRef.current?.setData(ema200Data);
+      candleSeriesRef.current.setMarkers(markers);
+
+      // Update Cluster Lines
       clusterLinesRef.current.forEach(l => candleSeriesRef.current?.removePriceLine(l));
       clusterLinesRef.current = [];
-      return;
-    }
 
-    // 2. Run Tactical Engine
-    const closes = safeData.map(d => d.close);
-
-    // 2a. Calculate Base EMAs
-    const emaFast_Low = calculateEMA(closes, 27);
-    const emaFast_Norm = calculateEMA(closes, 21);
-    const emaFast_High = calculateEMA(closes, 15);
-
-    const emaSlow_Low = calculateEMA(closes, 72);
-    const emaSlow_Norm = calculateEMA(closes, 55);
-    const emaSlow_High = calculateEMA(closes, 39);
-
-    const ema200Arr = calculateEMA(closes, 200);
-    const rsiArr = calculateRSI(closes, 14); // Add RSI for confluence
-
-    // 2b. Calculate Regime (Simplified ATR/StdDev approach)
-    const tr = calculateTR(safeData);
-    const atr = calculateRMA(tr, 14);
-    const atrSMA = calculateSMA(atr, 100);
-    const atrStd = calculateStdev(atr, 100);
-
-    // 2c. Build Adaptive Series & Markers
-    const adaptiveFastData = [];
-    const adaptiveSlowData = [];
-    const ema200Data = [];
-    const markers: SeriesMarker<Time>[] = [];
-
-    // 2d. Support/Resistance Clustering (Last 100 bars)
-    const lookback = 100;
-    const recentData = safeData.slice(-lookback);
-    const clusterPrices = [...recentData.map(d => d.high), ...recentData.map(d => d.low), ...recentData.map(d => d.close)].sort((a, b) => a - b);
-
-    // Simple 1D Density Clustering
-    const clusters: { sum: number, count: number }[] = [];
-    const threshold = (recentData[0]?.close || 100) * 0.005; // 0.5% gap
-
-    if (clusterPrices.length > 0) {
-      let currentCluster = { sum: clusterPrices[0], count: 1 };
-      for (let i = 1; i < clusterPrices.length; i++) {
-        if (clusterPrices[i] - (currentCluster.sum / currentCluster.count) < threshold) {
-          currentCluster.sum += clusterPrices[i];
-          currentCluster.count++;
-        } else {
-          clusters.push(currentCluster);
-          currentCluster = { sum: clusterPrices[i], count: 1 };
-        }
-      }
-      clusters.push(currentCluster);
-    }
-
-    // Sort clusters by density (count) and take top ones
-    const sortedClusters = clusters.sort((a, b) => b.count - a.count).slice(0, 5).map(c => c.sum / c.count);
-    const currentPrice = closes[closes.length - 1];
-    const nearestSupp = sortedClusters.filter(p => p < currentPrice).sort((a, b) => b - a)[0];
-    const nearestRes = sortedClusters.filter(p => p > currentPrice).sort((a, b) => a - b)[0];
-
-    // 2e. Iterate for Indicators & Signals
-    let lastSignalTime = -999;
-
-    for (let i = 0; i < safeData.length; i++) {
-      // Regime Logic
-      const normATR = atrStd[i] && atrStd[i] > 0 ? (atr[i] - atrSMA[i]) / atrStd[i] : 0;
-      const regime = normATR < -0.5 ? 0 : normATR > 1.0 ? 2 : 1; // 0: Low, 1: Norm, 2: High
-
-      // Dynamic thresholds & Cooldowns
-      let minScore = 4.0;
-      let cooldown = 5;
-
-      if (regime === 0) {
-        // Low Volatility: Needs high confidence to avoid chop
-        minScore = 5.5;
-        cooldown = 12;
-      } else if (regime === 2) {
-        // High Volatility: Reactive but validated
-        minScore = 4.0;
-        cooldown = 5;
-      } else {
-        // Normal
-        minScore = 4.5;
-        cooldown = 8;
-      }
-
-      // Select EMA
-      const valFast = regime === 0 ? emaFast_Low[i] : regime === 2 ? emaFast_High[i] : emaFast_Norm[i];
-      const valSlow = regime === 0 ? emaSlow_Low[i] : regime === 2 ? emaSlow_High[i] : emaSlow_Norm[i];
-
-      adaptiveFastData.push({ time: safeData[i].time as Time, value: valFast });
-      adaptiveSlowData.push({ time: safeData[i].time as Time, value: valSlow });
-      ema200Data.push({ time: safeData[i].time as Time, value: ema200Arr[i] });
-
-      // Signal Logic (Refined Confluence)
-      if (i > 200) {
-        let bullScore = 0;
-        let bearScore = 0;
-
-        // 1. Trend (EMA 200) - Weight 1.0
-        if (closes[i] > ema200Arr[i]) bullScore += 1.0;
-        else bearScore += 1.0;
-
-        // 2. Alignment (Fast vs Slow) - Weight 1.5
-        if (valFast > valSlow) bullScore += 1.5;
-        else bearScore += 1.5;
-
-        // 3. Momentum (RSI) - Weight 1.0
-        const rsiVal = rsiArr[i];
-        if (rsiVal > 55) bullScore += 0.5;
-        if (rsiVal < 45) bearScore += 0.5;
-        // Bonus momentum
-        if (rsiVal > 65) bullScore += 0.5;
-        if (rsiVal < 35) bearScore += 0.5;
-
-        // 4. Cross Trigger - Weight 2.5
-        const prevFast = regime === 0 ? emaFast_Low[i - 1] : regime === 2 ? emaFast_High[i - 1] : emaFast_Norm[i - 1];
-        const prevSlow = regime === 0 ? emaSlow_Low[i - 1] : regime === 2 ? emaSlow_High[i - 1] : emaSlow_Norm[i - 1];
-
-        if (prevFast <= prevSlow && valFast > valSlow) bullScore += 2.5;
-        if (prevFast >= prevSlow && valFast < valSlow) bearScore += 2.5;
-
-        // Trigger
-        const barsSinceLast = i - lastSignalTime;
-        if (bullScore >= minScore && bearScore < 2 && barsSinceLast > cooldown) {
-          markers.push({
-            time: safeData[i].time as Time,
-            position: 'belowBar',
-            color: '#10b981',
-            shape: 'arrowUp',
-            text: 'BUY'
-          });
-          lastSignalTime = i;
-        } else if (bearScore >= minScore && bullScore < 2 && barsSinceLast > cooldown) {
-          markers.push({
-            time: safeData[i].time as Time,
-            position: 'aboveBar',
-            color: '#ef4444',
-            shape: 'arrowDown',
-            text: 'SELL'
-          });
-          lastSignalTime = i;
-        }
-      }
-    }
-
-    // 3. Update Series
-    emaFastSeriesRef.current?.setData(adaptiveFastData);
-    emaSlowSeriesRef.current?.setData(adaptiveSlowData);
-    ema200SeriesRef.current?.setData(ema200Data);
-    candleSeriesRef.current.setMarkers(markers);
-
-    // 4. Update Cluster Lines
-    // Clear old
-    clusterLinesRef.current.forEach(l => candleSeriesRef.current?.removePriceLine(l));
-    clusterLinesRef.current = [];
-
-    if (nearestSupp) {
-      const l = candleSeriesRef.current.createPriceLine({
-        price: nearestSupp, color: '#10b981', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: ''
+      clusterLines.forEach(price => {
+        const color = price < (safeData[safeData.length - 1]?.close || 0) ? '#10b981' : '#ef4444';
+        const l = candleSeriesRef.current!.createPriceLine({
+          price, color, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: ''
+        });
+        clusterLinesRef.current.push(l);
       });
-      clusterLinesRef.current.push(l);
-    }
-    if (nearestRes) {
-      const l = candleSeriesRef.current.createPriceLine({
-        price: nearestRes, color: '#ef4444', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: ''
-      });
-      clusterLinesRef.current.push(l);
-    }
 
-  }, [safeData, showTactical]); // Re-run when data or toggle changes
+    }, [safeData, showTactical, adaptiveFastData, adaptiveSlowData, ema200Data, markers, clusterLines]);
 
   // --- AI OVERLAY (EXISTING) ---
   useEffect(() => {

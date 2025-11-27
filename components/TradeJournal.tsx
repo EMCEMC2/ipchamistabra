@@ -173,7 +173,7 @@ export const TradeJournal: React.FC = () => {
                   <span className="font-mono text-sm font-bold text-terminal-text">{entry.pair}</span>
                   <span className="text-[10px] text-terminal-muted flex items-center gap-1">
                     <Calendar size={10} />
-                    {new Date(entry.date).toLocaleDateString()}
+                    {new Date(entry.date).toLocaleDateString('en-IL', {timeZone: 'Asia/Jerusalem'})}
                   </span>
                 </div>
                 <div className={`font-mono font-bold ${entry.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
