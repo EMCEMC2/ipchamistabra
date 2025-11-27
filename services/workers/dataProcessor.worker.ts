@@ -115,10 +115,10 @@ class RollingWindow {
 
     const cvdData: CVDData = {
       timestamp: now,
-      buyVolume: this.buyVolume / 1000000, // Convert to millions for display
-      sellVolume: this.sellVolume / 1000000,
-      delta: tradeDelta / 1000000,
-      cumulativeDelta: sessionCVD / 1000000 // Session CVD in millions
+      buyVolume: this.buyVolume,
+      sellVolume: this.sellVolume,
+      delta: tradeDelta,
+      cumulativeDelta: sessionCVD
     };
 
     this.data.push(cvdData);

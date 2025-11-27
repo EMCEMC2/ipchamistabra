@@ -7,6 +7,7 @@ import {
     isAiAvailable
 } from './gemini';
 import { fetchMacroData, fetchDerivativesMetrics } from './macroDataService';
+import { captureError, addBreadcrumb } from './errorMonitor';
 
 export const fetchGlobalData = async () => {
     try {
