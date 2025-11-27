@@ -11,9 +11,9 @@ export default {
     theme: {
         extend: {
             fontFamily: {
-                mono: ['"Space Mono"', 'monospace'],
-                sans: ['"Sora"', 'sans-serif'],
-                display: ['"Rajdhani"', 'sans-serif'],
+                mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', "Liberation Mono", "Courier New", 'monospace'],
+                sans: ['"Inter"', 'sans-serif'],
+                display: ['"Inter"', 'sans-serif'],
             },
             colors: {
                 terminal: {

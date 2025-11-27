@@ -94,9 +94,9 @@
      ======================================== */
 
   /* Font Families */
-  --font-sans: 'Sora', sans-serif;
-  --font-mono: 'Space Mono', monospace;
-  --font-display: 'Rajdhani', sans-serif;
+  --font-sans: 'Inter', sans-serif;
+  --font-mono: 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', monospace;
+  --font-display: 'Inter', sans-serif;
 
   /* Font Sizes */
   --text-xs: 0.75rem;    /* 12px */
