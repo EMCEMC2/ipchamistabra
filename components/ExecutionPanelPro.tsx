@@ -357,25 +357,28 @@ export const ExecutionPanelPro: React.FC = () => {
           <button
             onClick={() => handleExecute('BUY')}
             disabled={isSubmitting}
-            className="flex flex-col items-center justify-center py-3 bg-green-600/20 border-2 border-green-500 text-green-400 rounded hover:bg-green-600/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-premium flex-col h-auto py-3 bg-green-500/10 border border-green-500/50 text-green-400 hover:bg-green-500/20 hover:border-green-400 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="text-[11px] font-bold tracking-wide">BUY LONG</span>
-            <span className="text-[9px] text-green-300 mt-0.5">≈ {orderCostUSDT.toFixed(2)} USDT</span>
+            <span className="text-[9px] text-green-300/70 mt-0.5 font-mono">≈ {orderCostUSDT.toFixed(2)} USDT</span>
           </button>
 
           <button
             onClick={() => handleExecute('SELL')}
             disabled={isSubmitting}
-            className="flex flex-col items-center justify-center py-3 bg-red-600/20 border-2 border-red-500 text-red-400 rounded hover:bg-red-600/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-premium flex-col h-auto py-3 bg-red-500/10 border border-red-500/50 text-red-400 hover:bg-red-500/20 hover:border-red-400 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="text-[11px] font-bold tracking-wide">SELL SHORT</span>
-            <span className="text-[9px] text-red-300 mt-0.5">≈ {orderCostUSDT.toFixed(2)} USDT</span>
+            <span className="text-[9px] text-red-300/70 mt-0.5 font-mono">≈ {orderCostUSDT.toFixed(2)} USDT</span>
           </button>
         </div>
 
         {/* Live Mode Indicator */}
-        <div className="text-center text-[9px] text-gray-500 font-mono">
-          {isLiveMode ? '🔴 TESTNET LIVE' : '📝 PAPER MODE'}
+        <div className="flex items-center justify-center gap-2 py-1">
+          <div className={`status-indicator ${isLiveMode ? 'status-live' : 'bg-yellow-500'}`} />
+          <span className={`text-[9px] font-mono tracking-wider ${isLiveMode ? 'text-green-400' : 'text-yellow-400'}`}>
+            {isLiveMode ? 'TESTNET LIVE' : 'PAPER TRADING'}
+          </span>
         </div>
       </div>
     </div>

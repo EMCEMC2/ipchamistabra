@@ -11,19 +11,21 @@ export default {
     theme: {
         extend: {
             fontFamily: {
-                mono: ['"JetBrains Mono"', 'monospace'],
-                sans: ['Inter', 'sans-serif'],
+                mono: ['"Space Mono"', 'monospace'],
+                sans: ['"Sora"', 'sans-serif'],
+                display: ['"Rajdhani"', 'sans-serif'],
             },
             colors: {
                 terminal: {
-                    bg: '#09090b',
-                    card: '#18181b',
-                    border: '#27272a',
-                    accent: '#10b981', // Emerald 500
-                    danger: '#ef4444', // Red 500
-                    warn: '#f59e0b',   // Amber 500
-                    text: '#e4e4e7',   // Zinc 200
-                    muted: '#a1a1aa',  // Zinc 400
+                    bg: 'var(--bg-primary)',
+                    card: 'var(--bg-secondary)',
+                    border: 'var(--border-subtle)',
+                    accent: 'var(--accent-info)',
+                    danger: 'var(--accent-bearish)',
+                    success: 'var(--accent-bullish)',
+                    warn: 'var(--accent-warning)',
+                    text: 'var(--text-primary)',
+                    muted: 'var(--text-secondary)',
                 }
             },
             animation: {

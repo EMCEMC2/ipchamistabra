@@ -14,32 +14,7 @@ export const AiCommandCenter: React.FC = () => {
     }
   }, [intel]);
 
-  // Mock Intel Generator (For Demo Purposes)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const types: IntelItem['category'][] = ['NEWS', 'ONCHAIN', 'MACRO', 'WHALE', 'ORDERFLOW'];
-      const sentiments: IntelItem['btcSentiment'][] = ['BULLISH', 'BEARISH', 'NEUTRAL'];
-      const severities: IntelItem['severity'][] = ['LOW', 'MEDIUM', 'HIGH'];
-      
-      const mockIntel: IntelItem = {
-        id: Date.now().toString(),
-        title: `AI Insight: Market Structure Analysis`,
-        category: types[Math.floor(Math.random() * types.length)],
-        severity: severities[Math.floor(Math.random() * severities.length)],
-        timestamp: Date.now(),
-        source: 'BitMind AI',
-        summary: 'Detected increasing spot buying pressure on Coinbase. Funding rates remaining neutral suggests organic accumulation.',
-        btcSentiment: sentiments[Math.floor(Math.random() * sentiments.length)],
-      };
 
-      // In a real app, this would come from the backend via WebSocket
-      // For now, we just update the store locally to show the UI
-      // We need to be careful not to infinite loop or flood
-      // setMarketMetrics({ intel: [...intel, mockIntel].slice(-50) }); 
-    }, 15000);
-
-    return () => clearInterval(interval);
-  }, [intel, setMarketMetrics]);
 
   const getIcon = (category: string) => {
     switch (category) {
@@ -63,19 +38,16 @@ export const AiCommandCenter: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#050505] border border-[#1a1a1a] rounded-sm overflow-hidden font-sans">
+    <div className="flex flex-col h-full bg-terminal-card border border-terminal-border rounded-lg overflow-hidden font-sans shadow-lg">
       {/* Header */}
-      <div className="px-2 py-1.5 border-b border-[#1a1a1a] bg-[#0a0a0a] flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2 text-purple-400">
-          <Cpu size={12} className="animate-pulse" />
-          <span className="font-bold text-[10px] tracking-wider uppercase">Live Intelligence</span>
+      <div className="px-3 py-2 border-b border-terminal-border bg-terminal-bg/50 backdrop-blur-sm flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2 text-terminal-accent">
+          <Cpu size={14} className="animate-pulse" />
+          <span className="font-display font-bold text-xs tracking-widest uppercase text-glow-info">Live Intelligence</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="relative flex h-1.5 w-1.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-purple-500"></span>
-          </span>
-          <span className="text-[9px] text-gray-500 font-mono">NET_ACTIVE</span>
+        <div className="flex items-center gap-2">
+          <div className="status-indicator status-live" />
+          <span className="text-[10px] text-terminal-muted font-mono tracking-wider">NET_ACTIVE</span>
         </div>
       </div>
 
@@ -85,31 +57,31 @@ export const AiCommandCenter: React.FC = () => {
         className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar scroll-smooth"
       >
         {intel.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-gray-600 space-y-2 opacity-50">
-            <Radio size={24} className="animate-pulse" />
-            <span className="text-[10px] font-mono">AWAITING INTEL STREAM...</span>
+          <div className="flex flex-col items-center justify-center h-full text-terminal-muted space-y-3 opacity-50">
+            <Radio size={32} className="animate-pulse text-terminal-accent" />
+            <span className="text-xs font-mono tracking-widest">AWAITING INTEL STREAM...</span>
           </div>
         ) : (
           intel.map((item) => (
-            <div key={item.id} className="group relative pl-3 py-1 border-l border-[#1a1a1a] hover:border-purple-500/50 transition-colors">
+            <div key={item.id} className="group relative pl-3 py-2 border-l-2 border-terminal-border hover:border-terminal-accent transition-all duration-300 bg-terminal-bg/30 hover:bg-terminal-bg/50 rounded-r-md pr-2">
               {/* Timeline Dot */}
-              <div className="absolute left-[-2.5px] top-2.5 w-1 h-1 rounded-full bg-[#333] group-hover:bg-purple-500 transition-colors" />
+              <div className="absolute left-[-5px] top-3 w-2 h-2 rounded-full bg-terminal-border group-hover:bg-terminal-accent transition-colors shadow-[0_0_10px_rgba(0,0,0,0.5)] group-hover:shadow-[0_0_10px_var(--accent-info)]" />
               
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className={`text-[9px] font-bold px-1 rounded-sm border flex items-center gap-1 ${getSeverityColor(item.severity)}`}>
+              <div className="flex items-center gap-2 mb-1">
+                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border flex items-center gap-1.5 ${getSeverityColor(item.severity)}`}>
                   {getIcon(item.category)}
                   {item.category}
                 </span>
-                <span className="text-[9px] text-gray-500 font-mono">
+                <span className="text-[10px] text-terminal-muted font-mono">
                   {new Date(item.timestamp).toLocaleTimeString('en-IL', {hour: '2-digit', minute:'2-digit', timeZone: 'Asia/Jerusalem'})}
                 </span>
               </div>
               
-              <h4 className="text-[11px] text-gray-200 font-medium leading-tight mb-0.5 group-hover:text-purple-300 transition-colors">
+              <h4 className="text-xs text-terminal-text font-medium leading-snug mb-1 group-hover:text-terminal-accent transition-colors">
                 {item.title}
               </h4>
               
-              <p className="text-[10px] text-gray-500 leading-relaxed line-clamp-2">
+              <p className="text-[10px] text-terminal-muted leading-relaxed line-clamp-2">
                 {item.summary}
               </p>
             </div>

@@ -17,81 +17,76 @@
   --space-3xl: 64px;
 
   /* ========================================
-     SEMANTIC COLORS - Dark Theme
+  /* ========================================
+     SEMANTIC COLORS - Deep Void Theme
      ======================================== */
 
   /* Backgrounds */
-  --bg-primary: hsl(240 10% 3.9%);        /* Main canvas */
-  --bg-secondary: hsl(240 4% 9%);         /* Elevated panels */
-  --bg-tertiary: hsl(240 4% 15%);         /* Interactive elements */
-  --bg-elevated: hsl(240 4% 18%);         /* Highest elevation */
-  --bg-glass: hsla(240 4% 18% / 0.6);     /* Glass morphism */
-  --bg-overlay: hsla(240 10% 3.9% / 0.8); /* Modals/overlays */
+  --bg-primary: #030508;          /* Deep Void */
+  --bg-secondary: #0a0f18;        /* Void Light */
+  --bg-tertiary: #111827;         /* Void Lighter */
+  --bg-elevated: #1f2937;         /* Highest elevation */
+  --bg-glass: rgba(10, 15, 24, 0.7); /* Glass morphism */
+  --bg-overlay: rgba(3, 5, 8, 0.9);  /* Modals/overlays */
 
   /* Text */
-  --text-primary: hsl(0 0% 98%);          /* Main text */
-  --text-secondary: hsl(240 5% 65%);      /* Secondary text */
-  --text-tertiary: hsl(240 4% 45%);       /* Muted text */
-  --text-inverse: hsl(240 10% 3.9%);      /* On light backgrounds */
+  --text-primary: #f8fafc;        /* Slate 50 */
+  --text-secondary: #94a3b8;      /* Slate 400 */
+  --text-tertiary: #64748b;       /* Slate 500 */
+  --text-inverse: #030508;        /* Deep Void */
 
   /* Borders */
-  --border-subtle: hsl(240 4% 20%);       /* Default borders */
-  --border-medium: hsl(240 4% 25%);       /* Elevated borders */
-  --border-strong: hsl(240 4% 35%);       /* Focused borders */
+  --border-subtle: #1e293b;       /* Slate 800 */
+  --border-medium: #334155;       /* Slate 700 */
+  --border-strong: #475569;       /* Slate 600 */
 
-  /* Accent Colors - Semantic Meaning */
-  --accent-bullish: hsl(142 76% 36%);     /* Green - Bullish/Long */
-  --accent-bullish-bright: hsl(142 76% 45%);
-  --accent-bullish-muted: hsl(142 30% 25%);
+  /* Accent Colors - Cyber Financial */
+  --accent-bullish: #00ff9d;      /* Spring Green */
+  --accent-bullish-bright: #66ffc2;
+  --accent-bullish-muted: #004d2e;
 
-  --accent-bearish: hsl(0 84% 60%);       /* Red - Bearish/Short */
-  --accent-bearish-bright: hsl(0 84% 68%);
-  --accent-bearish-muted: hsl(0 40% 30%);
+  --accent-bearish: #ff0055;      /* Neon Red */
+  --accent-bearish-bright: #ff6699;
+  --accent-bearish-muted: #4d0019;
 
-  --accent-info: hsl(217 91% 60%);        /* Blue - Information */
-  --accent-info-bright: hsl(217 91% 68%);
-  --accent-info-muted: hsl(217 30% 30%);
+  --accent-info: #00f3ff;         /* Neon Cyan */
+  --accent-info-bright: #80f9ff;
+  --accent-info-muted: #00494d;
 
-  --accent-warning: hsl(48 96% 53%);      /* Yellow - Warning */
-  --accent-warning-bright: hsl(48 96% 60%);
-  --accent-warning-muted: hsl(48 40% 30%);
+  --accent-warning: #ffcc00;      /* Cyber Yellow */
+  --accent-warning-bright: #ffe066;
+  --accent-warning-muted: #4d3d00;
 
-  --accent-neutral: hsl(240 5% 65%);      /* Gray - Neutral */
-  --accent-premium: hsl(280 70% 60%);     /* Purple - Premium features */
+  --accent-neutral: #94a3b8;      /* Slate 400 */
+  --accent-premium: #7000ff;      /* Electric Violet */
 
   /* ========================================
      SHADOWS & ELEVATION
      ======================================== */
 
   /* Subtle elevation */
-  --shadow-sm:
-    0 1px 2px 0 rgba(0, 0, 0, 0.3),
-    0 1px 3px 1px rgba(0, 0, 0, 0.15);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
 
   /* Medium elevation (cards) */
-  --shadow-md:
-    0 4px 6px -1px rgba(0, 0, 0, 0.4),
-    0 2px 4px -2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.5);
 
-  /* High elevation (modals, dropdowns) */
-  --shadow-lg:
-    0 10px 15px -3px rgba(0, 0, 0, 0.5),
-    0 4px 6px -4px rgba(0, 0, 0, 0.4);
+  /* High elevation (modals) */
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.7), 0 4px 6px -4px rgba(0, 0, 0, 0.6);
 
   /* Premium glow effects */
-  --glow-bullish: 0 0 20px rgba(34, 197, 94, 0.3);
-  --glow-bearish: 0 0 20px rgba(248, 113, 113, 0.3);
-  --glow-info: 0 0 20px rgba(59, 130, 246, 0.3);
-  --glow-premium: 0 0 30px rgba(168, 85, 247, 0.4);
+  --glow-bullish: 0 0 15px rgba(0, 255, 157, 0.4);
+  --glow-bearish: 0 0 15px rgba(255, 0, 85, 0.4);
+  --glow-info: 0 0 15px rgba(0, 243, 255, 0.4);
+  --glow-premium: 0 0 25px rgba(112, 0, 255, 0.5);
 
   /* ========================================
      BORDER RADIUS
      ======================================== */
-  --radius-xs: 4px;
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
   --radius-full: 9999px;
 
   /* ========================================
@@ -99,9 +94,9 @@
      ======================================== */
 
   /* Font Families */
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-  --font-display: 'Inter', sans-serif; /* For large headings */
+  --font-sans: 'Sora', sans-serif;
+  --font-mono: 'Space Mono', monospace;
+  --font-display: 'Rajdhani', sans-serif;
 
   /* Font Sizes */
   --text-xs: 0.75rem;    /* 12px */
@@ -213,21 +208,22 @@
      ======================================== */
 
   /* Chart colors */
-  --chart-bullish-candle: hsl(142 76% 45%);
-  --chart-bearish-candle: hsl(0 84% 60%);
-  --chart-volume-bullish: hsla(142 76% 45% / 0.4);
-  --chart-volume-bearish: hsla(0 84% 60% / 0.4);
+  /* Chart colors */
+  --chart-bullish-candle: #00ff9d;
+  --chart-bearish-candle: #ff0055;
+  --chart-volume-bullish: rgba(0, 255, 157, 0.3);
+  --chart-volume-bearish: rgba(255, 0, 85, 0.3);
 
   /* Indicator colors */
-  --indicator-ma-fast: hsl(48 96% 53%);
-  --indicator-ma-slow: hsl(280 70% 60%);
-  --indicator-rsi-overbought: hsl(0 84% 60%);
-  --indicator-rsi-oversold: hsl(142 76% 45%);
+  --indicator-ma-fast: #00f3ff;
+  --indicator-ma-slow: #7000ff;
+  --indicator-rsi-overbought: #ff0055;
+  --indicator-rsi-oversold: #00ff9d;
 
   /* Heatmap colors */
-  --heatmap-cold: hsl(217 91% 60%);
-  --heatmap-neutral: hsl(48 96% 53%);
-  --heatmap-hot: hsl(0 84% 60%);
+  --heatmap-cold: #0a0f18;
+  --heatmap-neutral: #00494d;
+  --heatmap-hot: #00f3ff;
 
   /* ========================================
      ACCESSIBILITY

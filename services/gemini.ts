@@ -51,8 +51,8 @@ export const getSentimentAnalysis = async (): Promise<{ score: number; label: st
     const label = data.data[0].value_classification;
     return { score, label };
   } catch (error) {
-    console.error('[Sentiment] API failed, using fallback:', error);
-    return { score: 50, label: 'Neutral' };
+    console.error('[Sentiment] API failed:', error);
+    return { score: 0, label: 'No Data' };
   }
 };
 
@@ -574,48 +574,7 @@ export const runAgentSimulation = async (role: AgentRole, context: any): Promise
 
 // --- GLOBAL INTEL SCANNER: BTC-FOCUSED WITH SENTIMENT ANALYSIS ---
 // --- FALLBACK MOCK DATA ---
-const MOCK_INTEL: IntelItem[] = [
-  {
-    id: 'mock-1',
-    title: 'Bitcoin Reclaims $84k Amidst Strong Institutional Inflows',
-    severity: 'HIGH',
-    category: 'NEWS',
-    timestamp: Date.now() - 1000 * 60 * 30,
-    source: 'MarketWire (Fallback)',
-    summary: 'BTC price action shows strength as ETF inflows hit weekly highs.',
-    btcSentiment: 'BULLISH'
-  },
-  {
-    id: 'mock-2',
-    title: 'Fed Signals Potential Rate Pause in Upcoming Meeting',
-    severity: 'MEDIUM',
-    category: 'MACRO',
-    timestamp: Date.now() - 1000 * 60 * 120,
-    source: 'MacroInsider (Fallback)',
-    summary: 'Jerome Powell hints at data-dependent approach, markets react positively.',
-    btcSentiment: 'NEUTRAL'
-  },
-  {
-    id: 'mock-3',
-    title: 'Large Whale Movement: 5,000 BTC Moved to Cold Storage',
-    severity: 'MEDIUM',
-    category: 'WHALE',
-    timestamp: Date.now() - 1000 * 60 * 240,
-    source: 'WhaleAlert (Fallback)',
-    summary: 'Significant outflow from exchanges suggests accumulation phase.',
-    btcSentiment: 'BULLISH'
-  },
-  {
-    id: 'mock-4',
-    title: 'Regulatory Uncertainty in EU regarding Self-Custody Wallets',
-    severity: 'LOW',
-    category: 'NEWS',
-    timestamp: Date.now() - 1000 * 60 * 360,
-    source: 'CryptoLaw (Fallback)',
-    summary: 'EU parliament discussing new AML rules for crypto wallets.',
-    btcSentiment: 'BEARISH'
-  }
-];
+
 
 export const scanGlobalIntel = async (): Promise<IntelItem[]> => {
   const ai = getAiClient();
@@ -665,15 +624,15 @@ export const scanGlobalIntel = async (): Promise<IntelItem[]> => {
 
     const text = response.text;
     if (!text) {
-      console.warn("[Intel] No response text, using fallback");
-      return MOCK_INTEL;
+      console.warn("[Intel] No response text");
+      return [];
     }
 
     const parsed = cleanAndParseJSON(text);
 
     if (!parsed) {
-      console.warn("[Intel] API response couldn't be parsed, using fallback data");
-      return MOCK_INTEL;
+      console.warn("[Intel] API response couldn't be parsed");
+      return [];
     }
 
     // Ensure parsed is an array
@@ -685,17 +644,17 @@ export const scanGlobalIntel = async (): Promise<IntelItem[]> => {
         console.log("✅ Intel fetched:", validated.data.length, "BTC-related items");
         return validated.data as IntelItem[];
       } else {
-        console.warn("[Intel] Schema validation failed, using fallback data");
-        return MOCK_INTEL; // Fallback on validation failure
+        console.warn("[Intel] Schema validation failed");
+        return []; // Fallback on validation failure
       }
     } catch (validationError) {
-      console.warn("[Intel] Validation error, using fallback data");
-      return MOCK_INTEL; // Fallback on validation error
+      console.warn("[Intel] Validation error");
+      return []; // Fallback on validation error
     }
 
   } catch (e) {
-    console.error("Intel Scan Error (Using Fallback):", e);
-    return MOCK_INTEL; // Fallback on API error
+    console.error("Intel Scan Error:", e);
+    return []; // Fallback on API error
   }
 };
 

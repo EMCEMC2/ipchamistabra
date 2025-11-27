@@ -19,41 +19,12 @@ export const AggrOrderFlow: React.FC = () => {
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    // Initialize with mock data immediately to avoid loading state
-    const mockStats: AggrStats = {
-      cvd: { delta: 2450000, cumulativeDelta: 15000000, timestamp: Date.now(), buyVolume: 5000000, sellVolume: 2550000 },
-      buyVolume: 18500000,
-      sellVolume: 12300000,
-      pressure: { buyPressure: 60, sellPressure: 40, netPressure: 20, dominantSide: 'buy', strength: 'moderate' },
-      recentLiquidations: [
-        { side: 'long', usdValue: 234000, timestamp: Date.now() - 30000, exchange: 'Binance', price: 95000, amount: 2.4 },
-        { side: 'short', usdValue: 156000, timestamp: Date.now() - 60000, exchange: 'Bybit', price: 94800, amount: 1.6 },
-        { side: 'long', usdValue: 89000, timestamp: Date.now() - 90000, exchange: 'OKX', price: 95100, amount: 0.9 }
-      ],
-      recentLargeTrades: [
-        { side: 'buy', usdValue: 1200000, timestamp: Date.now() - 15000, exchange: 'Binance', price: 95000, amount: 12.6, isLiquidation: false },
-        { side: 'sell', usdValue: 850000, timestamp: Date.now() - 45000, exchange: 'Bybit', price: 94800, amount: 8.9, isLiquidation: false },
-        { side: 'buy', usdValue: 670000, timestamp: Date.now() - 75000, exchange: 'OKX', price: 95100, amount: 7.0, isLiquidation: false }
-      ],
-
-      totalVolume: 30800000,
-      largeTradeCount: 15,
-      liquidationCount: 8,
-      liquidationVolume: 450000,
-      exchanges: []
-    };
-
-    setStats(mockStats);
-    const initialSignal = generateTradingSignal(mockStats);
-    setSignal(initialSignal);
+    // Initialize with loading state
     setIsConnected(true);
 
-    // Connect to Aggr service for real updates
-    aggrService.connect((newStats) => {
-      setStats(newStats);
-      const newSignal = generateTradingSignal(newStats);
-      setSignal(newSignal);
-    });
+
+
+
 
     return () => {
       aggrService.disconnect();
@@ -80,16 +51,16 @@ export const AggrOrderFlow: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between shrink-0 px-1">
         <div className="flex items-center gap-2">
-          <Zap className="text-blue-400" size={16} />
-          <h3 className="font-sans font-semibold text-sm text-gray-200 tracking-wide">
+          <Zap className="text-terminal-accent" size={16} />
+          <h3 className="font-display font-semibold text-sm text-terminal-text tracking-wide text-glow-info">
             Order Flow
           </h3>
         </div>
-        <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded border text-[10px] font-medium ${
-          isConnected ? 'bg-green-500/10 text-green-400 border-green-500/30' : 'bg-red-500/10 text-red-400 border-red-500/30'
-        }`}>
-          <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-          {isConnected ? 'LIVE' : 'OFFLINE'}
+        <div className="flex items-center gap-2 px-2 py-1 rounded border border-terminal-border bg-terminal-bg/50 backdrop-blur-sm">
+          <div className={`status-indicator ${isConnected ? 'status-live' : 'status-error'}`} />
+          <span className={`text-[10px] font-mono font-bold ${isConnected ? 'text-terminal-success' : 'text-terminal-danger'}`}>
+            {isConnected ? 'LIVE FEED' : 'OFFLINE'}
+          </span>
         </div>
       </div>
 

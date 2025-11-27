@@ -35,8 +35,8 @@ async function fetchBTCDominance(): Promise<number> {
     return btcd;
   } catch (error) {
     console.warn('[Macro Data] BTC.D fetch failed, using fallback:', error);
-    // Dynamic fallback around 57-58%
-    return 57.5 + (Math.random() * 0.4 - 0.2);
+    // Return 0 to indicate failure (no mock data)
+    return 0;
   }
 }
 
@@ -73,8 +73,8 @@ async function fetchVIX(): Promise<number> {
     return quote;
   } catch (error) {
     console.warn('[Macro Data] VIX fetch failed, using fallback:', error);
-    // Dynamic fallback based on random fluctuation around 20
-    return 20.0 + (Math.random() * 2 - 1);
+    // Return 0 to indicate failure (no mock data)
+    return 0;
   }
 }
 
@@ -109,8 +109,8 @@ async function fetchDXY(): Promise<number> {
     return quote;
   } catch (error) {
     console.warn('[Macro Data] DXY fetch failed, using fallback:', error);
-    // Fallback to a slightly randomized value to look "alive" if API fails
-    return 104.0 + (Math.random() * 0.5 - 0.25);
+    // Return 0 to indicate failure (no mock data)
+    return 0;
   }
 }
 

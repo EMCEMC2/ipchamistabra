@@ -10,6 +10,11 @@
     @apply bg-terminal-bg text-terminal-text font-sans antialiased;
     font-size: var(--text-sm);
     line-height: var(--leading-normal);
+    background-image: 
+      linear-gradient(rgba(0, 243, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 243, 255, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    background-position: center top;
   }
 
   /* Typography improvements */
@@ -19,19 +24,17 @@
 
   /* Enhanced Scrollbar */
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
   }
 
   ::-webkit-scrollbar-track {
     background: var(--bg-primary);
-    border-radius: var(--radius-full);
   }
 
   ::-webkit-scrollbar-thumb {
-    background: var(--border-strong);
+    background: var(--border-medium);
     border-radius: var(--radius-full);
-    border: 2px solid var(--bg-primary);
     transition: var(--transition-colors);
   }
 
@@ -41,8 +44,8 @@
 
   /* Selection */
   ::selection {
-    background: var(--accent-bullish-muted);
-    color: var(--text-primary);
+    background: var(--accent-info-muted);
+    color: var(--accent-info-bright);
   }
 
   /* Focus visible for accessibility */
@@ -82,6 +85,10 @@
     transition: var(--transition-all);
     position: relative;
     overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm);
   }
 
   .btn-premium::before {
@@ -106,8 +113,8 @@
 
   /* Status Indicator with Pulse */
   .status-indicator {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
     border-radius: var(--radius-full);
     position: relative;
   }
@@ -207,6 +214,10 @@
   .text-glow-premium {
     text-shadow: 0 0 15px var(--accent-premium);
   }
+  
+  .text-glow-info {
+    text-shadow: 0 0 10px var(--accent-info);
+  }
 
   .border-glow-bullish {
     box-shadow: var(--glow-bullish);
@@ -219,6 +230,10 @@
   .border-glow-premium {
     box-shadow: var(--glow-premium);
   }
+  
+  .border-glow-info {
+    box-shadow: var(--glow-info);
+  }
 
   /* Gradient Text */
   .text-gradient-bullish {
@@ -230,6 +245,13 @@
 
   .text-gradient-bearish {
     background: linear-gradient(135deg, var(--accent-bearish-bright), var(--accent-bearish));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  .text-gradient-premium {
+    background: linear-gradient(135deg, var(--accent-info), var(--accent-premium));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;

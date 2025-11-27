@@ -7,43 +7,12 @@
 import { IntelItem } from '../types';
 
 // Mock data for fallback (when API fails)
-const FALLBACK_NEWS: IntelItem[] = [
-  {
-    id: 'fallback-1',
-    title: 'Bitcoin Holds Above $84K Despite Macro Headwinds',
-    severity: 'MEDIUM',
-    category: 'NEWS',
-    timestamp: Date.now() - 1000 * 60 * 15,
-    source: 'CoinDesk',
-    summary: 'BTC maintains key support level as traders await Fed decision.',
-    btcSentiment: 'NEUTRAL'
-  },
-  {
-    id: 'fallback-2',
-    title: 'Institutional Demand Surges: ETF Inflows Hit Weekly High',
-    severity: 'HIGH',
-    category: 'NEWS',
-    timestamp: Date.now() - 1000 * 60 * 45,
-    source: 'Bloomberg Crypto',
-    summary: 'BlackRock and Fidelity ETFs see combined $420M inflows this week.',
-    btcSentiment: 'BULLISH'
-  },
-  {
-    id: 'fallback-3',
-    title: 'Large Whale Transfer: 3,200 BTC Moved to Unknown Wallet',
-    severity: 'MEDIUM',
-    category: 'WHALE',
-    timestamp: Date.now() - 1000 * 60 * 90,
-    source: 'Whale Alert',
-    summary: 'Major BTC movement from Binance to cold storage wallet detected.',
-    btcSentiment: 'BULLISH'
-  }
-];
+
 
 class BTCNewsAgent {
   private updateInterval: NodeJS.Timeout | null = null;
   private callbacks: Set<(news: IntelItem[]) => void> = new Set();
-  private latestNews: IntelItem[] = FALLBACK_NEWS;
+  private latestNews: IntelItem[] = [];
   private isRunning: boolean = false;
 
   constructor() {
@@ -111,25 +80,12 @@ class BTCNewsAgent {
         return;
       }
 
-      // 2) If RSS fails, fall back to mock with fresh timestamps
-      console.warn('[BTC News Agent] RSS fetch failed, using fresh fallback');
-      const freshFallback = FALLBACK_NEWS.map((item, index) => ({
-        ...item,
-        timestamp: Date.now() - (index * 60000)
-      }));
-      this.latestNews = freshFallback;
-      this.broadcastNews(freshFallback);
+      // 2) If RSS fails, log warning but do NOT use fake data
+      console.warn('[BTC News Agent] RSS fetch returned no items.');
 
     } catch (error: any) {
       console.error('[BTC News Agent] ❌ Error fetching news:', error.message);
       console.error('[BTC News Agent] Full error:', error);
-      // Use fallback but update timestamps to appear fresh
-      const freshFallback = FALLBACK_NEWS.map((item, index) => ({
-        ...item,
-        timestamp: Date.now() - (index * 60000)
-      }));
-      console.log('[BTC News Agent] Using fresh fallback data');
-      this.broadcastNews(freshFallback);
     }
   }
 
