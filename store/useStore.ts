@@ -2,6 +2,18 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { ChartDataPoint, TradeSignal, Position, JournalEntry, AgentState, AgentRole, IntelItem } from '../types';
 
+// Normalize journal entries loaded from storage or new additions so UI doesn't break on missing fields.
+const normalizeJournalEntry = (entry: any): JournalEntry => ({
+  ...entry,
+  tags: Array.isArray(entry?.tags) ? entry.tags : [],
+  mood: entry?.mood || 'NEUTRAL',
+  result: entry?.result || (typeof entry?.pnl === 'number'
+    ? entry.pnl > 0 ? 'WIN' : entry.pnl < 0 ? 'LOSS' : 'BE'
+    : 'BE'),
+  notes: entry?.notes || '',
+  aiFeedback: entry?.aiFeedback
+});
+
 interface MarketState {
   price: number;
   priceChange: number;
@@ -146,7 +158,9 @@ export const useStore = create<AppState>()(
           p.id === id ? { ...p, pnl, pnlPercent } : p
         )
       })),
-      addJournalEntry: (entry) => set((state) => ({ journal: [entry, ...state.journal] })),
+      addJournalEntry: (entry) => set((state) => ({
+        journal: [normalizeJournalEntry(entry), ...state.journal.map(normalizeJournalEntry)]
+      })),
 
       updateAgentStatus: (role, status, log) => set((state) => ({
         agents: state.agents.map((a) =>
@@ -160,6 +174,19 @@ export const useStore = create<AppState>()(
     {
       name: 'ipcha-mistabra-storage',
       storage: createJSONStorage(() => localStorage),
+      version: 1,
+      migrate: (persistedState: any) => {
+        if (!persistedState) return persistedState;
+        return {
+          ...persistedState,
+          journal: Array.isArray(persistedState.journal)
+            ? persistedState.journal.map(normalizeJournalEntry)
+            : [],
+          positions: Array.isArray(persistedState.positions) ? persistedState.positions : [],
+          signals: Array.isArray(persistedState.signals) ? persistedState.signals : [],
+          activeTradeSetup: persistedState.activeTradeSetup || null
+        };
+      },
       // Only persist critical user data (not live market data)
       partialize: (state) => ({
         balance: state.balance,

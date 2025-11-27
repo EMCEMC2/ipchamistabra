@@ -21,9 +21,31 @@ export const AggrOrderFlow: React.FC = () => {
   useEffect(() => {
     console.log('[AggrOrderFlow] Component mounted, connecting to aggrService...');
 
+    // Timeout to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      if (!isConnected) {
+        console.warn('[AggrOrderFlow] Connection timeout, using fallback data');
+        setStats({
+          totalVolume: 0,
+          buyVolume: 0,
+          sellVolume: 0,
+          largeTradeCount: 0,
+          liquidationCount: 0,
+          liquidationVolume: 0,
+          cvd: { timestamp: Date.now(), buyVolume: 0, sellVolume: 0, delta: 0, cumulativeDelta: 0 },
+          pressure: { buyPressure: 50, sellPressure: 50, netPressure: 0, dominantSide: 'neutral', strength: 'weak' },
+          exchanges: [],
+          recentLiquidations: [],
+          recentLargeTrades: []
+        });
+        setIsConnected(true); // Treat as connected (but offline mode)
+      }
+    }, 3000);
+
     // Connect to aggrService and subscribe to stats updates
     aggrService.connect((updatedStats) => {
       console.log('[AggrOrderFlow] Received stats update:', updatedStats);
+      clearTimeout(timeoutId);
       setStats(updatedStats);
       setIsConnected(true);
 
@@ -34,6 +56,7 @@ export const AggrOrderFlow: React.FC = () => {
 
     return () => {
       console.log('[AggrOrderFlow] Component unmounting, disconnecting...');
+      clearTimeout(timeoutId);
       aggrService.disconnect();
       setIsConnected(false);
     };
@@ -45,6 +68,7 @@ export const AggrOrderFlow: React.FC = () => {
         <div className="text-center">
           <Activity className="mx-auto mb-2 animate-pulse" size={32} />
           <div className="text-sm font-mono">Connecting to Aggr.trade...</div>
+          <div className="text-[10px] text-gray-600 mt-2">Initializing Worker...</div>
         </div>
       </div>
     );
