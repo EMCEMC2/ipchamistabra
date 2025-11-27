@@ -1,4 +1,4 @@
-# Force clean rebuild - AggrOrderFlow + Intel fixes (43d3ff4)
+# Force clean rebuild - BTC News Agent + Build fixes (8dd66ef)
 [phases.setup]
 nixPkgs = ["nodejs_20", "npm-9_x"]
 
