@@ -1,6 +1,7 @@
 import { AggrStats, AggrLiquidation, AggrTrade, CascadeEvent } from '../types/aggrTypes';
 import { workerManager } from './workers/WorkerManager';
 import { soundEngine } from './audio/SoundEngine';
+import { dataSyncAgent } from './dataSyncAgent';
 
 // Re-export types for compatibility
 export * from '../types/aggrTypes';
@@ -19,6 +20,9 @@ export class AggrTradeService {
     // Subscribe to worker updates
     workerManager.connect((stats) => {
       this.latestStats = stats;
+      // Sync with DataSyncAgent
+      dataSyncAgent.updateOrderFlowStats(stats);
+      dataSyncAgent.markDataUpdated('ORDER_FLOW');
     });
 
     // Setup Event Listeners with Sound

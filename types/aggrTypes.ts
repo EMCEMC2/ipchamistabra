@@ -41,12 +41,34 @@ export interface ExchangeFlow {
   dominance: number; // % of total volume
 }
 
+export interface OpenInterestData {
+  openInterest: number; // In BTC
+  openInterestUsd: number; // In USD
+  change1h: number; // % change
+  timestamp: number;
+}
+
+export interface LongShortRatio {
+  longRatio: number; // 0-100
+  shortRatio: number; // 0-100
+  longShortRatio: number; // Long accounts / Short accounts
+  topTraderRatio: number; // Top traders long/short
+  timestamp: number;
+}
+
+export interface FundingData {
+  rate: number; // Current funding rate
+  predictedRate: number; // Next funding rate
+  nextFundingTime: number; // Unix timestamp
+  annualizedRate: number; // Annualized %
+}
+
 export interface AggrStats {
   // Last 60 seconds
   totalVolume: number;
   buyVolume: number;
   sellVolume: number;
-  largeTradeCount: number; // >$500K
+  largeTradeCount: number; // >$100K (lowered threshold)
   liquidationCount: number;
   liquidationVolume: number;
 
@@ -62,6 +84,11 @@ export interface AggrStats {
   // Recent Events
   recentLiquidations: AggrLiquidation[];
   recentLargeTrades: AggrTrade[];
+
+  // Enhanced Intelligence (from REST API)
+  openInterest?: OpenInterestData;
+  longShortRatio?: LongShortRatio;
+  funding?: FundingData;
 }
 
 export interface CascadeEvent {

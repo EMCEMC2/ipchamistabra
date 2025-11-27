@@ -8,6 +8,7 @@ import {
 } from './gemini';
 import { fetchMacroData, fetchDerivativesMetrics } from './macroDataService';
 import { captureError, addBreadcrumb } from './errorMonitor';
+import { dataSyncAgent } from './dataSyncAgent';
 
 export const fetchGlobalData = async () => {
     try {
@@ -20,6 +21,12 @@ export const fetchGlobalData = async () => {
             getSentimentAnalysis(), // REAL Fear & Greed Index
             isAiAvailable() ? scanGlobalIntel() : Promise.resolve([]) // Gate AI call
         ]);
+
+        // Validate macro data before setting
+        const macroValidation = dataSyncAgent.validateMacroData(macro);
+        if (!macroValidation.isValid) {
+            console.warn('[MarketData] Macro validation errors:', macroValidation.errors);
+        }
 
         useStore.setState({
             vix: macro.vix,
@@ -35,14 +42,18 @@ export const fetchGlobalData = async () => {
             intel: intel
         });
 
+        // Mark data source as updated
+        dataSyncAgent.markDataUpdated('MACRO_DATA');
+
         addBreadcrumb('Global data synced successfully', 'marketData');
-        console.log("✅ Global Data Synced (REAL APIs)");
+        console.log("Global Data Synced (REAL APIs)");
     } catch (error) {
         captureError(error as Error, 'Global Data Sync Failed', {
             macro: 'failed',
             timestamp: Date.now()
         });
-        console.error("❌ Global Data Sync Error:", error);
+        dataSyncAgent.updateSourceStatus('MACRO_DATA', 'error', (error as Error).message);
+        console.error("Global Data Sync Error:", error);
     }
 };
 
@@ -66,7 +77,16 @@ export const fetchChartData = async () => {
             volume: parseFloat(d[5])
         }));
 
+        // Validate chart data before setting
+        const chartValidation = dataSyncAgent.validateChartData(formattedData);
+        if (!chartValidation.isValid) {
+            console.warn('[MarketData] Chart validation errors:', chartValidation.errors);
+        }
+
         useStore.setState({ chartData: formattedData });
+
+        // Mark data source as updated
+        dataSyncAgent.markDataUpdated('BINANCE_CHART');
 
         // Note: Price updates come from WebSocket (primary source)
         // We don't update price from chart data to avoid conflicts
@@ -74,6 +94,7 @@ export const fetchChartData = async () => {
 
         console.log("Chart Data Synced");
     } catch (e) {
+        dataSyncAgent.updateSourceStatus('BINANCE_CHART', 'error', (e as Error).message);
         console.error("Chart Fetch Error:", e);
     }
 };
@@ -140,6 +161,7 @@ export const fetchSignals = async () => {
         }
 
         useStore.setState({ signals, isScanning: false });
+        dataSyncAgent.markDataUpdated('SIGNALS');
         console.log(`[Signal Gen] Complete: ${signals.length} signals (Tactical: ${tacticalResult.signal ? 1 : 0}, AI: ${rawSignals.length})`);
     } catch (e) {
         console.error("Signal Fetch Error:", e);
@@ -148,6 +170,9 @@ export const fetchSignals = async () => {
 };
 
 export const startMarketDataSync = () => {
+    // Start the DataSyncAgent
+    dataSyncAgent.start();
+
     // Initial Fetch
     fetchGlobalData();
     fetchChartData();
@@ -189,5 +214,6 @@ export const startMarketDataSync = () => {
         clearInterval(globalInterval);
         clearInterval(chartInterval);
         unsubscribe();
+        dataSyncAgent.stop();
     };
 };
