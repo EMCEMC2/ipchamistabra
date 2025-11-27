@@ -31,12 +31,13 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   const [isAnimating, setIsAnimating] = useState(false);
   const [previousValue, setPreviousValue] = useState<string | number>(value);
 
-  // Animate on value change
+  // Animate on value change (with cleanup to prevent memory leaks)
   useEffect(() => {
     if (value !== previousValue) {
       setIsAnimating(true);
-      setTimeout(() => setIsAnimating(false), 600);
+      const timer = setTimeout(() => setIsAnimating(false), 600);
       setPreviousValue(value);
+      return () => clearTimeout(timer);
     }
   }, [value, previousValue]);
 

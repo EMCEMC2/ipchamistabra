@@ -135,8 +135,14 @@ export const AggrOrderFlow: React.FC = () => {
                 <span className="text-gray-500">SELL PRESSURE</span>
             </div>
             <div className="relative h-2 bg-black/40 rounded-full overflow-hidden mb-1">
-                <div className="absolute left-0 top-0 h-full bg-green-500" style={{ width: `${pressure?.buyPressure || 50}%` }} />
-                <div className="absolute right-0 top-0 h-full bg-red-500" style={{ width: `${pressure?.sellPressure || 50}%` }} />
+                <div
+                  className="absolute left-0 top-0 h-full bg-green-500 transition-all duration-300"
+                  style={{ width: `${Math.min(pressure?.buyPressure || 50, 50)}%` }}
+                />
+                <div
+                  className="absolute right-0 top-0 h-full bg-red-500 transition-all duration-300"
+                  style={{ width: `${Math.min(pressure?.sellPressure || 50, 50)}%` }}
+                />
             </div>
             <div className="flex justify-between text-[9px] font-mono">
                 <span className="text-green-400">${((stats.buyVolume || 0) / 1000000).toFixed(1)}M</span>

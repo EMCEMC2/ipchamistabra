@@ -3,7 +3,7 @@
  * Real-time monitoring of data synchronization health
  */
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Activity, AlertTriangle, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
 import { dataSyncAgent, useDataSyncStatus, DataSourceId, SyncStatus } from '../services/dataSyncAgent';
 
@@ -57,10 +57,8 @@ export const DataSyncStatus: React.FC<DataSyncStatusProps> = ({
   showAlerts = true
 }) => {
   const status = useDataSyncStatus();
-  const [expanded, setExpanded] = useState(false);
   const alerts = dataSyncAgent.getAlerts();
 
-  // Health score color
   const getHealthColor = (score: number): string => {
     if (score >= 80) return 'text-green-400';
     if (score >= 60) return 'text-yellow-400';
@@ -77,9 +75,8 @@ export const DataSyncStatus: React.FC<DataSyncStatusProps> = ({
 
   if (compact) {
     return (
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className={`flex items-center gap-2 px-2 py-1 rounded text-[10px] font-mono transition-colors ${getHealthBg(status.healthScore)}`}
+      <div
+        className={`flex items-center gap-2 px-2 py-1 rounded text-[10px] font-mono ${getHealthBg(status.healthScore)}`}
         title={`System Health: ${status.healthScore}%`}
       >
         <Activity size={12} className={getHealthColor(status.healthScore)} />
@@ -89,13 +86,12 @@ export const DataSyncStatus: React.FC<DataSyncStatusProps> = ({
             {alerts.length}
           </span>
         )}
-      </button>
+      </div>
     );
   }
 
   return (
     <div className="bg-terminal-card border border-terminal-border rounded-lg p-3">
-      {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Activity size={14} className={getHealthColor(status.healthScore)} />
@@ -108,7 +104,6 @@ export const DataSyncStatus: React.FC<DataSyncStatusProps> = ({
         </div>
       </div>
 
-      {/* Data Sources Grid */}
       <div className="grid grid-cols-2 gap-2 mb-3">
         {Object.entries(status.sources).map(([id, source]) => (
           <div
@@ -126,7 +121,6 @@ export const DataSyncStatus: React.FC<DataSyncStatusProps> = ({
         ))}
       </div>
 
-      {/* Active Alerts */}
       {showAlerts && alerts.length > 0 && (
         <div className="border-t border-terminal-border pt-2">
           <div className="text-[9px] font-mono text-gray-500 mb-1.5 uppercase">
@@ -150,7 +144,6 @@ export const DataSyncStatus: React.FC<DataSyncStatusProps> = ({
         </div>
       )}
 
-      {/* Agent Status */}
       <div className="flex items-center justify-between mt-2 pt-2 border-t border-terminal-border">
         <span className="text-[8px] font-mono text-gray-500">
           Agent: {status.isRunning ? 'Running' : 'Stopped'}
@@ -165,9 +158,6 @@ export const DataSyncStatus: React.FC<DataSyncStatusProps> = ({
   );
 };
 
-/**
- * Minimal inline status indicator for headers/toolbars
- */
 export const DataSyncIndicator: React.FC = () => {
   const status = useDataSyncStatus();
   const alerts = dataSyncAgent.getAlerts();

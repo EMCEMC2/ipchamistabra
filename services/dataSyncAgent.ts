@@ -105,8 +105,8 @@ const DATA_SOURCE_CONFIGS: Record<DataSourceId, { maxStaleness: number; priority
 class DataSyncAgent {
   private isRunning: boolean = false;
   private startTime: number | null = null;
-  private healthCheckInterval: NodeJS.Timeout | null = null;
-  private consistencyCheckInterval: NodeJS.Timeout | null = null;
+  private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
+  private consistencyCheckInterval: ReturnType<typeof setInterval> | null = null;
 
   private sources: Record<DataSourceId, DataSourceStatus> = {
     BINANCE_PRICE: { id: 'BINANCE_PRICE', status: 'disconnected', lastUpdate: 0, lastError: null, errorCount: 0 },
@@ -137,13 +137,9 @@ class DataSyncAgent {
     this.startTime = Date.now();
     addBreadcrumb('DataSyncAgent started', 'sync');
 
-    // Start health checks every 10s
     this.healthCheckInterval = setInterval(() => this.runHealthCheck(), 10000);
-
-    // Start consistency checks every 30s
     this.consistencyCheckInterval = setInterval(() => this.runConsistencyChecks(), 30000);
 
-    // Initial checks
     this.runHealthCheck();
     this.runConsistencyChecks();
 
@@ -208,13 +204,12 @@ class DataSyncAgent {
     } catch (e) {
       if (e instanceof z.ZodError) {
         result.isValid = false;
-        (e.issues || []).forEach((issue: z.ZodIssue) => {
+        e.issues.forEach((issue) => {
           result.errors.push({ field: 'price', message: issue.message, value: price });
         });
       }
     }
 
-    // Additional business logic validation
     if (price <= 0) {
       result.isValid = false;
       result.errors.push({ field: 'price', message: 'Price must be positive', value: price });
@@ -240,13 +235,11 @@ class DataSyncAgent {
       return result;
     }
 
-    // Validate each candle
     const invalidCandles: number[] = [];
     data.forEach((candle, index) => {
       try {
         ChartDataPointSchema.parse(candle);
 
-        // OHLC logic validation
         if (candle.high < candle.low) {
           invalidCandles.push(index);
           result.errors.push({
@@ -272,7 +265,7 @@ class DataSyncAgent {
       } catch (e) {
         invalidCandles.push(index);
         if (e instanceof z.ZodError) {
-          (e.issues || []).forEach((issue: z.ZodIssue) => {
+          e.issues.forEach((issue) => {
             result.errors.push({
               field: `chartData[${index}].${issue.path.join('.')}`,
               message: issue.message,
@@ -283,7 +276,6 @@ class DataSyncAgent {
       }
     });
 
-    // Check time sequence
     for (let i = 1; i < data.length; i++) {
       if (data[i].time <= data[i - 1].time) {
         result.warnings.push({
@@ -320,7 +312,6 @@ class DataSyncAgent {
       }
     }
 
-    // Business logic validation
     if (position.type === 'LONG') {
       if (position.stopLoss > 0 && position.stopLoss >= position.entryPrice) {
         result.warnings.push({
@@ -349,7 +340,6 @@ class DataSyncAgent {
       }
     }
 
-    // Validate liquidation price
     const liqPriceValid = this.validateLiquidationPrice(position);
     if (!liqPriceValid.passed) {
       result.warnings.push({
@@ -357,7 +347,6 @@ class DataSyncAgent {
         message: liqPriceValid.details
       });
 
-      // Auto-correct liquidation price if needed
       if (liqPriceValid.discrepancy?.expected) {
         result.correctedData.liquidationPrice = liqPriceValid.discrepancy.expected;
       }
@@ -384,7 +373,6 @@ class DataSyncAgent {
       }
     }
 
-    // Check for zero values (API failures)
     if (data.vix === 0) {
       result.warnings.push({ field: 'vix', message: 'VIX is 0 - possible API failure' });
     }
@@ -406,26 +394,19 @@ class DataSyncAgent {
     const state = useStore.getState();
     const results: ConsistencyResult[] = [];
 
-    // Check 1: Price matches latest chart close
     results.push(this.checkPriceChartSync(state.price, state.chartData));
 
-    // Check 2: Position PnL calculations are correct
     state.positions.forEach((pos: Position) => {
       results.push(this.checkPositionPnL(pos, state.price));
     });
 
-    // Check 3: Liquidation prices are valid
     state.positions.forEach((pos: Position) => {
       results.push(this.validateLiquidationPrice(pos));
     });
 
-    // Check 4: Balance consistency
     results.push(this.checkBalanceConsistency(state.balance, state.positions));
-
-    // Check 5: Data freshness
     results.push(this.checkDataFreshness());
 
-    // Log results
     const failed = results.filter(r => !r.passed);
     if (failed.length > 0) {
       this.log('warn', `Consistency checks: ${failed.length} failed`, failed);
@@ -448,7 +429,6 @@ class DataSyncAgent {
     const delta = Math.abs(currentPrice - latestClose);
     const deltaPercent = (delta / latestClose) * 100;
 
-    // Allow 2% deviation (normal for real-time vs candle close)
     const passed = deltaPercent < 2;
 
     return {
@@ -464,7 +444,6 @@ class DataSyncAgent {
   private checkPositionPnL(position: Position, currentPrice: number): ConsistencyResult {
     const { entryPrice, size, type, pnl, leverage } = position;
 
-    // Calculate expected PnL
     let expectedPnL: number;
     if (type === 'LONG') {
       expectedPnL = (currentPrice - entryPrice) * size;
@@ -473,10 +452,9 @@ class DataSyncAgent {
     }
 
     const delta = Math.abs(pnl - expectedPnL);
-    const passed = delta < 1; // Allow $1 tolerance
+    const passed = delta < 1;
 
     if (!passed) {
-      // Auto-fix PnL
       const pnlPercent = (expectedPnL / (entryPrice * size / leverage)) * 100;
       useStore.getState().updatePositionPnl(position.id, expectedPnL, pnlPercent);
 
@@ -499,10 +477,7 @@ class DataSyncAgent {
   private validateLiquidationPrice(position: Position): ConsistencyResult {
     const { entryPrice, leverage, type, liquidationPrice } = position;
 
-    // Calculate expected liquidation price
-    // For LONG: Liq = Entry * (1 - 1/leverage + maintenance margin)
-    // For SHORT: Liq = Entry * (1 + 1/leverage - maintenance margin)
-    const maintenanceMargin = 0.004; // 0.4% typical
+    const maintenanceMargin = 0.004;
     let expectedLiq: number;
 
     if (type === 'LONG') {
@@ -513,7 +488,7 @@ class DataSyncAgent {
 
     const delta = Math.abs(liquidationPrice - expectedLiq);
     const deltaPercent = (delta / expectedLiq) * 100;
-    const passed = deltaPercent < 1; // Allow 1% tolerance
+    const passed = deltaPercent < 1;
 
     return {
       checkId: `LIQ_PRICE_${position.id}`,
@@ -526,7 +501,6 @@ class DataSyncAgent {
   }
 
   private checkBalanceConsistency(balance: number, positions: Position[]): ConsistencyResult {
-    // Check that balance is positive and reasonable
     if (balance < 0) {
       return {
         checkId: 'BALANCE_CONSISTENCY',
@@ -535,12 +509,11 @@ class DataSyncAgent {
       };
     }
 
-    // Check total margin usage doesn't exceed balance
     const totalMarginUsed = positions.reduce((sum, pos) => {
       return sum + (pos.entryPrice * pos.size / pos.leverage);
     }, 0);
 
-    if (totalMarginUsed > balance * 1.5) { // Allow some buffer for unrealized PnL
+    if (totalMarginUsed > balance * 1.5) {
       return {
         checkId: 'BALANCE_CONSISTENCY',
         passed: false,
@@ -558,23 +531,23 @@ class DataSyncAgent {
 
   private checkDataFreshness(): ConsistencyResult {
     const now = Date.now();
-    const staleSourcess: string[] = [];
+    const staleSources: string[] = [];
 
     Object.entries(this.sources).forEach(([id, source]) => {
       const config = DATA_SOURCE_CONFIGS[id as DataSourceId];
       const age = now - source.lastUpdate;
 
       if (age > config.maxStaleness) {
-        staleSourcess.push(`${id} (${Math.round(age / 1000)}s old)`);
+        staleSources.push(`${id} (${Math.round(age / 1000)}s old)`);
         source.status = 'stale';
       }
     });
 
-    if (staleSourcess.length > 0) {
+    if (staleSources.length > 0) {
       return {
         checkId: 'DATA_FRESHNESS',
         passed: false,
-        details: `Stale data sources: ${staleSourcess.join(', ')}`
+        details: `Stale data sources: ${staleSources.join(', ')}`
       };
     }
 
@@ -594,7 +567,6 @@ class DataSyncAgent {
     let healthScore = 100;
     const issues: string[] = [];
 
-    // Check each data source
     Object.entries(this.sources).forEach(([id, source]) => {
       const config = DATA_SOURCE_CONFIGS[id as DataSourceId];
       const age = now - source.lastUpdate;
@@ -612,7 +584,6 @@ class DataSyncAgent {
       }
     });
 
-    // Check error monitor
     const errorStats = errorMonitor.getStats();
     if (errorStats.critical > 0) {
       healthScore -= 30;
@@ -643,12 +614,10 @@ class DataSyncAgent {
     this.lastOrderFlowStats = stats;
     this.markDataUpdated('ORDER_FLOW');
 
-    // Validate order flow data
     if (stats.totalVolume < 0 || stats.buyVolume < 0 || stats.sellVolume < 0) {
       this.createAlert('VALIDATION_ERROR', 'medium', 'Invalid order flow volumes', 'ORDER_FLOW');
     }
 
-    // Check buy + sell roughly equals total
     const volumeSum = stats.buyVolume + stats.sellVolume;
     if (Math.abs(volumeSum - stats.totalVolume) > stats.totalVolume * 0.1) {
       this.log('warn', 'Order flow volume mismatch', {
@@ -670,7 +639,6 @@ class DataSyncAgent {
     message: string,
     sourceId?: DataSourceId
   ): void {
-    // Check for duplicate active alerts
     const existingAlert = this.alerts.find(
       a => a.type === type && a.sourceId === sourceId && !a.resolved
     );
@@ -689,7 +657,6 @@ class DataSyncAgent {
 
     this.alerts.push(alert);
 
-    // Keep only last 100 alerts
     if (this.alerts.length > 100) {
       this.alerts = this.alerts.slice(-100);
     }
@@ -795,6 +762,8 @@ export const dataSyncAgent = new DataSyncAgent();
 
 // ==================== REACT HOOK ====================
 
+import React from 'react';
+
 export function useDataSyncStatus() {
   const [status, setStatus] = React.useState(dataSyncAgent.getStatus());
 
@@ -808,6 +777,3 @@ export function useDataSyncStatus() {
 
   return status;
 }
-
-// Need React import for the hook
-import React from 'react';
