@@ -19,14 +19,21 @@ export const AggrOrderFlow: React.FC = () => {
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    // Initialize with loading state
-    setIsConnected(true);
+    console.log('[AggrOrderFlow] Component mounted, connecting to aggrService...');
 
+    // Connect to aggrService and subscribe to stats updates
+    aggrService.connect((updatedStats) => {
+      console.log('[AggrOrderFlow] Received stats update:', updatedStats);
+      setStats(updatedStats);
+      setIsConnected(true);
 
-
-
+      // Generate trading signal from stats
+      const newSignal = generateTradingSignal(updatedStats);
+      setSignal(newSignal);
+    });
 
     return () => {
+      console.log('[AggrOrderFlow] Component unmounting, disconnecting...');
       aggrService.disconnect();
       setIsConnected(false);
     };
