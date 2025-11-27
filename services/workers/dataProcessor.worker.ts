@@ -251,9 +251,14 @@ class DataProcessor {
     const buyVolume = buyTrades.reduce((sum, t) => sum + t.usdValue, 0);
     const sellVolume = sellTrades.reduce((sum, t) => sum + t.usdValue, 0);
     const totalVolume = buyVolume + sellVolume;
+    const netVolume = buyVolume - sellVolume;
 
-    // CVD is now updated per-trade in processTrade(), just get latest value
-    const cvd = this.cvdWindow.latest || { timestamp: Date.now(), buyVolume: 0, sellVolume: 0, delta: 0, cumulativeDelta: 0 };
+    // CVD: Use latest session values, but override delta with 1-min Net for analysis/UI consistency
+    const latestCVD = this.cvdWindow.latest || { timestamp: Date.now(), buyVolume: 0, sellVolume: 0, delta: 0, cumulativeDelta: 0 };
+    const cvd = {
+        ...latestCVD,
+        delta: netVolume // Set delta to 1-minute Net Volume
+    };
 
     // Pressure
     const pressure = this.calculatePressure(recentTrades);

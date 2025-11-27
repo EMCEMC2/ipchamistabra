@@ -107,7 +107,7 @@ export const AggrOrderFlow: React.FC = () => {
                     </span>
                 </div>
                 <div className="text-lg font-sans font-bold text-gray-100 truncate">
-                    {stats.cvd?.delta > 0 ? '+' : ''}{((stats.cvd?.delta || 0) / 1000000).toFixed(2)}M
+                    {stats.cvd?.cumulativeDelta > 0 ? '+' : ''}{((stats.cvd?.cumulativeDelta || 0) / 1000000).toFixed(2)}M
                 </div>
                 <div className="text-[9px] text-gray-500 mt-1 line-clamp-2 leading-tight">
                     {cvdAnalysis.reasoning}
