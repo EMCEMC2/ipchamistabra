@@ -81,7 +81,7 @@ function cleanAndParseJSON<T>(text: string): T | null {
 
     return JSON.parse(clean);
   } catch (e) {
-    console.error("JSON Parse Error:", e, "Raw Text:", text);
+    // Silently handle parse errors - caller will use fallback
     return null;
   }
 }
@@ -664,7 +664,7 @@ export const scanGlobalIntel = async (): Promise<IntelItem[]> => {
     const parsed = cleanAndParseJSON(text);
 
     if (!parsed) {
-      console.error("[Intel] JSON parse failed, using fallback. Raw text:", text.substring(0, 200));
+      console.warn("[Intel] API response couldn't be parsed, using fallback data");
       return MOCK_INTEL;
     }
 
@@ -677,12 +677,11 @@ export const scanGlobalIntel = async (): Promise<IntelItem[]> => {
         console.log("✅ Intel fetched:", validated.data.length, "BTC-related items");
         return validated.data as IntelItem[];
       } else {
-        console.error("Intel Validation Failed:", validated.error);
-        console.error("Parsed data:", JSON.stringify(arrayData, null, 2).substring(0, 500));
+        console.warn("[Intel] Schema validation failed, using fallback data");
         return MOCK_INTEL; // Fallback on validation failure
       }
     } catch (validationError) {
-      console.error("Zod Validation Error:", validationError);
+      console.warn("[Intel] Validation error, using fallback data");
       return MOCK_INTEL; // Fallback on validation error
     }
 
