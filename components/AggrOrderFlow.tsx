@@ -148,14 +148,14 @@ export const AggrOrderFlow: React.FC = () => {
         </div>
 
         {/* Liquidations List */}
-        {stats.recentLiquidations?.length > 0 && (
+        {stats.recentLiquidations && stats.recentLiquidations.length > 0 && (
             <div className="card-premium p-2">
                 <div className="flex items-center gap-1.5 mb-2 text-yellow-500">
                     <AlertTriangle size={12} />
                     <span className="text-[10px] font-bold">RECENT LIQUIDATIONS</span>
                 </div>
                 <div className="space-y-1.5">
-                    {stats.recentLiquidations.slice(0, 3).map((liq, i) => (
+                    {(stats.recentLiquidations || []).slice(0, 3).map((liq, i) => (
                         <div key={i} className="flex justify-between items-center text-[10px] font-mono border-b border-white/5 pb-1 last:border-0 last:pb-0">
                             <span className={`font-semibold ${liq.side === 'long' ? 'text-red-400' : 'text-green-400'}`}>
                                 {liq.side.toUpperCase()} REKT
@@ -168,14 +168,14 @@ export const AggrOrderFlow: React.FC = () => {
         )}
 
         {/* Whale Trades List */}
-        {stats.recentLargeTrades?.length > 0 && (
+        {stats.recentLargeTrades && stats.recentLargeTrades.length > 0 && (
             <div className="card-premium p-2">
                  <div className="flex items-center gap-1.5 mb-2 text-purple-400">
                     <DollarSign size={12} />
                     <span className="text-[10px] font-bold tracking-wide">WHALE ACTIVITY</span>
                 </div>
                 <div className="space-y-1.5">
-                    {stats.recentLargeTrades.slice(0, 3).map((trade, i) => (
+                    {(stats.recentLargeTrades || []).slice(0, 3).map((trade, i) => (
                         <div key={i} className="flex justify-between items-center text-[10px] font-mono border-b border-white/5 pb-1 last:border-0 last:pb-0">
                             <span className={`font-semibold ${trade.side === 'buy' ? 'text-green-400' : 'text-red-400'}`}>
                                 {trade.side.toUpperCase()}
