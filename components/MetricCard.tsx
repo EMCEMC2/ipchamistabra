@@ -63,37 +63,37 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   return (
     <div
       className={`
-        card-premium h-full relative overflow-hidden group !p-3 flex flex-col justify-between
+        card-premium h-full relative group !p-3 flex flex-col justify-center gap-1
         transition-all duration-300 ease-out
         hover:scale-[1.02] hover:border-white/20
         ${getTrendGlow()}
       `}
     >
       {/* Header Row: Title & Trend Icon */}
-      <div className="flex items-start justify-between relative z-10">
-        <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+      <div className="flex items-center justify-between relative z-10 w-full">
+        <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider truncate pr-2">
           {title}
         </div>
         
         {/* Trend Icon Badge */}
-        <div className={`flex items-center justify-center w-5 h-5 rounded border ${getTrendColor()}`}>
+        <div className={`flex items-center justify-center w-5 h-5 rounded border shrink-0 ${getTrendColor()}`}>
           {getTrendIcon()}
         </div>
       </div>
 
       {/* Content Row: Value & SubValue */}
-      <div className="relative z-10 mt-1">
+      <div className="relative z-10 flex flex-col items-start w-full">
         <div className={`
-          text-xl font-bold ${color} tracking-tight leading-none
+          text-lg font-bold ${color} tracking-tight leading-none
           transition-all duration-300
           ${isAnimating ? 'scale-105 text-glow-bullish' : 'scale-100'}
         `}>
-          {value !== undefined && value !== null && value !== '' ? value : '-'}
+          {value}
         </div>
         
         {/* Sub Value */}
         {subValue && (
-          <div className="text-[10px] text-gray-500 mt-1 font-mono leading-none">
+          <div className="text-[10px] text-gray-500 mt-0.5 font-mono leading-none">
             {subValue}
           </div>
         )}

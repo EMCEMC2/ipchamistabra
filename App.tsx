@@ -380,28 +380,28 @@ function App() {
             <div className="grid grid-cols-2 gap-1.5 shrink-0 h-[10%] min-h-[80px]">
               <MetricCard
                 title="BTC PRICE"
-                value={`$${price.toLocaleString()}`}
+                value={price ? `$${price.toLocaleString()}` : '$0.00'}
                 subValue={`${priceChange > 0 ? '+' : ''}${priceChange}%`}
                 color={priceChange >= 0 ? 'text-green-400' : 'text-red-400'}
                 trend={mapTrend(trends.price)}
               />
               <MetricCard
                 title="SENTIMENT"
-                value={sentimentLabel}
-                subValue={`Score: ${sentimentScore}`}
+                value={sentimentLabel || 'Neutral'}
+                subValue={`Score: ${sentimentScore || 50}`}
                 color={sentimentScore > 60 ? 'text-green-400' : sentimentScore < 40 ? 'text-red-400' : 'text-yellow-400'}
                 trend={mapTrend(trends.sentiment)}
               />
               <MetricCard
                 title="VIX"
-                value={vix.toFixed(2)}
+                value={vix ? vix.toFixed(2) : '0.00'}
                 subValue="Volatility"
                 color={vix > 20 ? 'text-red-400' : 'text-green-400'}
                 trend={mapTrend(trends.vix)}
               />
               <MetricCard
                 title="BTC DOM"
-                value={`${btcd.toFixed(1)}%`}
+                value={btcd ? `${btcd.toFixed(1)}%` : '0.0%'}
                 subValue="Dominance"
                 color="text-yellow-400"
                 trend={mapTrend(trends.btcd)}

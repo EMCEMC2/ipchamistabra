@@ -1,15 +1,41 @@
 
-import React from 'react';
-import { Globe, Zap, AlertTriangle, Activity } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Globe, Zap, AlertTriangle, Activity, RefreshCw } from 'lucide-react';
 import { IntelItem } from '../types';
 import ReactMarkdown from 'react-markdown';
 import { useStore } from '../store/useStore';
+import { btcNewsAgent } from '../services/btcNewsAgent';
 
 export const IntelDeck: React.FC = () => {
-    const { latestAnalysis, technicals, intel } = useStore();
+    const { latestAnalysis, technicals } = useStore();
+    const [liveNews, setLiveNews] = useState<IntelItem[]>([]);
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
-    // Generate intel items from store intel only (Glassnode removed)
-    const items: IntelItem[] = [...intel];
+    // Start BTC News Agent on mount
+    useEffect(() => {
+        console.log('[IntelDeck] Starting BTC News Agent');
+
+        const handleNewsUpdate = (news: IntelItem[]) => {
+            console.log('[IntelDeck] Received news update:', news.length, 'items');
+            setLiveNews(news);
+        };
+
+        btcNewsAgent.start(handleNewsUpdate);
+
+        return () => {
+            btcNewsAgent.stop(handleNewsUpdate);
+        };
+    }, []);
+
+    // Manual refresh handler
+    const handleManualRefresh = async () => {
+        setIsRefreshing(true);
+        await btcNewsAgent.refresh();
+        setTimeout(() => setIsRefreshing(false), 1000);
+    };
+
+    // Use live news as items
+    const items: IntelItem[] = liveNews;
 
     return (
         <div className="h-full flex flex-col gap-3 overflow-hidden">
@@ -80,9 +106,17 @@ export const IntelDeck: React.FC = () => {
                 <div className="flex items-center justify-between p-3 border-b border-white/5 shrink-0">
                     <div className="flex items-center gap-2 text-green-400">
                         <Globe size={14} />
-                        <span className="font-sans font-semibold text-xs tracking-wide">INTEL FEED</span>
+                        <span className="font-sans font-semibold text-xs tracking-wide">LIVE BTC NEWS</span>
                     </div>
                     <div className="flex items-center gap-2">
+                        <button
+                            onClick={handleManualRefresh}
+                            disabled={isRefreshing}
+                            className="p-1 hover:bg-white/5 rounded transition-colors disabled:opacity-50"
+                            title="Refresh news"
+                        >
+                            <RefreshCw size={12} className={`text-gray-400 hover:text-green-400 transition-colors ${isRefreshing ? 'animate-spin' : ''}`} />
+                        </button>
                         <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_5px_rgba(34,197,94,0.5)]"></div>
                     </div>
                 </div>
