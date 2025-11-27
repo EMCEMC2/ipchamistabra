@@ -1,74 +1,12 @@
 /* eslint-disable no-restricted-globals */
+import { AggrStats, AggrLiquidation, AggrTrade, CascadeEvent, CVDData, MarketPressure, ExchangeFlow } from '../../types/aggrTypes';
+import { WorkerMessage } from './types';
 
-// --- INLINED TYPES TO PREVENT IMPORT ISSUES IN WORKER ---
-interface AggrTrade {
-  exchange: string;
-  timestamp: number;
-  price: number;
-  amount: number;
-  side: 'buy' | 'sell';
-  isLiquidation: boolean;
-  usdValue: number;
-}
+// --- Shared Interfaces (Duplicated to avoid import issues if needed, but trying import first) ---
+// If imports fail in the worker, we might need to move types to a shared file.
+// For now, assuming Vite handles the import correctly.
 
-interface AggrLiquidation {
-  exchange: string;
-  timestamp: number;
-  price: number;
-  amount: number;
-  side: 'long' | 'short';
-  usdValue: number;
-}
-
-interface CVDData {
-  timestamp: number;
-  buyVolume: number;
-  sellVolume: number;
-  delta: number;
-  cumulativeDelta: number;
-}
-
-interface MarketPressure {
-  buyPressure: number;
-  sellPressure: number;
-  netPressure: number;
-  dominantSide: 'buy' | 'sell' | 'neutral';
-  strength: 'weak' | 'moderate' | 'strong' | 'extreme';
-}
-
-interface ExchangeFlow {
-  exchange: string;
-  buyVolume: number;
-  sellVolume: number;
-  netFlow: number;
-  dominance: number;
-}
-
-interface AggrStats {
-  totalVolume: number;
-  buyVolume: number;
-  sellVolume: number;
-  largeTradeCount: number;
-  liquidationCount: number;
-  liquidationVolume: number;
-  cvd: CVDData;
-  pressure: MarketPressure;
-  exchanges: ExchangeFlow[];
-  recentLiquidations: AggrLiquidation[];
-  recentLargeTrades: AggrTrade[];
-}
-
-interface CascadeEvent {
-  startTime: number;
-  endTime: number;
-  totalLiquidated: number;
-  side: 'long' | 'short';
-  exchanges: string[];
-  priceImpact: number;
-  severity: 'minor' | 'moderate' | 'major' | 'extreme';
-}
-
-// --- WORKER LOGIC ---
+// --- Logic from AggrTradeService ---
 
 class RollingWindow {
   private data: CVDData[] = [];
@@ -136,15 +74,10 @@ class DataProcessor {
   private updateInterval: NodeJS.Timeout | null = null;
 
   constructor() {
-    this.log('DataProcessor initialized');
-  }
-
-  private log(message: string) {
-    self.postMessage({ type: 'DEBUG_LOG', payload: { message } });
+    console.log('[Worker] DataProcessor initialized');
   }
 
   public connect() {
-    this.log('Starting connections...');
     this.connectBinance();
     this.connectOKX();
     this.connectBybit();
@@ -154,7 +87,6 @@ class DataProcessor {
   }
 
   public disconnect() {
-    this.log('Disconnecting...');
     // Clear timeouts
     for (const [_, timeout] of this.reconnectTimeouts) {
       clearTimeout(timeout);
@@ -280,89 +212,63 @@ class DataProcessor {
     return flows.sort((a, b) => b.dominance - a.dominance);
   }
 
-  // --- WebSocket Connection Logic ---
+  // --- WebSocket Connection Logic (Simplified for brevity, but functional) ---
 
   private connectBinance() {
-    const connectTrades = (isFallback = false) => {
-        const url = isFallback 
-            ? 'wss://stream.binance.com/ws' // Spot (Fallback)
-            : 'wss://fstream.binance.com/ws'; // Futures (Primary)
-            
-        this.log(`Connecting to Binance ${isFallback ? 'Spot (Fallback)' : 'Futures'}...`);
-        const ws = new WebSocket(url);
-        
-        ws.onopen = () => {
-            this.log(`Binance ${isFallback ? 'Spot' : 'Futures'} Connected`);
-            // Subscribe to aggTrade
-            const msg = {
-                method: "SUBSCRIBE",
-                params: [
-                    "btcusdt@aggTrade",
-                    "btcusdt@forceOrder" // Only works on Futures, ignored on Spot
-                ],
-                id: 1
-            };
-            ws.send(JSON.stringify(msg));
-        };
-
+    const connectTrades = () => {
+        const ws = new WebSocket('wss://fstream.binance.com/ws/btcusdt@aggTrade');
+        ws.onopen = () => console.log('[Worker] Binance WS Connected');
         ws.onmessage = (e) => {
             try {
                 const data = JSON.parse(e.data);
-                
-                // Handle ping/pong or subscription confirmation
-                if (data.id === 1) return;
-
-                // Handle AggTrade
-                if (data.e === 'aggTrade') {
-                    const trade: AggrTrade = {
-                        exchange: 'Binance',
-                        timestamp: data.T,
-                        price: parseFloat(data.p),
-                        amount: parseFloat(data.q),
-                        side: data.m ? 'sell' : 'buy', // m=true means maker is buy, so taker is sell
-                        isLiquidation: false,
-                        usdValue: parseFloat(data.p) * parseFloat(data.q)
-                    };
-                    this.processTrade(trade);
-                }
-                // Handle Liquidation (Futures only)
-                else if (data.e === 'forceOrder') {
-                    const o = data.o;
-                    const liq: AggrLiquidation = {
-                        exchange: 'Binance',
-                        timestamp: data.E,
-                        price: parseFloat(o.p),
-                        amount: parseFloat(o.q),
-                        side: o.S === 'SELL' ? 'long' : 'short',
-                        usdValue: parseFloat(o.p) * parseFloat(o.q)
-                    };
-                    this.processLiquidation(liq);
-                }
+                const trade: AggrTrade = {
+                    exchange: 'Binance',
+                    timestamp: data.T,
+                    price: parseFloat(data.p),
+                    amount: parseFloat(data.q),
+                    side: data.m ? 'sell' : 'buy',
+                    isLiquidation: false,
+                    usdValue: parseFloat(data.p) * parseFloat(data.q)
+                };
+                this.processTrade(trade);
             } catch (err) {
-                this.log(`Binance Parse Error: ${err}`);
+                console.error('[Worker] Binance Parse Error:', err);
             }
         };
-
-        ws.onclose = () => {
-            this.log(`Binance ${isFallback ? 'Spot' : 'Futures'} Closed`);
-            // If Futures fails, try Fallback (Spot) next time
-            const nextIsFallback = !isFallback ? true : true; 
-            this.reconnectWithBackoff('binance-trades', () => connectTrades(nextIsFallback));
-        };
-
-        ws.onerror = (e) => this.log(`Binance ${isFallback ? 'Spot' : 'Futures'} Error`);
+        ws.onclose = () => this.reconnectWithBackoff('binance-trades', connectTrades);
         this.wsConnections.set('binance-trades', ws);
     };
 
-    connectTrades(false); // Start with Futures
+    const connectLiq = () => {
+        const ws = new WebSocket('wss://fstream.binance.com/ws/btcusdt@forceOrder');
+        ws.onmessage = (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                const o = data.o;
+                const liq: AggrLiquidation = {
+                    exchange: 'Binance',
+                    timestamp: data.E,
+                    price: parseFloat(o.p),
+                    amount: parseFloat(o.q),
+                    side: o.S === 'SELL' ? 'long' : 'short',
+                    usdValue: parseFloat(o.p) * parseFloat(o.q)
+                };
+                this.processLiquidation(liq);
+            } catch (err) {}
+        };
+        ws.onclose = () => this.reconnectWithBackoff('binance-liq', connectLiq);
+        this.wsConnections.set('binance-liq', ws);
+    };
+
+    connectTrades();
+    connectLiq();
   }
 
   private connectOKX() {
+      // Similar implementation to original service
       const connect = () => {
-          this.log('Connecting to OKX...');
           const ws = new WebSocket('wss://ws.okx.com:8443/ws/v5/public');
           ws.onopen = () => {
-              this.log('OKX Connected');
               ws.send(JSON.stringify({ op: 'subscribe', args: [{ channel: 'trades', instId: 'BTC-USDT-SWAP' }] }));
           };
           ws.onmessage = (e) => {
@@ -384,10 +290,7 @@ class DataProcessor {
                   }
               } catch (err) {}
           };
-          ws.onclose = () => {
-              this.log('OKX Closed');
-              this.reconnectWithBackoff('okx', connect);
-          };
+          ws.onclose = () => this.reconnectWithBackoff('okx', connect);
           this.wsConnections.set('okx', ws);
       };
       connect();
@@ -395,10 +298,8 @@ class DataProcessor {
 
   private connectBybit() {
       const connect = () => {
-          this.log('Connecting to Bybit...');
           const ws = new WebSocket('wss://stream.bybit.com/v5/public/linear');
           ws.onopen = () => {
-              this.log('Bybit Connected');
               ws.send(JSON.stringify({ op: 'subscribe', args: ['publicTrade.BTCUSDT', 'liquidation.BTCUSDT'] }));
           };
           ws.onmessage = (e) => {
@@ -427,16 +328,12 @@ class DataProcessor {
                           amount: parseFloat(d.size),
                           side: d.side === 'Sell' ? 'long' : 'short',
                           usdValue: parseFloat(d.price) * parseFloat(d.size)
-                          // usdValue: parseFloat(d.price) * parseFloat(d.size)
                       };
                       this.processLiquidation(liq);
                   }
               } catch (err) {}
           };
-          ws.onclose = () => {
-              this.log('Bybit Closed');
-              this.reconnectWithBackoff('bybit', connect);
-          };
+          ws.onclose = () => this.reconnectWithBackoff('bybit', connect);
           this.wsConnections.set('bybit', ws);
       };
       connect();
@@ -453,12 +350,6 @@ class DataProcessor {
 
   private processTrade(trade: AggrTrade) {
       this.trades.push(trade);
-      
-      // Throttled log to confirm data flow
-      if (this.trades.length % 100 === 0) {
-        this.log(`Processed ${this.trades.length} trades. Latest: $${trade.price}`);
-      }
-
       const cutoff = Date.now() - 60000;
       if (this.trades[0] && this.trades[0].timestamp < cutoff) {
           // Optimization: remove old trades in chunks or use a pointer
@@ -513,7 +404,7 @@ class DataProcessor {
 
 const processor = new DataProcessor();
 
-self.onmessage = (e: MessageEvent) => {
+self.onmessage = (e: MessageEvent<WorkerMessage>) => {
   const { type } = e.data;
   switch (type) {
     case 'CONNECT':
