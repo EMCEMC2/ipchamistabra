@@ -376,8 +376,8 @@ function App() {
 
           {/* RIGHT SIDEBAR: Order Entry & Management (3 cols) */}
           <div className="col-span-3 flex flex-col gap-2 h-full overflow-hidden">
-            {/* Compact Metrics Strip (Single Row - 8% height) */}
-            <div className="grid grid-cols-2 gap-1.5 shrink-0 h-[10%] min-h-[80px]">
+            {/* Compact Metrics Strip (Single Row - Auto Height) */}
+            <div className="grid grid-cols-2 gap-1.5 shrink-0 h-auto min-h-[90px]">
               <MetricCard
                 title="BTC PRICE"
                 value={price ? `$${price.toLocaleString()}` : '$0.00'}
@@ -408,8 +408,8 @@ function App() {
               />
             </div>
 
-            {/* Trade Entry & Management (90% height) */}
-            <div className="flex-1 min-h-0 flex flex-col gap-2 h-[90%]">
+            {/* Trade Entry & Management (Fills remaining height) */}
+            <div className="flex-1 min-h-0 flex flex-col gap-2">
               {/* Trade Setup (60%) */}
               <div className="h-[60%] flex flex-col">
                 <div className="flex items-center gap-1.5 mb-1.5 px-1">
