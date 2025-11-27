@@ -1,4 +1,4 @@
-# Force clean rebuild - lightweight-charts fix
+# Force clean rebuild - AggrOrderFlow + Intel fixes (43d3ff4)
 [phases.setup]
 nixPkgs = ["nodejs_20", "npm-9_x"]
 
