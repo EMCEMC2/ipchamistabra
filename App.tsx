@@ -306,15 +306,15 @@ function App() {
           <div className="col-span-3 flex flex-col gap-2 h-full overflow-hidden">
             {activeView === 'TERMINAL' && (
               <>
-                {/* Order Flow (Top 50%) */}
-                <div className="h-[50%] flex flex-col">
+                {/* Order Flow (Top 65%) */}
+                <div className="h-[65%] flex flex-col">
                   <div className="flex-1 min-h-0">
                     <AggrOrderFlow />
                   </div>
                 </div>
 
-                {/* Active Signals (Bottom 50%) */}
-                <div className="h-[50%] flex flex-col min-h-0">
+                {/* Active Signals (Bottom 35%) */}
+                <div className="h-[35%] flex flex-col min-h-0">
                   <ActiveSignals onTrade={handleSignalExecute} />
                 </div>
               </>

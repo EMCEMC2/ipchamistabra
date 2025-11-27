@@ -306,7 +306,7 @@ export const ExecutionPanelPro: React.FC = () => {
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
                 disabled={orderType === 'MARKET'}
-                className="w-full bg-[#0f0f0f] border border-[#2a2a2a] rounded-sm px-2 py-1.5 pr-12 text-[11px] text-white font-mono text-right outline-none focus:border-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-terminal-card border border-terminal-border rounded-sm px-2 py-1.5 pr-12 text-[11px] text-white font-mono text-right outline-none focus:border-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ fontVariantNumeric: 'tabular-nums' }}
               />
               <button
@@ -328,7 +328,7 @@ export const ExecutionPanelPro: React.FC = () => {
               value={sizeBTC}
               onChange={(e) => setSizeBTC(e.target.value)}
               step="0.001"
-              className="w-full bg-[#0f0f0f] border border-[#2a2a2a] rounded-sm px-2 py-1.5 text-[11px] text-white font-mono text-right outline-none focus:border-blue-500 transition-colors"
+              className="w-full bg-terminal-card border border-terminal-border rounded-sm px-2 py-1.5 text-[11px] text-white font-mono text-right outline-none focus:border-blue-500 transition-colors"
               style={{ fontVariantNumeric: 'tabular-nums' }}
             />
           </div>
@@ -350,7 +350,7 @@ export const ExecutionPanelPro: React.FC = () => {
                 min="0.1"
                 max="5"
                 placeholder="1.0"
-                className="flex-1 bg-[#0f0f0f] border border-[#2a2a2a] rounded-sm px-2 py-1.5 text-[11px] text-blue-400 font-mono text-right outline-none focus:border-blue-500 transition-colors"
+                className="flex-1 bg-terminal-card border border-terminal-border rounded-sm px-2 py-1.5 text-[11px] text-blue-400 font-mono text-right outline-none focus:border-blue-500 transition-colors"
                 style={{ fontVariantNumeric: 'tabular-nums' }}
               />
               <span className="text-[10px] text-gray-500 font-mono">%</span>
@@ -382,7 +382,7 @@ export const ExecutionPanelPro: React.FC = () => {
               required
               aria-label="Stop loss price (required)"
               aria-required="true"
-              className="w-full bg-[#0f0f0f] border border-[#2a2a2a] rounded-sm px-2 py-1.5 text-[11px] text-red-400 font-mono text-right outline-none focus:border-red-500 transition-colors placeholder:text-gray-700"
+              className="w-full bg-terminal-card border border-terminal-border rounded-sm px-2 py-1.5 text-[11px] text-red-400 font-mono text-right outline-none focus:border-red-500 transition-colors placeholder:text-gray-700"
             />
           </div>
 
@@ -397,7 +397,7 @@ export const ExecutionPanelPro: React.FC = () => {
               onChange={(e) => setTakeProfit(e.target.value)}
               placeholder="Optional"
               aria-label="Take profit price (optional)"
-              className="w-full bg-[#0f0f0f] border border-[#2a2a2a] rounded-sm px-2 py-1.5 text-[11px] text-green-400 font-mono text-right outline-none focus:border-green-500 transition-colors placeholder:text-gray-700"
+              className="w-full bg-terminal-card border border-terminal-border rounded-sm px-2 py-1.5 text-[11px] text-green-400 font-mono text-right outline-none focus:border-green-500 transition-colors placeholder:text-gray-700"
             />
           </div>
         </div>
