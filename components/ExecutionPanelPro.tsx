@@ -21,7 +21,11 @@ export const ExecutionPanelPro: React.FC = () => {
     addPosition,
     activeTradeSetup,
     isLiveMode,
-    setIsLiveMode
+    setIsLiveMode,
+    checkCircuitBreaker,
+    isCircuitBreakerTripped,
+    dailyPnL,
+    dailyLossLimit
   } = useStore();
 
   // === ZONE A: ORDER LOGIC ===
@@ -116,6 +120,17 @@ export const ExecutionPanelPro: React.FC = () => {
 
   // Execute Order
   const handleExecute = async (side: 'BUY' | 'SELL') => {
+    // CRITICAL: Check circuit breaker before allowing trades
+    if (checkCircuitBreaker()) {
+      setErrorMsg(`⛔ TRADING HALTED: Daily loss limit reached (-$${dailyLossLimit.toFixed(2)}). Reset tomorrow.`);
+      captureCritical('Circuit breaker tripped - daily loss limit exceeded', 'Trading Halted', {
+        dailyPnL,
+        dailyLossLimit,
+        attemptedSide: side
+      });
+      return;
+    }
+
     if (!sizeBTC || parseFloat(sizeBTC) <= 0) {
       setErrorMsg('Invalid size');
       return;

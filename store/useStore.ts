@@ -56,6 +56,10 @@ interface UserState {
   journal: JournalEntry[];
   activeTradeSetup: Partial<Position> | null;
   executionSide: 'LONG' | 'SHORT';
+  dailyLossLimit: number; // Max daily loss in USD
+  dailyPnL: number; // Current day's P&L
+  lastResetDate: string; // ISO date string for daily reset
+  isCircuitBreakerTripped: boolean; // Trading halted if true
 }
 
 interface AgentSwarmState {
@@ -87,6 +91,9 @@ export interface AppState extends MarketState, UserState, AgentSwarmState {
   closePosition: (id: string, pnl: number) => void;
   updatePositionPnl: (id: string, pnl: number, pnlPercent: number) => void;
   addJournalEntry: (entry: JournalEntry) => void;
+  setDailyLossLimit: (limit: number) => void;
+  resetDailyPnL: () => void;
+  checkCircuitBreaker: () => boolean;
 
   updateAgentStatus: (role: AgentRole, status: AgentState['status'], log?: string) => void;
   addCouncilLog: (agentName: string, message: string) => void;
@@ -121,6 +128,10 @@ export const useStore = create<AppState>()(
       signals: [],
       activeTradeSetup: null,
       executionSide: 'LONG', // Default side
+      dailyLossLimit: 2500, // Default: 5% of starting balance (50000 * 0.05)
+      dailyPnL: 0,
+      lastResetDate: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+      isCircuitBreakerTripped: false,
 
       // Phase 2: Live Trading (Testnet)
       isLiveMode: false,
@@ -153,10 +164,18 @@ export const useStore = create<AppState>()(
 
       updateBalance: (amount) => set((state) => ({ balance: state.balance + amount })),
       addPosition: (position) => set((state) => ({ positions: [position, ...state.positions] })),
-      closePosition: (id, pnl) => set((state) => ({
-        positions: state.positions.filter((p) => p.id !== id),
-        balance: state.balance + pnl
-      })),
+      closePosition: (id, pnl) => set((state) => {
+        const today = new Date().toISOString().split('T')[0];
+        const newDailyPnL = state.dailyPnL + pnl;
+        const isTripped = newDailyPnL <= -state.dailyLossLimit;
+
+        return {
+          positions: state.positions.filter((p) => p.id !== id),
+          balance: state.balance + pnl,
+          dailyPnL: newDailyPnL,
+          isCircuitBreakerTripped: isTripped
+        };
+      }),
       updatePositionPnl: (id, pnl, pnlPercent) => set((state) => ({
         positions: state.positions.map((p) =>
           p.id === id ? { ...p, pnl, pnlPercent } : p
@@ -165,6 +184,30 @@ export const useStore = create<AppState>()(
       addJournalEntry: (entry) => set((state) => ({
         journal: [normalizeJournalEntry(entry), ...state.journal.map(normalizeJournalEntry)]
       })),
+      setDailyLossLimit: (limit) => set({ dailyLossLimit: limit }),
+      resetDailyPnL: () => set({
+        dailyPnL: 0,
+        lastResetDate: new Date().toISOString().split('T')[0],
+        isCircuitBreakerTripped: false
+      }),
+      checkCircuitBreaker: () => {
+        const state = useStore.getState();
+        const today = new Date().toISOString().split('T')[0];
+
+        // Reset if it's a new day
+        if (state.lastResetDate !== today) {
+          useStore.getState().resetDailyPnL();
+          return false;
+        }
+
+        // Check if circuit breaker should trip
+        if (state.dailyPnL <= -state.dailyLossLimit && !state.isCircuitBreakerTripped) {
+          useStore.setState({ isCircuitBreakerTripped: true });
+          return true;
+        }
+
+        return state.isCircuitBreakerTripped;
+      },
 
       updateAgentStatus: (role, status, log) => set((state) => ({
         agents: state.agents.map((a) =>

@@ -169,11 +169,53 @@ class DataProcessor {
   private liquidations: AggrLiquidation[] = [];
   private cvdWindow: RollingWindow = new RollingWindow(60);
   
-  // ... (rest of properties)
+  // Cascade detection
+  private cascadeStartTime: number = 0;
+  private cascadeVolume: number = 0;
+  private cascadeSide: 'long' | 'short' | null = null;
 
-  // ... (constructor and log)
+  // Reconnection
+  private reconnectAttempts: Map<string, number> = new Map();
+  private reconnectTimeouts: Map<string, NodeJS.Timeout> = new Map();
+  private maxReconnectAttempts: number = 10;
 
-  // ... (connect/disconnect)
+  private updateInterval: NodeJS.Timeout | null = null;
+
+  constructor() {
+    this.log('DataProcessor initialized');
+  }
+
+  private log(message: string) {
+    self.postMessage({ type: 'DEBUG_LOG', payload: { message } });
+  }
+
+  public connect() {
+    this.log('Starting connections...');
+    this.connectBinance();
+    this.connectOKX();
+    this.connectBybit();
+
+    if (this.updateInterval) clearInterval(this.updateInterval);
+    this.updateInterval = setInterval(() => this.broadcastStats(), 1000);
+  }
+
+  public disconnect() {
+    this.log('Disconnecting...');
+    // Clear timeouts
+    for (const [_, timeout] of this.reconnectTimeouts) {
+      clearTimeout(timeout);
+    }
+    this.reconnectTimeouts.clear();
+    this.reconnectAttempts.clear();
+
+    // Close WS
+    for (const [_, ws] of this.wsConnections) {
+      ws.close();
+    }
+    this.wsConnections.clear();
+
+    if (this.updateInterval) clearInterval(this.updateInterval);
+  }
 
   private broadcastStats() {
     const stats = this.calculateStats();
@@ -233,10 +275,7 @@ class DataProcessor {
       totalVolume,
       buyVolume,
       sellVolume,
-      largeTradeCount: recentLargeTrades.length, // Count from the longer history or just 1 min? Usually user wants count of RECENT whales. Let's use the 10 min count or maybe 1 min? 
-      // Actually, largeTradeCount usually implies "current activity". Let's keep it as 1 min count for the metric, but list for 10 mins.
-      // Wait, if I change largeTradeCount to 10 mins, it might look inflated.
-      // Let's calculate 1 min count separately.
+      largeTradeCount: recentLargeTrades.length,
       liquidationCount: recentLiquidations.length,
       liquidationVolume,
       cvd,
@@ -247,7 +286,220 @@ class DataProcessor {
     };
   }
 
-  // ... (calculatePressure, calculateExchangeFlow, connect methods)
+  private calculatePressure(recentTrades: AggrTrade[]): MarketPressure {
+    const buyTrades = recentTrades.filter(t => t.side === 'buy');
+    const sellTrades = recentTrades.filter(t => t.side === 'sell');
+    const buyVolume = buyTrades.reduce((sum, t) => sum + t.usdValue, 0);
+    const sellVolume = sellTrades.reduce((sum, t) => sum + t.usdValue, 0);
+    const totalVolume = buyVolume + sellVolume;
+
+    const buyPressure = totalVolume > 0 ? (buyVolume / totalVolume) * 100 : 50;
+    const sellPressure = totalVolume > 0 ? (sellVolume / totalVolume) * 100 : 50;
+    const netPressure = buyPressure - sellPressure;
+
+    let dominantSide: 'buy' | 'sell' | 'neutral' = 'neutral';
+    if (Math.abs(netPressure) > 10) dominantSide = netPressure > 0 ? 'buy' : 'sell';
+
+    const absNetPressure = Math.abs(netPressure);
+    const strength = absNetPressure > 40 ? 'extreme' : absNetPressure > 25 ? 'strong' : absNetPressure > 10 ? 'moderate' : 'weak';
+
+    return { buyPressure, sellPressure, netPressure, dominantSide, strength };
+  }
+
+  private calculateExchangeFlow(trades: AggrTrade[]): ExchangeFlow[] {
+    const exchangeMap = new Map<string, { buy: number, sell: number }>();
+    for (const trade of trades) {
+      if (!exchangeMap.has(trade.exchange)) exchangeMap.set(trade.exchange, { buy: 0, sell: 0 });
+      const flow = exchangeMap.get(trade.exchange)!;
+      if (trade.side === 'buy') flow.buy += trade.usdValue;
+      else flow.sell += trade.usdValue;
+    }
+
+    const totalVolume = trades.reduce((sum, t) => sum + t.usdValue, 0);
+    const flows: ExchangeFlow[] = [];
+    for (const [exchange, flow] of exchangeMap) {
+      const exchangeVolume = flow.buy + flow.sell;
+      flows.push({
+        exchange,
+        buyVolume: flow.buy,
+        sellVolume: flow.sell,
+        netFlow: flow.buy - flow.sell,
+        dominance: totalVolume > 0 ? (exchangeVolume / totalVolume) * 100 : 0
+      });
+    }
+    return flows.sort((a, b) => b.dominance - a.dominance);
+  }
+
+  // --- WebSocket Connection Logic ---
+
+  private connectBinance() {
+    const connectTrades = (isFallback = false) => {
+        const url = isFallback 
+            ? 'wss://stream.binance.com/ws' // Spot (Fallback)
+            : 'wss://fstream.binance.com/ws'; // Futures (Primary)
+            
+        this.log(`Connecting to Binance ${isFallback ? 'Spot (Fallback)' : 'Futures'}...`);
+        const ws = new WebSocket(url);
+        
+        ws.onopen = () => {
+            this.log(`Binance ${isFallback ? 'Spot' : 'Futures'} Connected`);
+            // Subscribe to aggTrade
+            const msg = {
+                method: "SUBSCRIBE",
+                params: [
+                    "btcusdt@aggTrade",
+                    "btcusdt@forceOrder" // Only works on Futures, ignored on Spot
+                ],
+                id: 1
+            };
+            ws.send(JSON.stringify(msg));
+        };
+
+        ws.onmessage = (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                
+                // Handle ping/pong or subscription confirmation
+                if (data.id === 1) return;
+
+                // Handle AggTrade
+                if (data.e === 'aggTrade') {
+                    const trade: AggrTrade = {
+                        exchange: 'Binance',
+                        timestamp: data.T,
+                        price: parseFloat(data.p),
+                        amount: parseFloat(data.q),
+                        side: data.m ? 'sell' : 'buy', // m=true means maker is buy, so taker is sell
+                        isLiquidation: false,
+                        usdValue: parseFloat(data.p) * parseFloat(data.q)
+                    };
+                    this.processTrade(trade);
+                }
+                // Handle Liquidation (Futures only)
+                else if (data.e === 'forceOrder') {
+                    const o = data.o;
+                    const liq: AggrLiquidation = {
+                        exchange: 'Binance',
+                        timestamp: data.E,
+                        price: parseFloat(o.p),
+                        amount: parseFloat(o.q),
+                        side: o.S === 'SELL' ? 'long' : 'short',
+                        usdValue: parseFloat(o.p) * parseFloat(o.q)
+                    };
+                    this.processLiquidation(liq);
+                }
+            } catch (err) {
+                this.log(`Binance Parse Error: ${err}`);
+            }
+        };
+
+        ws.onclose = () => {
+            this.log(`Binance ${isFallback ? 'Spot' : 'Futures'} Closed`);
+            // If Futures fails, try Fallback (Spot) next time
+            const nextIsFallback = !isFallback ? true : true; 
+            this.reconnectWithBackoff('binance-trades', () => connectTrades(nextIsFallback));
+        };
+
+        ws.onerror = (e) => this.log(`Binance ${isFallback ? 'Spot' : 'Futures'} Error`);
+        this.wsConnections.set('binance-trades', ws);
+    };
+
+    connectTrades(false); // Start with Futures
+  }
+
+  private connectOKX() {
+      const connect = () => {
+          this.log('Connecting to OKX...');
+          const ws = new WebSocket('wss://ws.okx.com:8443/ws/v5/public');
+          ws.onopen = () => {
+              this.log('OKX Connected');
+              ws.send(JSON.stringify({ op: 'subscribe', args: [{ channel: 'trades', instId: 'BTC-USDT-SWAP' }] }));
+          };
+          ws.onmessage = (e) => {
+              try {
+                  const data = JSON.parse(e.data);
+                  if (data.data) {
+                      data.data.forEach((d: any) => {
+                          const trade: AggrTrade = {
+                              exchange: 'OKX',
+                              timestamp: parseInt(d.ts),
+                              price: parseFloat(d.px),
+                              amount: parseFloat(d.sz),
+                              side: d.side === 'sell' ? 'sell' : 'buy',
+                              isLiquidation: false,
+                              usdValue: parseFloat(d.px) * parseFloat(d.sz) // Note: OKX size might need conversion depending on contract
+                          };
+                          this.processTrade(trade);
+                      });
+                  }
+              } catch (err) {}
+          };
+          ws.onclose = () => {
+              this.log('OKX Closed');
+              this.reconnectWithBackoff('okx', connect);
+          };
+          this.wsConnections.set('okx', ws);
+      };
+      connect();
+  }
+
+  private connectBybit() {
+      const connect = () => {
+          this.log('Connecting to Bybit...');
+          const ws = new WebSocket('wss://stream.bybit.com/v5/public/linear');
+          ws.onopen = () => {
+              this.log('Bybit Connected');
+              ws.send(JSON.stringify({ op: 'subscribe', args: ['publicTrade.BTCUSDT', 'liquidation.BTCUSDT'] }));
+          };
+          ws.onmessage = (e) => {
+              try {
+                  const data = JSON.parse(e.data);
+                  if (data.topic === 'publicTrade.BTCUSDT' && data.data) {
+                      data.data.forEach((d: any) => {
+                          const trade: AggrTrade = {
+                              exchange: 'Bybit',
+                              timestamp: parseInt(d.T),
+                              price: parseFloat(d.p),
+                              amount: parseFloat(d.v),
+                              side: d.S === 'Sell' ? 'sell' : 'buy',
+                              isLiquidation: false,
+                              usdValue: parseFloat(d.p) * parseFloat(d.v)
+                          };
+                          this.processTrade(trade);
+                      });
+                  }
+                  if (data.topic === 'liquidation.BTCUSDT' && data.data) {
+                      const d = data.data;
+                      const liq: AggrLiquidation = {
+                          exchange: 'Bybit',
+                          timestamp: parseInt(d.updatedTime),
+                          price: parseFloat(d.price),
+                          amount: parseFloat(d.size),
+                          side: d.side === 'Sell' ? 'long' : 'short',
+                          usdValue: parseFloat(d.price) * parseFloat(d.size)
+                          // usdValue: parseFloat(d.price) * parseFloat(d.size)
+                      };
+                      this.processLiquidation(liq);
+                  }
+              } catch (err) {}
+          };
+          ws.onclose = () => {
+              this.log('Bybit Closed');
+              this.reconnectWithBackoff('bybit', connect);
+          };
+          this.wsConnections.set('bybit', ws);
+      };
+      connect();
+  }
+
+  private reconnectWithBackoff(key: string, connectFn: () => void) {
+      const attempts = (this.reconnectAttempts.get(key) || 0) + 1;
+      this.reconnectAttempts.set(key, attempts);
+      if (attempts > this.maxReconnectAttempts) return;
+      const delay = Math.min(1000 * Math.pow(2, attempts - 1), 30000);
+      const timeout = setTimeout(connectFn, delay);
+      this.reconnectTimeouts.set(key, timeout);
+  }
 
   private processTrade(trade: AggrTrade) {
       this.trades.push(trade);
