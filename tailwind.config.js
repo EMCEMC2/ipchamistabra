@@ -11,7 +11,7 @@ export default {
     theme: {
         extend: {
             fontFamily: {
-                mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', "Liberation Mono", "Courier New", 'monospace'],
+                mono: ['"Inter"', 'sans-serif'], // Enforcing Inter as requested
                 sans: ['"Inter"', 'sans-serif'],
                 display: ['"Inter"', 'sans-serif'],
             },

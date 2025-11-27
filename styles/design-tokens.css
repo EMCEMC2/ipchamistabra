@@ -95,7 +95,7 @@
 
   /* Font Families */
   --font-sans: 'Inter', sans-serif;
-  --font-mono: 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', monospace;
+  --font-mono: 'Inter', sans-serif; /* Enforcing Inter everywhere as requested */
   --font-display: 'Inter', sans-serif;
 
   /* Font Sizes */
