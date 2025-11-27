@@ -33,6 +33,7 @@ const parsePrice = (priceStr: string): number | null => {
 
 export const ChartPanel: React.FC = () => {
   const { chartData: data, timeframe, setTimeframe: onTimeframeChange, signals } = useStore();
+  const safeData = data || [];
 
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -162,12 +163,12 @@ export const ChartPanel: React.FC = () => {
 
   // --- TACTICAL ENGINE & DATA UPDATE ---
   useEffect(() => {
-    if (!data || data.length === 0 || !candleSeriesRef.current) {
+    if (!safeData || safeData.length === 0 || !candleSeriesRef.current) {
       return;
     }
 
     // 1. Basic Candle Data
-    candleSeriesRef.current.setData(data.map(d => ({
+    candleSeriesRef.current.setData(safeData.map(d => ({
       time: d.time as Time, open: d.open, high: d.high, low: d.low, close: d.close
     })));
 
@@ -183,7 +184,7 @@ export const ChartPanel: React.FC = () => {
     }
 
     // 2. Run Tactical Engine
-    const closes = data.map(d => d.close);
+    const closes = safeData.map(d => d.close);
 
     // 2a. Calculate Base EMAs
     const emaFast_Low = calculateEMA(closes, 27);
@@ -198,7 +199,7 @@ export const ChartPanel: React.FC = () => {
     const rsiArr = calculateRSI(closes, 14); // Add RSI for confluence
 
     // 2b. Calculate Regime (Simplified ATR/StdDev approach)
-    const tr = calculateTR(data);
+    const tr = calculateTR(safeData);
     const atr = calculateRMA(tr, 14);
     const atrSMA = calculateSMA(atr, 100);
     const atrStd = calculateStdev(atr, 100);
@@ -211,7 +212,7 @@ export const ChartPanel: React.FC = () => {
 
     // 2d. Support/Resistance Clustering (Last 100 bars)
     const lookback = 100;
-    const recentData = data.slice(-lookback);
+    const recentData = safeData.slice(-lookback);
     const clusterPrices = [...recentData.map(d => d.high), ...recentData.map(d => d.low), ...recentData.map(d => d.close)].sort((a, b) => a - b);
 
     // Simple 1D Density Clustering
@@ -241,7 +242,7 @@ export const ChartPanel: React.FC = () => {
     // 2e. Iterate for Indicators & Signals
     let lastSignalTime = -999;
 
-    for (let i = 0; i < data.length; i++) {
+    for (let i = 0; i < safeData.length; i++) {
       // Regime Logic
       const normATR = atrStd[i] && atrStd[i] > 0 ? (atr[i] - atrSMA[i]) / atrStd[i] : 0;
       const regime = normATR < -0.5 ? 0 : normATR > 1.0 ? 2 : 1; // 0: Low, 1: Norm, 2: High
@@ -268,9 +269,9 @@ export const ChartPanel: React.FC = () => {
       const valFast = regime === 0 ? emaFast_Low[i] : regime === 2 ? emaFast_High[i] : emaFast_Norm[i];
       const valSlow = regime === 0 ? emaSlow_Low[i] : regime === 2 ? emaSlow_High[i] : emaSlow_Norm[i];
 
-      adaptiveFastData.push({ time: data[i].time as Time, value: valFast });
-      adaptiveSlowData.push({ time: data[i].time as Time, value: valSlow });
-      ema200Data.push({ time: data[i].time as Time, value: ema200Arr[i] });
+      adaptiveFastData.push({ time: safeData[i].time as Time, value: valFast });
+      adaptiveSlowData.push({ time: safeData[i].time as Time, value: valSlow });
+      ema200Data.push({ time: safeData[i].time as Time, value: ema200Arr[i] });
 
       // Signal Logic (Refined Confluence)
       if (i > 200) {
@@ -304,7 +305,7 @@ export const ChartPanel: React.FC = () => {
         const barsSinceLast = i - lastSignalTime;
         if (bullScore >= minScore && bearScore < 2 && barsSinceLast > cooldown) {
           markers.push({
-            time: data[i].time as Time,
+            time: safeData[i].time as Time,
             position: 'belowBar',
             color: '#10b981',
             shape: 'arrowUp',
@@ -313,7 +314,7 @@ export const ChartPanel: React.FC = () => {
           lastSignalTime = i;
         } else if (bearScore >= minScore && bullScore < 2 && barsSinceLast > cooldown) {
           markers.push({
-            time: data[i].time as Time,
+            time: safeData[i].time as Time,
             position: 'aboveBar',
             color: '#ef4444',
             shape: 'arrowDown',
@@ -348,7 +349,7 @@ export const ChartPanel: React.FC = () => {
       clusterLinesRef.current.push(l);
     }
 
-  }, [data, showTactical]); // Re-run when data or toggle changes
+  }, [safeData, showTactical]); // Re-run when data or toggle changes
 
   // --- AI OVERLAY (EXISTING) ---
   useEffect(() => {
@@ -379,7 +380,7 @@ export const ChartPanel: React.FC = () => {
         }));
       }
     });
-  }, [signals, showSignals, data]);
+  }, [signals, showSignals, safeData]);
 
   // Zoom Controls
   const handleZoomIn = () => {
@@ -387,9 +388,11 @@ export const ChartPanel: React.FC = () => {
     const timeScale = chartRef.current.timeScale();
     const visibleRange = timeScale.getVisibleRange();
     if (visibleRange) {
-      const diff = visibleRange.to - visibleRange.from;
+      const from = visibleRange.from as number;
+      const to = visibleRange.to as number;
+      const diff = to - from;
       const newDiff = diff * 0.75; // Zoom in 25%
-      const center = (visibleRange.from + visibleRange.to) / 2;
+      const center = (from + to) / 2;
       timeScale.setVisibleRange({
         from: (center - newDiff / 2) as Time,
         to: (center + newDiff / 2) as Time,
@@ -402,9 +405,11 @@ export const ChartPanel: React.FC = () => {
     const timeScale = chartRef.current.timeScale();
     const visibleRange = timeScale.getVisibleRange();
     if (visibleRange) {
-      const diff = visibleRange.to - visibleRange.from;
+      const from = visibleRange.from as number;
+      const to = visibleRange.to as number;
+      const diff = to - from;
       const newDiff = diff * 1.25; // Zoom out 25%
-      const center = (visibleRange.from + visibleRange.to) / 2;
+      const center = (from + to) / 2;
       timeScale.setVisibleRange({
         from: (center - newDiff / 2) as Time,
         to: (center + newDiff / 2) as Time,

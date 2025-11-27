@@ -116,16 +116,17 @@ const VolatilityChart: React.FC<{ data: number[] }> = ({ data }) => {
 
 export const MLCortex: React.FC = () => {
     const { chartData, vix } = useStore();
+    const safeChartData = chartData || [];
     const [volHistory, setVolHistory] = useState<number[]>([]);
     const [regimeHistory, setRegimeHistory] = useState<{ vol: number; trend: number; regime: string; color: string }[]>([]);
     const [currentRegime, setCurrentRegime] = useState({ regime: 'LOADING...', color: '#6b7280' });
     const [currentStats, setCurrentStats] = useState({ vol: 0, trend: 0 });
 
     useEffect(() => {
-        if (chartData.length < 50) return;
+        if (safeChartData.length < 50) return;
 
         // Use shared ML Service for analysis
-        const analysis = analyzeMarketRegime(chartData, vix);
+        const analysis = analyzeMarketRegime(safeChartData, vix);
 
         setCurrentRegime({ regime: analysis.regime, color: analysis.regimeColor });
         setCurrentStats({ vol: analysis.volatility, trend: analysis.predictedTrend });
@@ -135,8 +136,8 @@ export const MLCortex: React.FC = () => {
         const history: { vol: number; trend: number; regime: string; color: string }[] = [];
         const volHist: number[] = [];
 
-        for (let i = 50; i < chartData.length; i++) {
-            const slice = chartData.slice(0, i + 1);
+        for (let i = 50; i < safeChartData.length; i++) {
+            const slice = safeChartData.slice(0, i + 1);
             // We run a "light" analysis for history to avoid re-training KMeans 100 times
             // Just calculate metrics and use the *current* model's classification logic (simplified)
             const v = calculateVolatility(slice, 20);
@@ -184,7 +185,7 @@ export const MLCortex: React.FC = () => {
                         </h2>
                         <div className="flex gap-4 text-xs font-mono text-terminal-muted mt-1">
                             <span className="flex items-center gap-1"><Activity size={12} /> REAL-TIME VOLATILITY TRACKING</span>
-                            <span className="flex items-center gap-1">Based on {chartData.length} candles</span>
+                            <span className="flex items-center gap-1">Based on {safeChartData.length} candles</span>
                         </div>
                     </div>
                 </div>
@@ -227,7 +228,7 @@ export const MLCortex: React.FC = () => {
                     </div>
                     <div className="p-3 bg-terminal-bg border border-terminal-border rounded">
                         <div className="text-xs font-mono text-terminal-muted">DATA POINTS</div>
-                        <div className="text-2xl font-mono text-green-400 mt-1">{chartData.length}</div>
+                        <div className="text-2xl font-mono text-green-400 mt-1">{safeChartData.length}</div>
                         <div className="text-[10px] text-terminal-muted mt-1">Candles Loaded</div>
                     </div>
                 </div>

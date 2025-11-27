@@ -116,7 +116,7 @@ export function generateTacticalSignal(
   config: TacticalSignalConfig = DEFAULT_CONFIG,
   orderFlowStats?: AggrStats | null
 ): TacticalSignalResult {
-  if (chartData.length < 200) {
+  if (!chartData || chartData.length < 200) {
     return {
       signal: null,
       bullScore: 0,

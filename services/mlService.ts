@@ -41,7 +41,7 @@ export const analyzeMarketRegime = (
     chartData: ChartDataPoint[],
     macroVix?: number
 ): MarketRegimeAnalysis => {
-    if (chartData.length < 50) {
+    if (!chartData || chartData.length < 50) {
         return {
             regime: 'INSUFFICIENT DATA',
             regimeColor: '#6b7280',
