@@ -162,13 +162,8 @@ export const ChartPanel: React.FC = () => {
   }, []); // Run once on mount
 
   // --- TACTICAL ENGINE & DATA UPDATE ---
-  useEffect(() => {
-    if (!safeData || safeData.length === 0 || !candleSeriesRef.current) {
-      return;
-    }
-
-    // 2. Run Tactical Engine (Memoized)
-    const { adaptiveFastData, adaptiveSlowData, ema200Data, markers, clusterLines } = useMemo(() => {
+  // 2. Run Tactical Engine (Memoized)
+  const { adaptiveFastData, adaptiveSlowData, ema200Data, markers, clusterLines } = useMemo(() => {
       if (!showTactical || safeData.length === 0) {
         return { adaptiveFastData: [], adaptiveSlowData: [], ema200Data: [], markers: [], clusterLines: [] };
       }
