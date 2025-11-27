@@ -134,7 +134,11 @@ class BTCNewsAgent {
         - Include TIMESTAMP-accurate news (not old articles)
         - Analyze BTC sentiment for each: BULLISH, BEARISH, or NEUTRAL
 
-        Return JSON array:
+        OUTPUT FORMAT:
+        You must return ONLY a raw JSON array. 
+        Do NOT use markdown code blocks (no \`\`\`json).
+        Do NOT include any introduction or explanation text.
+        
         [
           {
             "id": "unique_timestamp_id",
@@ -233,55 +237,88 @@ class BTCNewsAgent {
    */
   private cleanAndParseJSON<T>(text: string): T | null {
     try {
-      console.log('[BTC News Agent] Attempting to parse JSON...');
-
-      // Remove markdown code blocks
-      let clean = text.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-
-      // Remove Google Search citations like [1], [2], etc.
-      clean = clean.replace(/\[\d+\]/g, '');
-
-      // Remove any leading/trailing whitespace
-      clean = clean.trim();
-
-      // Find the start of JSON (either [ or {)
-      const firstOpenBrace = clean.indexOf('{');
-      const firstOpenBracket = clean.indexOf('[');
-
-      let startIndex = -1;
-      let isArray = false;
-
-      if (firstOpenBracket !== -1 && (firstOpenBrace === -1 || firstOpenBracket < firstOpenBrace)) {
-        startIndex = firstOpenBracket;
-        isArray = true;
-      } else if (firstOpenBrace !== -1) {
-        startIndex = firstOpenBrace;
-        isArray = false;
+      console.log(`[BTC News Agent ${Date.now()}] 🔍 Parsing response...`);
+      
+      // 1. Log raw response for debugging (with unique timestamp to bypass cache visual fatigue)
+      if (text.length > 500) {
+        console.log(`[BTC News Agent] Raw Start: ${text.substring(0, 500)}...`);
+        console.log(`[BTC News Agent] Raw End: ...${text.substring(text.length - 200)}`);
+      } else {
+        console.log('[BTC News Agent] Raw Response:', text);
       }
 
-      if (startIndex === -1) {
-        console.error('[BTC News Agent] No JSON found in response');
+      // 2. Robust JSON Array Extraction
+      // Look for the first '[' that is followed eventually by a '{' (indicating array of objects)
+      // or just the first '[' if we want to be generic. 
+      // Given we expect IntelItem[], we look for `[` followed by `{`
+      
+      let jsonString = '';
+      
+      // Regex to find a JSON array of objects: [ ... { ... } ... ]
+      // We use a simple approach: Find first `[` and last `]`
+      const firstBracket = text.indexOf('[');
+      const lastBracket = text.lastIndexOf(']');
+      
+      if (firstBracket !== -1 && lastBracket > firstBracket) {
+        jsonString = text.substring(firstBracket, lastBracket + 1);
+      } else {
+        // Fallback: Try to find an object `{` if array failed
+        const firstBrace = text.indexOf('{');
+        const lastBrace = text.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace > firstBrace) {
+          jsonString = text.substring(firstBrace, lastBrace + 1);
+        }
+      }
+
+      if (!jsonString) {
+        console.error('[BTC News Agent] ❌ No JSON brackets found in response.');
         return null;
       }
 
-      // Extract JSON by finding matching closing bracket/brace
-      const endChar = isArray ? ']' : '}';
-      const lastIndex = clean.lastIndexOf(endChar);
-
-      if (lastIndex === -1 || lastIndex <= startIndex) {
-        console.error('[BTC News Agent] No matching closing bracket found');
-        return null;
+      // 3. Clean the extracted string
+      // Remove markdown code blocks if they were captured inside
+      jsonString = jsonString.replace(/```json/g, '').replace(/```/g, '');
+      
+      // Remove citations like [1], [2] ONLY if they are likely outside strings? 
+      // Actually, JSON.parse handles [1] inside strings fine. 
+      // The risk is if the text was `[1] [ {"id":...} ]`. 
+      // Our substring logic took from first `[` to last `]`.
+      // So we might have `1] [ {"id":...} ]`. This is invalid JSON.
+      
+      // Better strategy: Use a regex to find the specific pattern `[` followed by whitespace/newlines then `{`
+      const arrayMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
+      if (arrayMatch) {
+        jsonString = arrayMatch[0];
       }
 
-      clean = clean.substring(startIndex, lastIndex + 1);
-      console.log('[BTC News Agent] Extracted JSON:', clean.substring(0, 200), '...');
+      // Clean citations (carefully) - simplistic approach: remove [number]
+      // We'll only do this if the parse fails first, to avoid breaking valid data.
+      
+      try {
+        const parsed = JSON.parse(jsonString);
+        console.log('[BTC News Agent] ✅ Successfully parsed JSON directly');
+        return parsed;
+      } catch (directError) {
+        console.warn('[BTC News Agent] Direct parse failed, attempting cleanup...');
+        
+        // Cleanup 1: Remove citations [1]
+        let cleaned = jsonString.replace(/\[\d+\]/g, '');
+        
+        // Cleanup 2: Fix common trailing commas
+        cleaned = cleaned.replace(/,\s*]/g, ']').replace(/,\s*}/g, '}');
 
-      const parsed = JSON.parse(clean);
-      console.log('[BTC News Agent] Successfully parsed JSON');
-      return parsed;
+        try {
+          const parsedClean = JSON.parse(cleaned);
+          console.log('[BTC News Agent] ✅ Successfully parsed JSON after cleanup');
+          return parsedClean;
+        } catch (cleanError) {
+          console.error('[BTC News Agent] 💥 Final JSON parse failed');
+          console.error('[BTC News Agent] Problematic String:', cleaned.substring(0, 200) + '...');
+          return null;
+        }
+      }
     } catch (e: any) {
-      console.error('[BTC News Agent] JSON parse error:', e.message);
-      console.error('[BTC News Agent] Failed text preview:', text.substring(0, 500));
+      console.error('[BTC News Agent] Unexpected error in parser:', e.message);
       return null;
     }
   }
