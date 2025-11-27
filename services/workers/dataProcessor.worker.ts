@@ -288,6 +288,7 @@ class DataProcessor {
         const ws = new WebSocket('wss://fstream.binance.com/ws/btcusdt@aggTrade');
         ws.onopen = () => this.log('Binance Trades Connected');
         ws.onmessage = (e) => {
+            // this.log('Binance Message Received'); // Too noisy
             try {
                 const data = JSON.parse(e.data);
                 const trade: AggrTrade = {
@@ -301,7 +302,7 @@ class DataProcessor {
                 };
                 this.processTrade(trade);
             } catch (err) {
-                // console.error('[Worker] Binance Parse Error:', err);
+                this.log(`Binance Parse Error: ${err}`);
             }
         };
         ws.onclose = () => {
@@ -435,6 +436,12 @@ class DataProcessor {
 
   private processTrade(trade: AggrTrade) {
       this.trades.push(trade);
+      
+      // Throttled log to confirm data flow
+      if (this.trades.length % 100 === 0) {
+        this.log(`Processed ${this.trades.length} trades. Latest: $${trade.price}`);
+      }
+
       const cutoff = Date.now() - 60000;
       if (this.trades[0] && this.trades[0].timestamp < cutoff) {
           // Optimization: remove old trades in chunks or use a pointer
