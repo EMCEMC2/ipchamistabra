@@ -1,6 +1,6 @@
 /**
  * ORDER FLOW INTELLIGENCE SERVICE
- * Fetches enhanced market data via REST API endpoints
+ * Fetches enhanced market data directly from Binance public API
  * - Open Interest
  * - Long/Short Ratio
  * - Funding Rate
@@ -20,7 +20,8 @@ import {
   FundingData
 } from '../types/aggrTypes';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// Direct Binance API (public endpoints work from browser)
+const BINANCE_FUTURES = 'https://fapi.binance.com';
 
 // Whale threshold lowered to $100K for more activity
 const WHALE_THRESHOLD = 100000;
@@ -83,9 +84,12 @@ class OrderFlowIntelService {
 
   private async fetchTradeData(): Promise<void> {
     try {
+      const endTime = Date.now();
+      const startTime = endTime - 60000; // 1 minute of trades
+
       const [tradesRes, liqsRes] = await Promise.all([
-        fetch(`${API_BASE}/api/orderflow/agg-trades`),
-        fetch(`${API_BASE}/api/orderflow/liquidations`)
+        fetch(`${BINANCE_FUTURES}/fapi/v1/aggTrades?symbol=BTCUSDT&startTime=${startTime}&endTime=${endTime}&limit=1000`),
+        fetch(`${BINANCE_FUTURES}/fapi/v1/allForceOrders?symbol=BTCUSDT&limit=50`)
       ]);
 
       const trades = await tradesRes.json();
@@ -97,17 +101,36 @@ class OrderFlowIntelService {
       }
     } catch (error) {
       console.error('[OrderFlowIntel] Failed to fetch trade data:', error);
+      // Broadcast empty stats to unblock UI
+      this.broadcastEmptyStats();
     }
+  }
+
+  private broadcastEmptyStats(): void {
+    const emptyStats: AggrStats = {
+      totalVolume: 0,
+      buyVolume: 0,
+      sellVolume: 0,
+      largeTradeCount: 0,
+      liquidationCount: 0,
+      liquidationVolume: 0,
+      cvd: { timestamp: Date.now(), buyVolume: 0, sellVolume: 0, delta: 0, cumulativeDelta: 0 },
+      pressure: { buyPressure: 50, sellPressure: 50, netPressure: 0, dominantSide: 'neutral', strength: 'weak' },
+      exchanges: [],
+      recentLiquidations: [],
+      recentLargeTrades: []
+    };
+    this.lastStats = emptyStats;
+    this.broadcastStats(emptyStats);
   }
 
   private async fetchEnhancedData(): Promise<void> {
     try {
-      const [oiRes, lsRes, topRes, fundingRes, takerRes] = await Promise.all([
-        fetch(`${API_BASE}/api/orderflow/open-interest`),
-        fetch(`${API_BASE}/api/orderflow/long-short-ratio`),
-        fetch(`${API_BASE}/api/orderflow/top-trader-ratio`),
-        fetch(`${API_BASE}/api/orderflow/funding-rate`),
-        fetch(`${API_BASE}/api/orderflow/taker-volume`)
+      const [oiRes, lsRes, topRes, fundingRes] = await Promise.all([
+        fetch(`${BINANCE_FUTURES}/fapi/v1/openInterest?symbol=BTCUSDT`),
+        fetch(`${BINANCE_FUTURES}/futures/data/globalLongShortAccountRatio?symbol=BTCUSDT&period=5m&limit=1`),
+        fetch(`${BINANCE_FUTURES}/futures/data/topLongShortPositionRatio?symbol=BTCUSDT&period=5m&limit=1`),
+        fetch(`${BINANCE_FUTURES}/fapi/v1/fundingRate?symbol=BTCUSDT&limit=1`)
       ]);
 
       const oi = await oiRes.json();
@@ -183,7 +206,6 @@ class OrderFlowIntelService {
 
   private processTradeData(trades: any[], liquidations: any[]): AggrStats {
     const now = Date.now();
-    const oneMinAgo = now - 60000;
 
     // Process trades
     let buyVolume = 0;
