@@ -151,6 +151,7 @@ class BTCNewsAgent {
         IMPORTANT: Use real-time Google Search to find ACTUAL current news. Do NOT fabricate.
       `;
 
+      console.log('[BTC News Agent] Calling Gemini API with Google Search...');
       const response = await ai.models.generateContent({
         model: FAST_MODEL_ID,
         contents: prompt,
@@ -160,10 +161,14 @@ class BTCNewsAgent {
         }
       });
 
+      console.log('[BTC News Agent] API Response received');
       const text = response.text;
       if (!text) {
+        console.error('[BTC News Agent] ❌ No response text from API');
         throw new Error('No response from API');
       }
+
+      console.log('[BTC News Agent] Response length:', text.length, 'chars');
 
       // Parse JSON response
       const newsData = this.cleanAndParseJSON<IntelItem[]>(text);
@@ -183,12 +188,14 @@ class BTCNewsAgent {
       this.broadcastNews(validatedNews);
 
     } catch (error: any) {
-      console.error('[BTC News Agent] Error fetching news:', error.message);
+      console.error('[BTC News Agent] ❌ Error fetching news:', error.message);
+      console.error('[BTC News Agent] Full error:', error);
       // Use fallback but update timestamps to appear fresh
       const freshFallback = FALLBACK_NEWS.map((item, index) => ({
         ...item,
         timestamp: Date.now() - (index * 60000)
       }));
+      console.log('[BTC News Agent] Using fresh fallback data');
       this.broadcastNews(freshFallback);
     }
   }
