@@ -83,6 +83,9 @@ export class WorkerManager {
           this.onCascade(payload.cascade);
         }
         break;
+      case 'DEBUG_LOG':
+        console.log(`[Worker Debug] ${payload.message}`);
+        break;
     }
   }
 

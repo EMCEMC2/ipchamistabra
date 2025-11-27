@@ -28,7 +28,7 @@ export function analyzeCVD(stats: AggrStats): {
   reasoning: string;
 } {
   const { cvd } = stats;
-  const deltaPercent = (cvd.delta / stats.totalVolume) * 100;
+  const deltaPercent = stats.totalVolume > 0 ? (cvd.delta / stats.totalVolume) * 100 : 0;
 
   let trend: 'bullish' | 'bearish' | 'neutral' = 'neutral';
   let strength: 'weak' | 'moderate' | 'strong' = 'weak';

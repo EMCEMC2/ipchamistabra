@@ -99,7 +99,7 @@ export const AggrOrderFlow: React.FC = () => {
         {/* Top Row: CVD & Signal */}
         <div className="grid grid-cols-2 gap-2">
             {/* CVD Compact */}
-            <div className="card-premium p-2">
+            <div className="card-premium p-2 relative group">
                 <div className="flex justify-between items-center mb-1">
                     <span className="text-[10px] text-gray-500">CVD (Net)</span>
                     <span className={`text-[10px] font-bold ${cvdAnalysis.trend === 'bullish' ? 'text-green-400' : 'text-red-400'}`}>
@@ -112,6 +112,18 @@ export const AggrOrderFlow: React.FC = () => {
                 <div className="text-[9px] text-gray-500 mt-1 line-clamp-2 leading-tight">
                     {cvdAnalysis.reasoning}
                 </div>
+                
+                {/* Retry Button (Only visible if using fallback/empty data) */}
+                {stats.totalVolume === 0 && (
+                  <button 
+                    onClick={() => window.location.reload()}
+                    className="absolute inset-0 bg-black/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <span className="text-[10px] font-bold text-terminal-accent border border-terminal-accent px-2 py-1 rounded hover:bg-terminal-accent/10">
+                      RETRY CONNECTION
+                    </span>
+                  </button>
+                )}
             </div>
 
             {/* Signal Compact */}

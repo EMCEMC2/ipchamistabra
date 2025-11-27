@@ -7,7 +7,8 @@ export type WorkerMessageType =
   | 'STATS_UPDATE'
   | 'LIQUIDATION_EVENT'
   | 'LARGE_TRADE_EVENT'
-  | 'CASCADE_EVENT';
+  | 'CASCADE_EVENT'
+  | 'DEBUG_LOG';
 
 export interface WorkerMessage {
   type: WorkerMessageType;
