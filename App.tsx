@@ -11,12 +11,7 @@ import { PositionsPanel } from './components/PositionsPanel';
 import { TradeJournal } from './components/TradeJournal';
 import { BacktestPanel } from './components/BacktestPanel';
 import { AggrOrderFlow } from './components/AggrOrderFlow';
-import {
-  getSentimentAnalysis,
-  getMacroMarketMetrics,
-  getDerivativesMetrics,
-  MacroMetrics,
-} from './services/gemini';
+
 import { startMarketDataSync, fetchChartData, fetchSignals } from './services/marketData';
 import { calculateRSI, calculateATR, calculateADX, calculateEMA, calculateMACD } from './utils/technicalAnalysis';
 import { BinancePriceFeed } from './services/websocket';

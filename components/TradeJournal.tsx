@@ -200,7 +200,7 @@ export const TradeJournal: React.FC = () => {
 
               <div className="flex items-center justify-between mt-2">
                 <div className="flex items-center gap-2">
-                  {entry.tags.map(tag => (
+                  {(entry.tags || []).map(tag => (
                     <span key={tag} className="text-[10px] px-1.5 py-0.5 bg-terminal-border rounded text-terminal-muted flex items-center gap-1">
                       <Tag size={8} /> {tag}
                     </span>
