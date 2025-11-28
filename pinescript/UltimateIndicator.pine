@@ -1,0 +1,666 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// @version=6
+indicator("Ultimate Tactical System", shorttitle="UTS PRO", overlay=true, max_labels_count=500, max_lines_count=500, max_boxes_count=100)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// COLOR PALETTE - MINIMALIST PROFESSIONAL THEME
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Primary colors
+var color C_BULL = color.rgb(0, 212, 170)        // Teal green
+var color C_BEAR = color.rgb(255, 82, 82)        // Coral red
+var color C_NEUTRAL = color.rgb(158, 158, 158)  // Gray
+var color C_GOLD = color.rgb(255, 193, 7)       // Gold accent
+var color C_BG = color.rgb(18, 18, 18)          // Dark background
+var color C_TEXT = color.rgb(224, 224, 224)     // Light text
+var color C_MUTED = color.rgb(97, 97, 97)       // Muted text
+
+// Transparency levels
+var int T_SOLID = 0
+var int T_LIGHT = 70
+var int T_FAINT = 90
+var int T_BG = 95
+
+// ══════════════════════════════════════════════════════════════════════════════
+// INPUTS - ORGANIZED BY CATEGORY
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Signal Settings
+string G_SIG = "Signal Settings"
+signalMode = input.string("Conservative", "Signal Mode", options=["Aggressive", "Normal", "Conservative"], group=G_SIG)
+requireConfirmation = input.bool(true, "Require Candle Close", group=G_SIG, tooltip="Only signal after candle closes")
+minConfluence = input.int(5, "Min Confluence Score", minval=3, maxval=10, group=G_SIG)
+
+// Trend Settings
+string G_TREND = "Trend Analysis"
+emaFastLen = input.int(21, "Fast EMA", minval=5, group=G_TREND)
+emaSlowLen = input.int(55, "Slow EMA", minval=10, group=G_TREND)
+ema200Len = input.int(200, "Trend EMA", minval=50, group=G_TREND)
+showEMAs = input.bool(true, "Show EMAs", group=G_TREND)
+
+// RSI Settings
+string G_RSI = "RSI Settings"
+rsiLen = input.int(14, "RSI Length", minval=5, group=G_RSI)
+rsiOB = input.int(70, "Overbought", minval=60, maxval=90, group=G_RSI)
+rsiOS = input.int(30, "Oversold", minval=10, maxval=40, group=G_RSI)
+showRSIDivergence = input.bool(true, "Show RSI Divergence", group=G_RSI)
+
+// MACD Settings
+string G_MACD = "MACD Settings"
+macdFast = input.int(12, "MACD Fast", minval=5, group=G_MACD)
+macdSlow = input.int(26, "MACD Slow", minval=10, group=G_MACD)
+macdSignal = input.int(9, "MACD Signal", minval=3, group=G_MACD)
+
+// Volume Settings
+string G_VOL = "Volume Analysis"
+volLen = input.int(20, "Volume MA Length", minval=5, group=G_VOL)
+volThreshold = input.float(1.5, "Volume Spike Threshold", minval=1.0, step=0.1, group=G_VOL)
+
+// Support/Resistance
+string G_SR = "Support/Resistance"
+srLookback = input.int(100, "S/R Lookback", minval=50, group=G_SR)
+srClusters = input.int(5, "S/R Cluster Count", minval=3, maxval=8, group=G_SR)
+showSR = input.bool(true, "Show S/R Levels", group=G_SR)
+srProximity = input.float(0.5, "S/R Proximity %", minval=0.1, maxval=2.0, step=0.1, group=G_SR)
+
+// Fibonacci Settings
+string G_FIB = "Fibonacci Levels"
+showFib = input.bool(true, "Show Fibonacci", group=G_FIB)
+fibLookback = input.int(50, "Fib Lookback", minval=20, group=G_FIB)
+
+// Candlestick Patterns
+string G_CANDLE = "Candlestick Patterns"
+showPatterns = input.bool(true, "Show Patterns", group=G_CANDLE)
+patternStrength = input.float(0.5, "Pattern Min Strength", minval=0.3, maxval=1.0, step=0.1, group=G_CANDLE)
+
+// Risk Management
+string G_RISK = "Risk Management"
+atrLen = input.int(14, "ATR Length", minval=5, group=G_RISK)
+slMultiplier = input.float(1.5, "Stop Loss ATR Mult", minval=0.5, maxval=3.0, step=0.1, group=G_RISK)
+tp1Multiplier = input.float(1.5, "TP1 ATR Mult", minval=0.5, maxval=3.0, step=0.1, group=G_RISK)
+tp2Multiplier = input.float(2.5, "TP2 ATR Mult", minval=1.0, maxval=5.0, step=0.1, group=G_RISK)
+tp3Multiplier = input.float(4.0, "TP3 ATR Mult", minval=2.0, maxval=8.0, step=0.1, group=G_RISK)
+
+// Display Settings
+string G_DISPLAY = "Display"
+showDashboard = input.bool(true, "Show Dashboard", group=G_DISPLAY)
+showSignalLabels = input.bool(true, "Show Signal Labels", group=G_DISPLAY)
+showTPSL = input.bool(true, "Show TP/SL Lines", group=G_DISPLAY)
+compactMode = input.bool(false, "Compact Dashboard", group=G_DISPLAY)
+
+// Alerts
+string G_ALERT = "Alerts"
+enableAlerts = input.bool(true, "Enable Alerts", group=G_ALERT)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CORE CALCULATIONS
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Price data
+float o = open
+float h = high
+float l = low
+float c = close
+float v = volume
+
+// Candle properties
+float bodySize = math.abs(c - o)
+float upperWick = h - math.max(c, o)
+float lowerWick = math.min(c, o) - l
+float totalRange = h - l
+bool isBullish = c > o
+bool isBearish = c < o
+
+// ══════════════════════════════════════════════════════════════════════════════
+// VOLATILITY REGIME DETECTION
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ATR calculation
+atr = ta.atr(atrLen)
+atrMA = ta.sma(atr, 100)
+atrStd = ta.stdev(atr, 100)
+normATR = atrStd > 0 ? (atr - atrMA) / atrStd : 0
+
+// ADX for trend strength
+[diPlus, diMinus, adxValue] = ta.dmi(14, 14)
+
+// Regime classification (4 regimes)
+var int regime = 1
+regimeRaw = normATR < -0.5 ? 0 : normATR > 1.0 ? 2 : adxValue > 25 ? 3 : 1
+regime := int(math.round(ta.sma(regimeRaw, 5)))
+
+regimeName = regime == 0 ? "LOW VOL" : regime == 1 ? "NORMAL" : regime == 2 ? "HIGH VOL" : "TRENDING"
+regimeColor = regime == 0 ? color.blue : regime == 1 ? C_NEUTRAL : regime == 2 ? color.orange : C_BULL
+
+// Adaptive parameters based on regime
+adaptiveMinScore = regime == 0 ? minConfluence + 1 : regime == 2 ? minConfluence - 1 : minConfluence
+adaptiveCooldown = regime == 0 ? 8 : regime == 2 ? 3 : regime == 3 ? 4 : 5
+
+// Adaptive RSI thresholds
+adaptiveRsiOB = regime == 2 ? rsiOB + 5 : regime == 3 ? rsiOB + 10 : regime == 0 ? rsiOB - 5 : rsiOB
+adaptiveRsiOS = regime == 2 ? rsiOS - 5 : regime == 3 ? rsiOS - 10 : regime == 0 ? rsiOS + 5 : rsiOS
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TREND INDICATORS
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Adaptive EMA periods based on regime
+emaFastAdj = regime == 0 ? int(emaFastLen * 1.3) : regime == 2 ? int(emaFastLen * 0.7) : emaFastLen
+emaSlowAdj = regime == 0 ? int(emaSlowLen * 1.3) : regime == 2 ? int(emaSlowLen * 0.7) : emaSlowLen
+
+// Calculate all EMA variants (Pine requires constant periods)
+emaFast_low = ta.ema(c, 27)
+emaFast_norm = ta.ema(c, 21)
+emaFast_high = ta.ema(c, 15)
+emaSlow_low = ta.ema(c, 72)
+emaSlow_norm = ta.ema(c, 55)
+emaSlow_high = ta.ema(c, 39)
+ema200 = ta.ema(c, ema200Len)
+
+// Select based on regime
+emaFast = regime == 0 ? emaFast_low : regime == 2 ? emaFast_high : emaFast_norm
+emaSlow = regime == 0 ? emaSlow_low : regime == 2 ? emaSlow_high : emaSlow_norm
+
+// Trend direction
+trendUp = c > ema200 and emaFast > emaSlow
+trendDown = c < ema200 and emaFast < emaSlow
+trendNeutral = not trendUp and not trendDown
+
+// EMA crossovers
+goldenCross = ta.crossover(emaFast, emaSlow)
+deathCross = ta.crossunder(emaFast, emaSlow)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// RSI WITH DIVERGENCE
+// ══════════════════════════════════════════════════════════════════════════════
+
+rsi = ta.rsi(c, rsiLen)
+rsiOverbought = rsi > adaptiveRsiOB
+rsiOversold = rsi < adaptiveRsiOS
+
+// RSI Divergence detection
+rsiHigher = rsi > rsi[5]
+rsiLower = rsi < rsi[5]
+priceHigher = c > c[5]
+priceLower = c < c[5]
+
+bullishDivergence = priceLower and rsiHigher and rsi < 50
+bearishDivergence = priceHigher and rsiLower and rsi > 50
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MACD
+// ══════════════════════════════════════════════════════════════════════════════
+
+[macdLine, signalLine, histLine] = ta.macd(c, macdFast, macdSlow, macdSignal)
+macdBullish = ta.crossover(macdLine, signalLine)
+macdBearish = ta.crossunder(macdLine, signalLine)
+macdMomentumUp = histLine > histLine[1] and histLine[1] > histLine[2]
+macdMomentumDown = histLine < histLine[1] and histLine[1] < histLine[2]
+
+// ══════════════════════════════════════════════════════════════════════════════
+// VOLUME ANALYSIS
+// ══════════════════════════════════════════════════════════════════════════════
+
+volMA = ta.sma(v, volLen)
+volRatio = v / volMA
+volSpike = volRatio > volThreshold
+bullVolume = volSpike and isBullish
+bearVolume = volSpike and isBearish
+
+// On-Balance Volume trend
+obv = ta.obv
+obvEma = ta.ema(obv, 20)
+obvTrendUp = obv > obvEma
+obvTrendDown = obv < obvEma
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SUPPORT/RESISTANCE CLUSTERING (K-MEANS INSPIRED)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Get price range
+highestH = ta.highest(h, srLookback)
+lowestL = ta.lowest(l, srLookback)
+priceRange = highestH - lowestL
+
+// Initialize cluster centroids
+var float[] srLevels = array.new_float(srClusters, 0.0)
+var bool srInit = false
+
+if not srInit
+    for i = 0 to srClusters - 1
+        array.set(srLevels, i, lowestL + priceRange * (i + 0.5) / srClusters)
+    srInit := true
+
+// Update clusters periodically
+if bar_index % 10 == 0 and barstate.isconfirmed
+    // Collect pivot points
+    var float[] pivots = array.new_float(0)
+    array.clear(pivots)
+
+    for i = 2 to math.min(srLookback - 2, bar_index - 2)
+        // Swing highs
+        if h[i] > h[i-1] and h[i] > h[i-2] and h[i] > h[i+1] and h[i] > h[i+2]
+            array.push(pivots, h[i])
+        // Swing lows
+        if l[i] < l[i-1] and l[i] < l[i-2] and l[i] < l[i+1] and l[i] < l[i+2]
+            array.push(pivots, l[i])
+
+    // K-means iteration
+    if array.size(pivots) >= srClusters
+        var float[] clusterSums = array.new_float(srClusters, 0.0)
+        var int[] clusterCounts = array.new_int(srClusters, 0)
+
+        // Reset
+        for i = 0 to srClusters - 1
+            array.set(clusterSums, i, 0.0)
+            array.set(clusterCounts, i, 0)
+
+        // Assign pivots to nearest centroid
+        for i = 0 to array.size(pivots) - 1
+            pivot = array.get(pivots, i)
+            minDist = 999999999.0
+            nearest = 0
+
+            for j = 0 to srClusters - 1
+                dist = math.abs(pivot - array.get(srLevels, j))
+                if dist < minDist
+                    minDist := dist
+                    nearest := j
+
+            array.set(clusterSums, nearest, array.get(clusterSums, nearest) + pivot)
+            array.set(clusterCounts, nearest, array.get(clusterCounts, nearest) + 1)
+
+        // Update centroids
+        for i = 0 to srClusters - 1
+            cnt = array.get(clusterCounts, i)
+            if cnt > 0
+                array.set(srLevels, i, array.get(clusterSums, i) / cnt)
+
+// Find nearest support and resistance
+nearestSupport = 0.0
+nearestResistance = 999999999.0
+
+for i = 0 to srClusters - 1
+    level = array.get(srLevels, i)
+    if level < c and level > nearestSupport
+        nearestSupport := level
+    if level > c and level < nearestResistance
+        nearestResistance := level
+
+// Distance to S/R
+distToSupport = nearestSupport > 0 ? (c - nearestSupport) / c * 100 : 999
+distToResistance = nearestResistance < 999999999 ? (nearestResistance - c) / c * 100 : 999
+nearSupport = distToSupport < srProximity
+nearResistance = distToResistance < srProximity
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FIBONACCI RETRACEMENT
+// ══════════════════════════════════════════════════════════════════════════════
+
+fibHigh = ta.highest(h, fibLookback)
+fibLow = ta.lowest(l, fibLookback)
+fibRange = fibHigh - fibLow
+
+// Determine trend for fib direction
+fibTrendUp = c > ta.sma(c, fibLookback)
+
+// Fib levels (0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0)
+fib0 = fibTrendUp ? fibLow : fibHigh
+fib236 = fibTrendUp ? fibLow + fibRange * 0.236 : fibHigh - fibRange * 0.236
+fib382 = fibTrendUp ? fibLow + fibRange * 0.382 : fibHigh - fibRange * 0.382
+fib500 = fibTrendUp ? fibLow + fibRange * 0.5 : fibHigh - fibRange * 0.5
+fib618 = fibTrendUp ? fibLow + fibRange * 0.618 : fibHigh - fibRange * 0.618
+fib786 = fibTrendUp ? fibLow + fibRange * 0.786 : fibHigh - fibRange * 0.786
+fib100 = fibTrendUp ? fibHigh : fibLow
+
+// Near fib level detection
+nearFib382 = math.abs(c - fib382) / c * 100 < 0.3
+nearFib500 = math.abs(c - fib500) / c * 100 < 0.3
+nearFib618 = math.abs(c - fib618) / c * 100 < 0.3
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CANDLESTICK PATTERNS
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Helper calculations
+avgBody = ta.sma(bodySize, 14)
+avgRange = ta.sma(totalRange, 14)
+
+// Pattern detection
+// Shooting Star (bearish reversal at top)
+shootingStar = upperWick > bodySize * 2 and lowerWick < bodySize * 0.3 and bodySize > avgBody * patternStrength and h == ta.highest(h, 5)
+
+// Hammer (bullish reversal at bottom)
+hammer = lowerWick > bodySize * 2 and upperWick < bodySize * 0.3 and bodySize > avgBody * patternStrength and l == ta.lowest(l, 5)
+
+// Engulfing patterns
+bullishEngulfing = isBullish and c[1] < o[1] and bodySize > math.abs(c[1] - o[1]) and o <= c[1] and c >= o[1]
+bearishEngulfing = isBearish and c[1] > o[1] and bodySize > math.abs(c[1] - o[1]) and o >= c[1] and c <= o[1]
+
+// Doji (indecision)
+doji = bodySize < avgBody * 0.1 and totalRange > avgRange * 0.5
+
+// Morning/Evening Star (3-candle patterns)
+morningStar = c[2] < o[2] and bodySize[1] < avgBody * 0.3 and isBullish and c > (o[2] + c[2]) / 2
+eveningStar = c[2] > o[2] and bodySize[1] < avgBody * 0.3 and isBearish and c < (o[2] + c[2]) / 2
+
+// Three White Soldiers / Three Black Crows
+threeWhiteSoldiers = isBullish and c[1] > o[1] and c[2] > o[2] and c > c[1] and c[1] > c[2] and o > o[1] and o[1] > o[2]
+threeBlackCrows = isBearish and c[1] < o[1] and c[2] < o[2] and c < c[1] and c[1] < c[2] and o < o[1] and o[1] < o[2]
+
+// Pin Bar
+pinBarBull = lowerWick > totalRange * 0.6 and upperWick < totalRange * 0.1
+pinBarBear = upperWick > totalRange * 0.6 and lowerWick < totalRange * 0.1
+
+// Aggregate pattern signals
+bullPattern = hammer or bullishEngulfing or morningStar or threeWhiteSoldiers or pinBarBull
+bearPattern = shootingStar or bearishEngulfing or eveningStar or threeBlackCrows or pinBarBear
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CONFLUENCE SCORING SYSTEM
+// ══════════════════════════════════════════════════════════════════════════════
+
+var float bullScore = 0.0
+var float bearScore = 0.0
+
+// Reset scores
+bullScore := 0.0
+bearScore := 0.0
+
+// Trend weight (regime-adjusted)
+trendWeight = regime == 3 ? 1.5 : 1.0
+
+// 1. TREND ANALYSIS (max 3 points)
+// Price vs EMA200
+bullScore := bullScore + (c > ema200 ? 1.0 * trendWeight : 0)
+bearScore := bearScore + (c < ema200 ? 1.0 * trendWeight : 0)
+
+// EMA alignment
+bullScore := bullScore + (emaFast > emaSlow ? 0.75 * trendWeight : 0)
+bearScore := bearScore + (emaFast < emaSlow ? 0.75 * trendWeight : 0)
+
+// Price above/below fast EMA
+bullScore := bullScore + (c > emaFast ? 0.5 : 0)
+bearScore := bearScore + (c < emaFast ? 0.5 : 0)
+
+// EMA Crossover (strong signal)
+bullScore := bullScore + (goldenCross ? 2.0 : 0)
+bearScore := bearScore + (deathCross ? 2.0 : 0)
+
+// 2. RSI (max 2 points)
+// Momentum
+bullScore := bullScore + (rsi > 50 and rsi < adaptiveRsiOB ? 0.5 : 0)
+bearScore := bearScore + (rsi < 50 and rsi > adaptiveRsiOS ? 0.5 : 0)
+
+// Oversold bounce / Overbought rejection
+bullScore := bullScore + (rsi[1] < adaptiveRsiOS and rsi > rsi[1] ? 1.0 : 0)
+bearScore := bearScore + (rsi[1] > adaptiveRsiOB and rsi < rsi[1] ? 1.0 : 0)
+
+// Divergence
+bullScore := bullScore + (bullishDivergence ? 1.5 : 0)
+bearScore := bearScore + (bearishDivergence ? 1.5 : 0)
+
+// 3. MACD (max 2 points)
+bullScore := bullScore + (macdBullish ? 1.5 : 0)
+bearScore := bearScore + (macdBearish ? 1.5 : 0)
+
+bullScore := bullScore + (macdMomentumUp and macdLine > 0 ? 0.5 : 0)
+bearScore := bearScore + (macdMomentumDown and macdLine < 0 ? 0.5 : 0)
+
+// 4. VOLUME (max 2 points)
+bullScore := bullScore + (bullVolume ? 1.5 : 0)
+bearScore := bearScore + (bearVolume ? 1.5 : 0)
+
+bullScore := bullScore + (obvTrendUp ? 0.5 : 0)
+bearScore := bearScore + (obvTrendDown ? 0.5 : 0)
+
+// 5. SUPPORT/RESISTANCE (max 1.5 points)
+bullScore := bullScore + (nearSupport ? 1.5 : 0)
+bearScore := bearScore + (nearResistance ? 1.5 : 0)
+
+// 6. FIBONACCI (max 1 point)
+bullScore := bullScore + ((nearFib382 or nearFib500 or nearFib618) and fibTrendUp ? 1.0 : 0)
+bearScore := bearScore + ((nearFib382 or nearFib500 or nearFib618) and not fibTrendUp ? 1.0 : 0)
+
+// 7. CANDLESTICK PATTERNS (max 2 points)
+bullScore := bullScore + (bullPattern ? 2.0 : 0)
+bearScore := bearScore + (bearPattern ? 2.0 : 0)
+
+// 8. ADX TREND STRENGTH BONUS (max 1 point)
+bullScore := bullScore + (adxValue > 25 and diPlus > diMinus ? 1.0 : 0)
+bearScore := bearScore + (adxValue > 25 and diMinus > diPlus ? 1.0 : 0)
+
+// Maximum possible score: ~15 points
+maxScore = 15.0
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SIGNAL GENERATION
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Signal mode adjustments
+modeMultiplier = signalMode == "Aggressive" ? 0.8 : signalMode == "Conservative" ? 1.2 : 1.0
+effectiveMinScore = adaptiveMinScore * modeMultiplier
+
+// Cooldown tracking
+var int lastSignalBar = -999
+barsSinceSignal = bar_index - lastSignalBar
+cooldownMet = barsSinceSignal > adaptiveCooldown
+
+// Signal conditions
+confirmBar = requireConfirmation ? barstate.isconfirmed : true
+bullSignalRaw = bullScore >= effectiveMinScore and bearScore < 3 and cooldownMet and confirmBar
+bearSignalRaw = bearScore >= effectiveMinScore and bullScore < 3 and cooldownMet and confirmBar
+
+// Final signals
+buySignal = bullSignalRaw and not bullSignalRaw[1]
+sellSignal = bearSignalRaw and not bearSignalRaw[1]
+
+// Update cooldown
+if buySignal or sellSignal
+    lastSignalBar := bar_index
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TRADE LEVELS CALCULATION (ENTRY, SL, TP1, TP2, TP3)
+// ══════════════════════════════════════════════════════════════════════════════
+
+var float entryPrice = na
+var float stopLoss = na
+var float tp1 = na
+var float tp2 = na
+var float tp3 = na
+var bool inLongTrade = false
+var bool inShortTrade = false
+var string tradeDirection = "NONE"
+
+// Calculate levels on new signal
+if buySignal
+    entryPrice := c
+    stopLoss := c - (atr * slMultiplier)
+    tp1 := c + (atr * tp1Multiplier)
+    tp2 := c + (atr * tp2Multiplier)
+    tp3 := c + (atr * tp3Multiplier)
+    inLongTrade := true
+    inShortTrade := false
+    tradeDirection := "LONG"
+
+if sellSignal
+    entryPrice := c
+    stopLoss := c + (atr * slMultiplier)
+    tp1 := c - (atr * tp1Multiplier)
+    tp2 := c - (atr * tp2Multiplier)
+    tp3 := c - (atr * tp3Multiplier)
+    inShortTrade := true
+    inLongTrade := false
+    tradeDirection := "SHORT"
+
+// Check if trade hit SL or TP3
+if inLongTrade
+    if l <= stopLoss
+        inLongTrade := false
+        tradeDirection := "NONE"
+    if h >= tp3
+        inLongTrade := false
+        tradeDirection := "NONE"
+
+if inShortTrade
+    if h >= stopLoss
+        inShortTrade := false
+        tradeDirection := "NONE"
+    if l <= tp3
+        inShortTrade := false
+        tradeDirection := "NONE"
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PLOTTING - MINIMALIST STYLE
+// ══════════════════════════════════════════════════════════════════════════════
+
+// EMAs (clean, subtle lines)
+plot(showEMAs ? emaFast : na, "Fast EMA", color=color.new(C_BULL, T_LIGHT), linewidth=1)
+plot(showEMAs ? emaSlow : na, "Slow EMA", color=color.new(C_BEAR, T_LIGHT), linewidth=1)
+plot(showEMAs ? ema200 : na, "EMA 200", color=color.new(C_GOLD, 50), linewidth=2)
+
+// Regime background (very subtle)
+bgcolor(color.new(regimeColor, 97))
+
+// Support/Resistance levels
+plot(showSR and nearestSupport > 0 ? nearestSupport : na, "Support", color=color.new(C_BULL, 60), style=plot.style_circles, linewidth=2)
+plot(showSR and nearestResistance < 999999999 ? nearestResistance : na, "Resistance", color=color.new(C_BEAR, 60), style=plot.style_circles, linewidth=2)
+
+// Fibonacci levels (minimal)
+plot(showFib ? fib382 : na, "Fib 0.382", color=color.new(C_GOLD, 80), style=plot.style_cross)
+plot(showFib ? fib500 : na, "Fib 0.5", color=color.new(C_GOLD, 70), style=plot.style_cross)
+plot(showFib ? fib618 : na, "Fib 0.618", color=color.new(C_GOLD, 60), style=plot.style_cross)
+
+// Signal markers
+plotshape(buySignal and showSignalLabels, "BUY", shape.triangleup, location.belowbar, C_BULL, size=size.small)
+plotshape(sellSignal and showSignalLabels, "SELL", shape.triangledown, location.abovebar, C_BEAR, size=size.small)
+
+// Pattern markers (subtle)
+plotshape(showPatterns and shootingStar, "Shooting Star", shape.xcross, location.abovebar, color.new(C_BEAR, 30), size=size.tiny)
+plotshape(showPatterns and hammer, "Hammer", shape.xcross, location.belowbar, color.new(C_BULL, 30), size=size.tiny)
+plotshape(showPatterns and bullishEngulfing, "Bull Engulf", shape.diamond, location.belowbar, color.new(C_BULL, 50), size=size.tiny)
+plotshape(showPatterns and bearishEngulfing, "Bear Engulf", shape.diamond, location.abovebar, color.new(C_BEAR, 50), size=size.tiny)
+plotshape(showPatterns and doji, "Doji", shape.circle, location.abovebar, color.new(C_GOLD, 50), size=size.tiny)
+
+// Trade levels (only when in trade)
+plot(showTPSL and inLongTrade ? stopLoss : na, "Long SL", color=color.new(C_BEAR, 40), style=plot.style_linebr, linewidth=1)
+plot(showTPSL and inLongTrade ? tp1 : na, "Long TP1", color=color.new(C_BULL, 60), style=plot.style_linebr, linewidth=1)
+plot(showTPSL and inLongTrade ? tp2 : na, "Long TP2", color=color.new(C_BULL, 40), style=plot.style_linebr, linewidth=1)
+plot(showTPSL and inLongTrade ? tp3 : na, "Long TP3", color=color.new(C_BULL, 20), style=plot.style_linebr, linewidth=1)
+
+plot(showTPSL and inShortTrade ? stopLoss : na, "Short SL", color=color.new(C_BEAR, 40), style=plot.style_linebr, linewidth=1)
+plot(showTPSL and inShortTrade ? tp1 : na, "Short TP1", color=color.new(C_BULL, 60), style=plot.style_linebr, linewidth=1)
+plot(showTPSL and inShortTrade ? tp2 : na, "Short TP2", color=color.new(C_BULL, 40), style=plot.style_linebr, linewidth=1)
+plot(showTPSL and inShortTrade ? tp3 : na, "Short TP3", color=color.new(C_BULL, 20), style=plot.style_linebr, linewidth=1)
+
+// RSI Divergence markers
+plotshape(showRSIDivergence and bullishDivergence, "Bull Div", shape.labelup, location.belowbar, color.new(C_BULL, 30), text="D", textcolor=color.white, size=size.tiny)
+plotshape(showRSIDivergence and bearishDivergence, "Bear Div", shape.labeldown, location.abovebar, color.new(C_BEAR, 30), text="D", textcolor=color.white, size=size.tiny)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DASHBOARD - PROFESSIONAL MINIMALIST DESIGN
+// ══════════════════════════════════════════════════════════════════════════════
+
+if showDashboard and barstate.islast
+    var table dash = table.new(position.top_right, 3, compactMode ? 10 : 16, bgcolor=color.new(C_BG, 5), border_width=1, border_color=color.new(C_MUTED, 70))
+
+    // Header
+    table.cell(dash, 0, 0, "UTS", bgcolor=color.new(C_GOLD, 20), text_color=C_BG, text_size=size.small)
+    table.cell(dash, 1, 0, "PRO", bgcolor=color.new(C_GOLD, 20), text_color=C_BG, text_size=size.small)
+    table.cell(dash, 2, 0, "v1.0", bgcolor=color.new(C_GOLD, 20), text_color=C_BG, text_size=size.small)
+
+    // Regime
+    table.cell(dash, 0, 1, "REGIME", text_color=C_MUTED, text_size=size.tiny)
+    table.cell(dash, 1, 1, regimeName, text_color=regimeColor, text_size=size.tiny, colspan=2)
+
+    // Signal Status
+    signalStatus = inLongTrade ? "LONG" : inShortTrade ? "SHORT" : bullScore >= effectiveMinScore ? "BULL SETUP" : bearScore >= effectiveMinScore ? "BEAR SETUP" : "SCANNING"
+    signalColor = inLongTrade ? C_BULL : inShortTrade ? C_BEAR : bullScore >= effectiveMinScore ? C_BULL : bearScore >= effectiveMinScore ? C_BEAR : C_MUTED
+    table.cell(dash, 0, 2, "SIGNAL", text_color=C_MUTED, text_size=size.tiny)
+    table.cell(dash, 1, 2, signalStatus, text_color=signalColor, text_size=size.tiny, colspan=2)
+
+    // Confluence Scores
+    table.cell(dash, 0, 3, "BULL", text_color=C_MUTED, text_size=size.tiny)
+    table.cell(dash, 1, 3, str.tostring(bullScore, "#.0"), text_color=bullScore >= effectiveMinScore ? C_BULL : C_MUTED, text_size=size.tiny)
+    table.cell(dash, 2, 3, "/" + str.tostring(maxScore, "#"), text_color=C_MUTED, text_size=size.tiny)
+
+    table.cell(dash, 0, 4, "BEAR", text_color=C_MUTED, text_size=size.tiny)
+    table.cell(dash, 1, 4, str.tostring(bearScore, "#.0"), text_color=bearScore >= effectiveMinScore ? C_BEAR : C_MUTED, text_size=size.tiny)
+    table.cell(dash, 2, 4, "/" + str.tostring(maxScore, "#"), text_color=C_MUTED, text_size=size.tiny)
+
+    // Key Indicators
+    table.cell(dash, 0, 5, "RSI", text_color=C_MUTED, text_size=size.tiny)
+    rsiColor = rsi > adaptiveRsiOB ? C_BEAR : rsi < adaptiveRsiOS ? C_BULL : C_TEXT
+    table.cell(dash, 1, 5, str.tostring(rsi, "#.0"), text_color=rsiColor, text_size=size.tiny, colspan=2)
+
+    table.cell(dash, 0, 6, "ADX", text_color=C_MUTED, text_size=size.tiny)
+    table.cell(dash, 1, 6, str.tostring(adxValue, "#.0"), text_color=adxValue > 25 ? C_GOLD : C_MUTED, text_size=size.tiny, colspan=2)
+
+    table.cell(dash, 0, 7, "VOL", text_color=C_MUTED, text_size=size.tiny)
+    table.cell(dash, 1, 7, str.tostring(volRatio, "#.0") + "x", text_color=volSpike ? C_GOLD : C_MUTED, text_size=size.tiny, colspan=2)
+
+    if not compactMode
+        // S/R Levels
+        table.cell(dash, 0, 8, "SUPPORT", text_color=C_MUTED, text_size=size.tiny)
+        table.cell(dash, 1, 8, nearestSupport > 0 ? str.tostring(nearestSupport, "#") : "-", text_color=nearSupport ? C_BULL : C_TEXT, text_size=size.tiny, colspan=2)
+
+        table.cell(dash, 0, 9, "RESIST", text_color=C_MUTED, text_size=size.tiny)
+        table.cell(dash, 1, 9, nearestResistance < 999999999 ? str.tostring(nearestResistance, "#") : "-", text_color=nearResistance ? C_BEAR : C_TEXT, text_size=size.tiny, colspan=2)
+
+        // Trade Levels (if in trade)
+        if inLongTrade or inShortTrade
+            table.cell(dash, 0, 10, "ENTRY", text_color=C_MUTED, text_size=size.tiny)
+            table.cell(dash, 1, 10, str.tostring(entryPrice, "#.0"), text_color=C_TEXT, text_size=size.tiny, colspan=2)
+
+            table.cell(dash, 0, 11, "SL", text_color=C_MUTED, text_size=size.tiny)
+            table.cell(dash, 1, 11, str.tostring(stopLoss, "#.0"), text_color=C_BEAR, text_size=size.tiny, colspan=2)
+
+            table.cell(dash, 0, 12, "TP1", text_color=C_MUTED, text_size=size.tiny)
+            table.cell(dash, 1, 12, str.tostring(tp1, "#.0"), text_color=C_BULL, text_size=size.tiny, colspan=2)
+
+            table.cell(dash, 0, 13, "TP2", text_color=C_MUTED, text_size=size.tiny)
+            table.cell(dash, 1, 13, str.tostring(tp2, "#.0"), text_color=C_BULL, text_size=size.tiny, colspan=2)
+
+            table.cell(dash, 0, 14, "TP3", text_color=C_MUTED, text_size=size.tiny)
+            table.cell(dash, 1, 14, str.tostring(tp3, "#.0"), text_color=C_BULL, text_size=size.tiny, colspan=2)
+
+            // R:R Ratio
+            riskDist = math.abs(entryPrice - stopLoss)
+            rewardDist = math.abs(tp3 - entryPrice)
+            rrRatio = riskDist > 0 ? rewardDist / riskDist : 0
+            table.cell(dash, 0, 15, "R:R", text_color=C_MUTED, text_size=size.tiny)
+            table.cell(dash, 1, 15, "1:" + str.tostring(rrRatio, "#.0"), text_color=C_GOLD, text_size=size.tiny, colspan=2)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SIGNAL LABELS WITH TRADE INFO
+// ══════════════════════════════════════════════════════════════════════════════
+
+if buySignal and showSignalLabels
+    labelText = "LONG\nEntry: " + str.tostring(c, "#.0") + "\nSL: " + str.tostring(stopLoss, "#.0") + "\nTP1: " + str.tostring(tp1, "#.0") + "\nTP2: " + str.tostring(tp2, "#.0") + "\nTP3: " + str.tostring(tp3, "#.0")
+    label.new(bar_index, l - atr, labelText, xloc.bar_index, yloc.price, color.new(C_BULL, 20), label.style_label_up, C_BG, size.small)
+
+if sellSignal and showSignalLabels
+    labelText = "SHORT\nEntry: " + str.tostring(c, "#.0") + "\nSL: " + str.tostring(stopLoss, "#.0") + "\nTP1: " + str.tostring(tp1, "#.0") + "\nTP2: " + str.tostring(tp2, "#.0") + "\nTP3: " + str.tostring(tp3, "#.0")
+    label.new(bar_index, h + atr, labelText, xloc.bar_index, yloc.price, color.new(C_BEAR, 20), label.style_label_down, C_BG, size.small)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ALERTS
+// ══════════════════════════════════════════════════════════════════════════════
+
+if enableAlerts
+    alertcondition(buySignal, "UTS BUY Signal", "UTS PRO: BUY signal - Score: {{plot_0}}")
+    alertcondition(sellSignal, "UTS SELL Signal", "UTS PRO: SELL signal - Score: {{plot_0}}")
+    alertcondition(goldenCross, "Golden Cross", "UTS PRO: Golden Cross detected")
+    alertcondition(deathCross, "Death Cross", "UTS PRO: Death Cross detected")
+    alertcondition(bullishDivergence, "Bullish Divergence", "UTS PRO: RSI Bullish Divergence")
+    alertcondition(bearishDivergence, "Bearish Divergence", "UTS PRO: RSI Bearish Divergence")
+    alertcondition(shootingStar, "Shooting Star", "UTS PRO: Shooting Star pattern")
+    alertcondition(hammer, "Hammer", "UTS PRO: Hammer pattern")
+    alertcondition(nearSupport, "Near Support", "UTS PRO: Price approaching support level")
+    alertcondition(nearResistance, "Near Resistance", "UTS PRO: Price approaching resistance level")
+
+// Export scores for external use
+plot(bullScore, "Bull Score", display=display.data_window)
+plot(bearScore, "Bear Score", display=display.data_window)
+plot(rsi, "RSI", display=display.data_window)
+plot(adxValue, "ADX", display=display.data_window)
