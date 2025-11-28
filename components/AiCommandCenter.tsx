@@ -15,7 +15,8 @@ export const AiCommandCenter: React.FC = () => {
     priceChange,
     technicals,
     enhancedMetrics,
-    setEnhancedMetrics
+    setEnhancedMetrics,
+    timeframe
   } = useStore();
 
   const fetchIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -197,13 +198,13 @@ export const AiCommandCenter: React.FC = () => {
           <div className="space-y-1">
             <div className="flex justify-between">
               <span className="text-gray-500">To 24h High</span>
-              <span className={`font-mono ${m.distanceToHigh24h < 1 ? 'text-yellow-400' : 'text-gray-300'}`}>
+              <span className={`font-mono ${m.distanceToHigh24h < 1 ? 'text-yellow-400' : 'text-gray-300'} ${m.distanceToHigh24h <= m.distanceToLow24h ? 'font-semibold' : ''}`}>
                 +{m.distanceToHigh24h.toFixed(2)}%
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-500">To 24h Low</span>
-              <span className={`font-mono ${m.distanceToLow24h < 1 ? 'text-yellow-400' : 'text-gray-300'}`}>
+              <span className={`font-mono ${m.distanceToLow24h < 1 ? 'text-yellow-400' : 'text-gray-300'} ${m.distanceToLow24h < m.distanceToHigh24h ? 'font-semibold' : ''}`}>
                 -{m.distanceToLow24h.toFixed(2)}%
               </span>
             </div>
@@ -229,16 +230,16 @@ export const AiCommandCenter: React.FC = () => {
             </span>
           </div>
 
-          {/* RSI + MACD */}
+          {/* RSI + MACD with timeframe context */}
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1">
-              <span className="text-gray-500">RSI</span>
+              <span className="text-gray-500">RSI(14,{timeframe})</span>
               <span className={`font-mono ${(technicals?.rsi || 0) > 70 ? 'text-red-400' : (technicals?.rsi || 0) < 30 ? 'text-green-400' : 'text-gray-300'}`}>
                 {technicals?.rsi?.toFixed(0) || '0'}
               </span>
             </div>
             <div className="flex items-center gap-1">
-              <span className="text-gray-500">MACD</span>
+              <span className="text-gray-500">MACD({timeframe})</span>
               <span className={`font-mono ${(technicals?.macd?.histogram || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                 {(technicals?.macd?.histogram || 0) >= 0 ? '+' : ''}{technicals?.macd?.histogram?.toFixed(0) || '0'}
               </span>
