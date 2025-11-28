@@ -23,8 +23,11 @@ import {
 // Direct Binance API (public endpoints work from browser)
 const BINANCE_FUTURES = 'https://fapi.binance.com';
 
-// Whale threshold lowered to $100K for more activity
-const WHALE_THRESHOLD = 100000;
+// Whale threshold set to $500K for significant trades only
+const WHALE_THRESHOLD = 500000;
+
+// Liquidation history retention (10 minutes)
+const LIQUIDATION_HISTORY_MS = 10 * 60 * 1000;
 
 class OrderFlowIntelService {
   private lastStats: AggrStats | null = null;
@@ -33,6 +36,11 @@ class OrderFlowIntelService {
   private pollInterval: NodeJS.Timeout | null = null;
   private oiPollInterval: NodeJS.Timeout | null = null;
   private isConnected: boolean = false;
+
+  // Liquidation history cache (persists across polls for 10 mins)
+  private liquidationHistory: AggrLiquidation[] = [];
+  // Whale trade history cache (persists across polls for 10 mins)
+  private whaleHistory: AggrTrade[] = [];
 
   constructor() {
     console.log('[OrderFlowIntel] Service initialized');
@@ -206,11 +214,15 @@ class OrderFlowIntelService {
 
   private processTradeData(trades: any[], liquidations: any[]): AggrStats {
     const now = Date.now();
+    const cutoffTime = now - LIQUIDATION_HISTORY_MS;
+
+    // Prune old entries from history caches
+    this.liquidationHistory = this.liquidationHistory.filter(l => l.timestamp > cutoffTime);
+    this.whaleHistory = this.whaleHistory.filter(t => t.timestamp > cutoffTime);
 
     // Process trades
     let buyVolume = 0;
     let sellVolume = 0;
-    const largeTrades: AggrTrade[] = [];
     const exchangeMap = new Map<string, { buy: number; sell: number }>();
 
     for (const trade of trades) {
@@ -233,17 +245,23 @@ class OrderFlowIntelService {
       if (isBuy) flow.buy += usdValue;
       else flow.sell += usdValue;
 
-      // Whale detection (lowered to $100K)
+      // Whale detection ($500K+) - add to history if not already present
       if (usdValue >= WHALE_THRESHOLD) {
-        largeTrades.push({
-          exchange: 'Binance',
-          timestamp: trade.T,
-          price,
-          amount: qty,
-          side: isBuy ? 'buy' : 'sell',
-          isLiquidation: false,
-          usdValue
-        });
+        const exists = this.whaleHistory.some(t =>
+          t.timestamp === trade.T && Math.abs(t.usdValue - usdValue) < 1
+        );
+
+        if (!exists) {
+          this.whaleHistory.push({
+            exchange: 'Binance',
+            timestamp: trade.T,
+            price,
+            amount: qty,
+            side: isBuy ? 'buy' : 'sell',
+            isLiquidation: false,
+            usdValue
+          });
+        }
       }
     }
 
@@ -285,42 +303,55 @@ class OrderFlowIntelService {
       });
     }
 
-    // Process liquidations
-    const recentLiquidations: AggrLiquidation[] = [];
+    // Process liquidations - add new ones to history
     let liquidationVolume = 0;
 
-    if (Array.isArray(liquidations)) {
+    if (Array.isArray(liquidations) && liquidations.length > 0) {
       for (const liq of liquidations) {
-        const price = parseFloat(liq.price);
-        const qty = parseFloat(liq.origQty || liq.executedQty || liq.qty || '0');
+        const price = parseFloat(liq.price || liq.p || '0');
+        const qty = parseFloat(liq.origQty || liq.executedQty || liq.qty || liq.q || '0');
         const usdValue = price * qty;
+        const liqTime = liq.time || liq.T || Date.now();
 
         if (usdValue > 0) {
-          liquidationVolume += usdValue;
-          recentLiquidations.push({
-            exchange: 'Binance',
-            timestamp: liq.time || Date.now(),
-            price,
-            amount: qty,
-            side: liq.side === 'SELL' ? 'long' : 'short',
-            usdValue
-          });
+          // Check if this liquidation already exists in history
+          const exists = this.liquidationHistory.some(l =>
+            l.timestamp === liqTime && Math.abs(l.usdValue - usdValue) < 1
+          );
+
+          if (!exists) {
+            this.liquidationHistory.push({
+              exchange: 'Binance',
+              timestamp: liqTime,
+              price,
+              amount: qty,
+              side: liq.side === 'SELL' ? 'long' : 'short',
+              usdValue
+            });
+          }
         }
       }
     }
+
+    // Calculate total liquidation volume from history
+    liquidationVolume = this.liquidationHistory.reduce((sum, l) => sum + l.usdValue, 0);
+
+    // Sort by timestamp descending (most recent first)
+    const sortedLiquidations = [...this.liquidationHistory].sort((a, b) => b.timestamp - a.timestamp);
+    const sortedWhales = [...this.whaleHistory].sort((a, b) => b.timestamp - a.timestamp);
 
     const stats: AggrStats = {
       totalVolume,
       buyVolume,
       sellVolume,
-      largeTradeCount: largeTrades.length,
-      liquidationCount: recentLiquidations.length,
+      largeTradeCount: this.whaleHistory.length,
+      liquidationCount: this.liquidationHistory.length,
       liquidationVolume,
       cvd,
       pressure,
       exchanges,
-      recentLiquidations: recentLiquidations.slice(-10),
-      recentLargeTrades: largeTrades.slice(-10),
+      recentLiquidations: sortedLiquidations.slice(0, 10),
+      recentLargeTrades: sortedWhales.slice(0, 10),
       // Preserve enhanced data
       openInterest: this.lastStats?.openInterest,
       longShortRatio: this.lastStats?.longShortRatio,
