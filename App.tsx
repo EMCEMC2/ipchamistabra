@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Terminal, Layout, Users, Brain, BookOpen, LineChart, Target, Globe } from 'lucide-react';
 import { ChartPanel } from './components/ChartPanel';
 import { IntelDeck } from './components/IntelDeck';
-import { MetricCard } from './components/MetricCard';
 import { MLCortex } from './components/MLCortex';
 import { AgentSwarm } from './components/AgentSwarm/SwarmCore';
 import { ActiveSignals } from './components/ActiveSignals';
@@ -23,40 +22,21 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { usePositionMonitor } from './hooks/usePositionMonitor';
 import { aggrService } from './services/aggrService';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import { useDataFreshness } from './hooks/useDataFreshness';
 
 type ViewMode = 'TERMINAL' | 'SWARM' | 'CORTEX' | 'JOURNAL' | 'BACKTEST' | 'LIVEFEED';
-type BottomViewMode = 'INTEL' | 'POSITIONS';
 
 function App() {
   // Global State
   const {
-    price, priceChange,
-    setPrice, setPriceChange,
-    chartData, setChartData,
-    signals, setSignals,
-    journal, addJournalEntry,
-    // New Global State
-    vix, dxy, btcd, sentimentScore, sentimentLabel,
-    derivatives, intel, trends,
-    timeframe, setTimeframe,
-    technicals, setTechnicals, // Global technicals
-    isScanning, // Scanning state
+    chartData,
+    timeframe,
+    setTechnicals,
     setActiveTradeSetup,
-    lastMacroUpdate, lastPriceUpdate, // Freshness timestamps
-
-    // Phase 2: Live Trading (Testnet)
-    isLiveMode,
-    setIsLiveMode
+    isLiveMode
   } = useStore();
-
-  // Data freshness monitoring
-  const priceFreshness = useDataFreshness(lastPriceUpdate, 2); // Price should update every 2s
-  const macroFreshness = useDataFreshness(lastMacroUpdate, 60); // Macro updates every 60s
 
   // Local State for Dashboard
   const [activeView, setActiveView] = useState<ViewMode>('TERMINAL');
-  const [bottomView, setBottomView] = useState<BottomViewMode>('POSITIONS');
   const [isApiKeyMissing, setIsApiKeyMissing] = useState(false);
   const [apiKeyError, setApiKeyError] = useState<string>('');
 
@@ -372,58 +352,19 @@ function App() {
 
           {/* RIGHT SIDEBAR: Order Entry & Management (3 cols) */}
           <div className="col-span-3 flex flex-col gap-2 h-full overflow-hidden">
-            {/* Compact Metrics Strip (Single Row - Auto Height) */}
-            <div className="grid grid-cols-2 gap-1.5 shrink-0 h-auto min-h-[90px]">
-              <MetricCard
-                title="BTC PRICE"
-                value={price ? `$${price.toLocaleString()}` : '$0.00'}
-                subValue={`${priceChange > 0 ? '+' : ''}${priceChange}%`}
-                color={priceChange >= 0 ? 'text-green-400' : 'text-red-400'}
-                trend={mapTrend(trends.price)}
-                freshness={priceFreshness}
-              />
-              <MetricCard
-                title="SENTIMENT"
-                value={sentimentLabel || 'Neutral'}
-                subValue={`Score: ${sentimentScore || 50}`}
-                color={sentimentScore > 60 ? 'text-green-400' : sentimentScore < 40 ? 'text-red-400' : 'text-yellow-400'}
-                trend={mapTrend(trends.sentiment)}
-                freshness={macroFreshness}
-              />
-              <MetricCard
-                title="VIX"
-                value={vix ? vix.toFixed(2) : '0.00'}
-                subValue="Volatility"
-                color={vix > 20 ? 'text-red-400' : 'text-green-400'}
-                trend={mapTrend(trends.vix)}
-                freshness={macroFreshness}
-              />
-              <MetricCard
-                title="BTC DOM"
-                value={btcd ? `${btcd.toFixed(1)}%` : '0.0%'}
-                subValue="Dominance"
-                color="text-yellow-400"
-                trend={mapTrend(trends.btcd)}
-                freshness={macroFreshness}
-              />
+            {/* Market Metrics Panel (Top 40%) */}
+            <div className="h-[40%] min-h-[200px]">
+              <AiCommandCenter />
             </div>
 
-            {/* Trade Entry & Management (Fills remaining height) */}
-            <div className="flex-1 min-h-0 flex flex-col gap-2">
-              {/* AI Intelligence (Top 35%) */}
-              <div className="h-[35%] min-h-[140px]">
-                <AiCommandCenter />
+            {/* Order Entry (Bottom 60%) */}
+            <div className="flex-1 min-h-0 flex flex-col">
+              <div className="flex items-center gap-1.5 mb-1.5 px-1">
+                <Target size={12} className="text-gray-400" />
+                <span className="text-[11px] font-bold tracking-wide text-gray-200">ORDER ENTRY</span>
               </div>
-
-              {/* Order Entry (Bottom 65%) */}
-              <div className="h-[65%] flex flex-col">
-                <div className="flex items-center gap-1.5 mb-1.5 px-1">
-                  <Target size={12} className="text-gray-400" />
-                  <span className="text-[11px] font-bold tracking-wide text-gray-200">ORDER ENTRY</span>
-                </div>
-                <div className="flex-1 min-h-0">
-                  <ExecutionPanelPro />
-                </div>
+              <div className="flex-1 min-h-0">
+                <ExecutionPanelPro />
               </div>
             </div>
           </div>
