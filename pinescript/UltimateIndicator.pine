@@ -644,17 +644,17 @@ if sellSignal and showSignalLabels
 // ALERTS
 // ══════════════════════════════════════════════════════════════════════════════
 
-if enableAlerts
-    alertcondition(buySignal, "UTS BUY Signal", "UTS PRO: BUY signal - Score: {{plot_0}}")
-    alertcondition(sellSignal, "UTS SELL Signal", "UTS PRO: SELL signal - Score: {{plot_0}}")
-    alertcondition(goldenCross, "Golden Cross", "UTS PRO: Golden Cross detected")
-    alertcondition(deathCross, "Death Cross", "UTS PRO: Death Cross detected")
-    alertcondition(bullishDivergence, "Bullish Divergence", "UTS PRO: RSI Bullish Divergence")
-    alertcondition(bearishDivergence, "Bearish Divergence", "UTS PRO: RSI Bearish Divergence")
-    alertcondition(shootingStar, "Shooting Star", "UTS PRO: Shooting Star pattern")
-    alertcondition(hammer, "Hammer", "UTS PRO: Hammer pattern")
-    alertcondition(nearSupport, "Near Support", "UTS PRO: Price approaching support level")
-    alertcondition(nearResistance, "Near Resistance", "UTS PRO: Price approaching resistance level")
+// Alert conditions (must be at global scope)
+alertcondition(buySignal and enableAlerts, "UTS BUY Signal", "UTS PRO: BUY signal triggered")
+alertcondition(sellSignal and enableAlerts, "UTS SELL Signal", "UTS PRO: SELL signal triggered")
+alertcondition(goldenCross and enableAlerts, "Golden Cross", "UTS PRO: Golden Cross detected")
+alertcondition(deathCross and enableAlerts, "Death Cross", "UTS PRO: Death Cross detected")
+alertcondition(bullishDivergence and enableAlerts, "Bullish Divergence", "UTS PRO: RSI Bullish Divergence")
+alertcondition(bearishDivergence and enableAlerts, "Bearish Divergence", "UTS PRO: RSI Bearish Divergence")
+alertcondition(shootingStar and enableAlerts, "Shooting Star", "UTS PRO: Shooting Star pattern")
+alertcondition(hammer and enableAlerts, "Hammer", "UTS PRO: Hammer pattern")
+alertcondition(nearSupport and enableAlerts, "Near Support", "UTS PRO: Price approaching support level")
+alertcondition(nearResistance and enableAlerts, "Near Resistance", "UTS PRO: Price approaching resistance level")
 
 // Export scores for external use
 plot(bullScore, "Bull Score", display=display.data_window)
