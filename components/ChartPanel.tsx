@@ -11,7 +11,6 @@ import {
   ISeriesApi,
   IPriceLine
 } from 'lightweight-charts';
-import { ChartDataPoint, TradeSignal } from '../types';
 import { Code, Eye, EyeOff, Activity, Layers, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import { PineScriptModal } from './PineScriptModal';
 import {
@@ -394,9 +393,9 @@ export const ChartPanel: React.FC = () => {
   };
 
   return (
-    <div className="h-full w-full flex flex-col relative overflow-hidden group bg-[#050505] border border-[#1a1a1a] rounded-sm">
+    <div className="h-full w-full flex flex-col relative overflow-hidden group bg-terminal-bg border border-terminal-border rounded-sm">
       {/* Header Controls */}
-      <div className="flex justify-between items-center px-2 py-1.5 border-b border-[#1a1a1a] bg-[#0a0a0a] shrink-0 z-10">
+      <div className="flex justify-between items-center px-2 py-1.5 border-b border-terminal-border bg-terminal-card shrink-0 z-10">
         <div className="flex items-center gap-4">
           <h2 className="text-gray-400 font-sans text-xs uppercase tracking-wider flex items-center gap-2">
             <Activity size={12} className="text-green-400" />
@@ -407,14 +406,14 @@ export const ChartPanel: React.FC = () => {
           </h2>
 
           {/* Timeframe Selector */}
-          <div className="flex bg-[#1a1a1a] rounded-sm p-0.5 gap-0.5">
+          <div className="flex bg-terminal-card rounded-sm p-0.5 gap-0.5">
             {timeframes.map((tf) => (
               <button
                 key={tf.value}
                 onClick={() => onTimeframeChange(tf.value)}
                 className={`px-2 py-0.5 text-[10px] font-medium rounded-sm transition-all duration-200 ${
                   timeframe === tf.value
-                    ? 'bg-[#2a2a2a] text-green-400 shadow-sm'
+                    ? 'bg-terminal-border text-green-400 shadow-sm'
                     : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
                 }`}
               >
@@ -426,17 +425,17 @@ export const ChartPanel: React.FC = () => {
 
         <div className="flex gap-2 items-center">
           {/* Zoom Controls */}
-          <div className="flex bg-[#1a1a1a] rounded-sm overflow-hidden">
+          <div className="flex bg-terminal-card rounded-sm overflow-hidden">
             <button
               onClick={handleZoomIn}
-              className="px-1.5 py-1 text-gray-500 hover:text-green-400 hover:bg-white/5 transition-all duration-200 border-r border-[#2a2a2a]"
+              className="px-1.5 py-1 text-gray-500 hover:text-green-400 hover:bg-white/5 transition-all duration-200 border-r border-terminal-border"
               title="Zoom In"
             >
               <ZoomIn size={12} />
             </button>
             <button
               onClick={handleZoomOut}
-              className="px-1.5 py-1 text-gray-500 hover:text-green-400 hover:bg-white/5 transition-all duration-200 border-r border-[#2a2a2a]"
+              className="px-1.5 py-1 text-gray-500 hover:text-green-400 hover:bg-white/5 transition-all duration-200 border-r border-terminal-border"
               title="Zoom Out"
             >
               <ZoomOut size={12} />
@@ -488,7 +487,7 @@ export const ChartPanel: React.FC = () => {
       </div>
 
       {/* Chart Container */}
-      <div className="flex-1 w-full relative overflow-hidden bg-[#050505]" ref={chartContainerRef}>
+      <div className="flex-1 w-full relative overflow-hidden bg-terminal-bg" ref={chartContainerRef}>
       </div>
 
       <PineScriptModal
