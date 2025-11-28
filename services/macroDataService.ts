@@ -1,16 +1,51 @@
 /**
- * MACRO DATA SERVICE
+ * MACRO DATA SERVICE - Enhanced BTC Trading Metrics
  * Real data from free public APIs:
- * - DVOL (BTC Volatility): Deribit API (replaces VIX for crypto context)
+ * - DVOL (BTC Volatility): Deribit API
  * - BTC Dominance: CoinGecko API
- * - Funding Rate: Binance Futures API
+ * - Funding Rate & OI: Binance Futures API
+ * - Fear & Greed: Alternative.me API
+ * - Volume & ATR: Binance Spot API
  */
 
 export interface MacroData {
-  vix: number;  // Actually DVOL (Deribit BTC Volatility Index)
+  vix: number;  // DVOL (Deribit BTC Volatility Index)
   dxy: number;
   btcd: number;
   fundingRate?: number;
+}
+
+export interface EnhancedBTCMetrics {
+  // Volatility
+  dvol: number;              // Deribit implied volatility (30-day)
+  atr14d: number;            // 14-day ATR in USD
+  todayRange: number;        // Today's high-low range in USD
+  rangeVsAtr: number;        // Today's range as multiple of ATR (0.8 = 80% of normal)
+
+  // Volume
+  volume24h: number;         // 24h volume in USD
+  volumeAvg30d: number;      // 30-day average volume
+  volumeRatio: number;       // Current vs avg (1.2 = 120% of normal)
+  volumeTag: 'SPIKE' | 'HIGH' | 'NORMAL' | 'QUIET';
+
+  // Derivatives Positioning
+  fundingRate: number;       // Current funding rate %
+  fundingTrend: 'RISING' | 'FALLING' | 'STABLE';
+  openInterest: number;      // OI in BTC
+  oiChange24h: number;       // OI change % in 24h
+
+  // Risk / Levels
+  distanceToHigh24h: number; // % distance to 24h high
+  distanceToLow24h: number;  // % distance to 24h low
+  above200dMA: boolean;      // Is price above 200-day MA?
+  ma200: number;             // 200-day MA value
+
+  // Sentiment
+  fearGreedIndex: number;    // 0-100 (Alternative.me)
+  fearGreedLabel: string;    // "Extreme Fear", "Fear", "Neutral", "Greed", "Extreme Greed"
+
+  // BTC Dominance
+  btcDominance: number;
 }
 
 
@@ -234,6 +269,329 @@ export async function fetchDerivativesMetrics(): Promise<{
       openInterest: 'N/A',
       fundingRate: 'N/A',
       longShortRatio: 1.0
+    };
+  }
+}
+
+/**
+ * Fetch Fear & Greed Index from Alternative.me (FREE API)
+ */
+async function fetchFearGreed(): Promise<{ index: number; label: string }> {
+  try {
+    const response = await fetch('https://api.alternative.me/fng/?limit=1', {
+      headers: { 'Accept': 'application/json' }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Alternative.me API failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const fng = data.data?.[0];
+
+    if (!fng) {
+      throw new Error('No Fear & Greed data');
+    }
+
+    const index = parseInt(fng.value, 10);
+    const label = fng.value_classification || 'Unknown';
+
+    console.log(`[Macro Data] Fear & Greed: ${index} (${label})`);
+    return { index, label };
+  } catch (error) {
+    console.warn('[Macro Data] Fear & Greed fetch failed:', error);
+    return { index: 0, label: 'N/A' };
+  }
+}
+
+/**
+ * Fetch 24h ticker data from Binance Spot (volume, high, low, price)
+ */
+async function fetchBinance24hTicker(): Promise<{
+  volume24h: number;
+  high24h: number;
+  low24h: number;
+  lastPrice: number;
+}> {
+  try {
+    const response = await fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT', {
+      headers: { 'Accept': 'application/json' }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Binance ticker API failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    return {
+      volume24h: parseFloat(data.quoteVolume) || 0, // Volume in USDT
+      high24h: parseFloat(data.highPrice) || 0,
+      low24h: parseFloat(data.lowPrice) || 0,
+      lastPrice: parseFloat(data.lastPrice) || 0
+    };
+  } catch (error) {
+    console.warn('[Macro Data] Binance 24h ticker fetch failed:', error);
+    return { volume24h: 0, high24h: 0, low24h: 0, lastPrice: 0 };
+  }
+}
+
+/**
+ * Fetch historical klines from Binance to calculate ATR and 200-day MA
+ */
+async function fetchBinanceKlines(interval: string, limit: number): Promise<number[][]> {
+  try {
+    const response = await fetch(
+      `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${interval}&limit=${limit}`,
+      { headers: { 'Accept': 'application/json' } }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Binance klines API failed: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.warn('[Macro Data] Binance klines fetch failed:', error);
+    return [];
+  }
+}
+
+/**
+ * Calculate ATR (Average True Range) from klines
+ * Kline format: [openTime, open, high, low, close, volume, ...]
+ */
+function calculateATR(klines: number[][], period: number = 14): number {
+  if (klines.length < period + 1) return 0;
+
+  const trueRanges: number[] = [];
+
+  for (let i = 1; i < klines.length; i++) {
+    const high = parseFloat(String(klines[i][2]));
+    const low = parseFloat(String(klines[i][3]));
+    const prevClose = parseFloat(String(klines[i - 1][4]));
+
+    const tr = Math.max(
+      high - low,
+      Math.abs(high - prevClose),
+      Math.abs(low - prevClose)
+    );
+    trueRanges.push(tr);
+  }
+
+  // Simple moving average of last 'period' true ranges
+  const recentTRs = trueRanges.slice(-period);
+  const atr = recentTRs.reduce((a, b) => a + b, 0) / recentTRs.length;
+
+  return atr;
+}
+
+/**
+ * Calculate Simple Moving Average from klines
+ */
+function calculateSMA(klines: number[][], period: number): number {
+  if (klines.length < period) return 0;
+
+  const closes = klines.slice(-period).map(k => parseFloat(String(k[4])));
+  return closes.reduce((a, b) => a + b, 0) / closes.length;
+}
+
+/**
+ * Fetch Open Interest history from Binance to calculate 24h change
+ */
+async function fetchOIHistory(): Promise<{ current: number; change24h: number }> {
+  try {
+    const [currentRes, historyRes] = await Promise.all([
+      fetch('https://fapi.binance.com/fapi/v1/openInterest?symbol=BTCUSDT'),
+      fetch('https://fapi.binance.com/futures/data/openInterestHist?symbol=BTCUSDT&period=1h&limit=24')
+    ]);
+
+    if (!currentRes.ok || !historyRes.ok) {
+      throw new Error('OI fetch failed');
+    }
+
+    const currentData = await currentRes.json();
+    const historyData = await historyRes.json();
+
+    const currentOI = parseFloat(currentData.openInterest) || 0;
+
+    // Get OI from 24h ago
+    let oi24hAgo = currentOI;
+    if (historyData && historyData.length > 0) {
+      oi24hAgo = parseFloat(historyData[0].sumOpenInterest) || currentOI;
+    }
+
+    const change24h = oi24hAgo > 0 ? ((currentOI - oi24hAgo) / oi24hAgo) * 100 : 0;
+
+    console.log(`[Macro Data] OI: ${currentOI.toFixed(0)} BTC, 24h change: ${change24h.toFixed(2)}%`);
+
+    return { current: currentOI, change24h };
+  } catch (error) {
+    console.warn('[Macro Data] OI history fetch failed:', error);
+    return { current: 0, change24h: 0 };
+  }
+}
+
+/**
+ * Fetch funding rate history to determine trend
+ */
+async function fetchFundingHistory(): Promise<{ rate: number; trend: 'RISING' | 'FALLING' | 'STABLE' }> {
+  try {
+    const response = await fetch(
+      'https://fapi.binance.com/fapi/v1/fundingRate?symbol=BTCUSDT&limit=8', // Last 8 periods (24h)
+      { headers: { 'Accept': 'application/json' } }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Funding rate history failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (!data || data.length === 0) {
+      throw new Error('No funding rate data');
+    }
+
+    const rates = data.map((d: any) => parseFloat(d.fundingRate) * 100);
+    const currentRate = rates[rates.length - 1];
+
+    // Calculate trend: compare average of last 3 vs previous 3
+    let trend: 'RISING' | 'FALLING' | 'STABLE' = 'STABLE';
+    if (rates.length >= 6) {
+      const recent = rates.slice(-3).reduce((a: number, b: number) => a + b, 0) / 3;
+      const older = rates.slice(-6, -3).reduce((a: number, b: number) => a + b, 0) / 3;
+      const diff = recent - older;
+
+      if (diff > 0.005) trend = 'RISING';
+      else if (diff < -0.005) trend = 'FALLING';
+    }
+
+    console.log(`[Macro Data] Funding: ${currentRate.toFixed(4)}%, trend: ${trend}`);
+
+    return { rate: currentRate, trend };
+  } catch (error) {
+    console.warn('[Macro Data] Funding history fetch failed:', error);
+    return { rate: 0, trend: 'STABLE' };
+  }
+}
+
+/**
+ * Get volume tag based on ratio to average
+ */
+function getVolumeTag(ratio: number): 'SPIKE' | 'HIGH' | 'NORMAL' | 'QUIET' {
+  if (ratio >= 2.0) return 'SPIKE';
+  if (ratio >= 1.3) return 'HIGH';
+  if (ratio >= 0.7) return 'NORMAL';
+  return 'QUIET';
+}
+
+/**
+ * Fetch all enhanced BTC metrics in parallel
+ * This is the main function for the new metrics panel
+ */
+export async function fetchEnhancedBTCMetrics(): Promise<EnhancedBTCMetrics> {
+  console.log('[Enhanced Metrics] Fetching all BTC metrics...');
+
+  try {
+    // Parallel fetch all data sources
+    const [
+      dvol,
+      fearGreed,
+      ticker24h,
+      dailyKlines,
+      btcd,
+      oiData,
+      fundingData
+    ] = await Promise.all([
+      fetchDVOL(),
+      fetchFearGreed(),
+      fetchBinance24hTicker(),
+      fetchBinanceKlines('1d', 201), // 200 days + 1 for ATR calc
+      fetchBTCDominance(),
+      fetchOIHistory(),
+      fetchFundingHistory()
+    ]);
+
+    // Calculate ATR from daily klines
+    const atr14d = calculateATR(dailyKlines, 14);
+
+    // Calculate 200-day MA
+    const ma200 = calculateSMA(dailyKlines, 200);
+
+    // Today's range
+    const todayRange = ticker24h.high24h - ticker24h.low24h;
+    const rangeVsAtr = atr14d > 0 ? todayRange / atr14d : 0;
+
+    // Volume: calculate 30-day average from klines
+    const last30DaysVolume = dailyKlines.slice(-30).map(k => parseFloat(String(k[7]))); // quoteVolume
+    const volumeAvg30d = last30DaysVolume.reduce((a, b) => a + b, 0) / 30;
+    const volumeRatio = volumeAvg30d > 0 ? ticker24h.volume24h / volumeAvg30d : 1;
+
+    // Distance to 24h high/low
+    const price = ticker24h.lastPrice;
+    const distanceToHigh24h = price > 0 ? ((ticker24h.high24h - price) / price) * 100 : 0;
+    const distanceToLow24h = price > 0 ? ((price - ticker24h.low24h) / price) * 100 : 0;
+
+    const metrics: EnhancedBTCMetrics = {
+      // Volatility
+      dvol,
+      atr14d,
+      todayRange,
+      rangeVsAtr,
+
+      // Volume
+      volume24h: ticker24h.volume24h,
+      volumeAvg30d,
+      volumeRatio,
+      volumeTag: getVolumeTag(volumeRatio),
+
+      // Derivatives
+      fundingRate: fundingData.rate,
+      fundingTrend: fundingData.trend,
+      openInterest: oiData.current,
+      oiChange24h: oiData.change24h,
+
+      // Risk / Levels
+      distanceToHigh24h,
+      distanceToLow24h,
+      above200dMA: price > ma200,
+      ma200,
+
+      // Sentiment
+      fearGreedIndex: fearGreed.index,
+      fearGreedLabel: fearGreed.label,
+
+      // Dominance
+      btcDominance: btcd
+    };
+
+    console.log('[Enhanced Metrics] All metrics fetched successfully');
+    return metrics;
+
+  } catch (error) {
+    console.error('[Enhanced Metrics] Failed to fetch metrics:', error);
+
+    // Return empty/default metrics
+    return {
+      dvol: 0,
+      atr14d: 0,
+      todayRange: 0,
+      rangeVsAtr: 0,
+      volume24h: 0,
+      volumeAvg30d: 0,
+      volumeRatio: 1,
+      volumeTag: 'NORMAL',
+      fundingRate: 0,
+      fundingTrend: 'STABLE',
+      openInterest: 0,
+      oiChange24h: 0,
+      distanceToHigh24h: 0,
+      distanceToLow24h: 0,
+      above200dMA: false,
+      ma200: 0,
+      fearGreedIndex: 0,
+      fearGreedLabel: 'N/A',
+      btcDominance: 0
     };
   }
 }

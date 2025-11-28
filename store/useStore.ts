@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { ChartDataPoint, TradeSignal, Position, JournalEntry, AgentState, AgentRole, IntelItem } from '../types';
+import { EnhancedBTCMetrics } from '../services/macroDataService';
 
 // Normalize journal entries loaded from storage or new additions so UI doesn't break on missing fields.
 const normalizeJournalEntry = (entry: any): JournalEntry => ({
@@ -13,6 +14,29 @@ const normalizeJournalEntry = (entry: any): JournalEntry => ({
   notes: entry?.notes || '',
   aiFeedback: entry?.aiFeedback
 });
+
+// Default enhanced metrics
+const defaultEnhancedMetrics: EnhancedBTCMetrics = {
+  dvol: 0,
+  atr14d: 0,
+  todayRange: 0,
+  rangeVsAtr: 0,
+  volume24h: 0,
+  volumeAvg30d: 0,
+  volumeRatio: 1,
+  volumeTag: 'NORMAL',
+  fundingRate: 0,
+  fundingTrend: 'STABLE',
+  openInterest: 0,
+  oiChange24h: 0,
+  distanceToHigh24h: 0,
+  distanceToLow24h: 0,
+  above200dMA: false,
+  ma200: 0,
+  fearGreedIndex: 0,
+  fearGreedLabel: 'N/A',
+  btcDominance: 0
+};
 
 interface MarketState {
   price: number;
@@ -46,8 +70,10 @@ interface MarketState {
     trend: string;
   };
   latestAnalysis: string;
-  lastMacroUpdate: number; // Timestamp of last macro data update
-  lastPriceUpdate: number; // Timestamp of last price update
+  lastMacroUpdate: number;
+  lastPriceUpdate: number;
+  // Enhanced BTC Metrics
+  enhancedMetrics: EnhancedBTCMetrics;
 }
 
 interface UserState {
@@ -81,6 +107,7 @@ export interface AppState extends MarketState, UserState, AgentSwarmState {
   setLatestAnalysis: (analysis: string) => void;
   setActiveTradeSetup: (setup: Partial<Position> | null) => void;
   setExecutionSide: (side: 'LONG' | 'SHORT') => void;
+  setEnhancedMetrics: (metrics: EnhancedBTCMetrics) => void;
 
   // Phase 2: Live Trading (Testnet)
   isLiveMode: boolean;
@@ -120,6 +147,7 @@ export const useStore = create<AppState>()(
       latestAnalysis: "",
       lastMacroUpdate: 0,
       lastPriceUpdate: 0,
+      enhancedMetrics: defaultEnhancedMetrics,
 
       // User State (PERSISTED - survives refresh)
       balance: 50000,
@@ -159,6 +187,7 @@ export const useStore = create<AppState>()(
       setLatestAnalysis: (latestAnalysis) => set({ latestAnalysis }),
       setActiveTradeSetup: (setup) => set({ activeTradeSetup: setup }),
       setExecutionSide: (side) => set({ executionSide: side }),
+      setEnhancedMetrics: (enhancedMetrics) => set({ enhancedMetrics }),
 
       setIsLiveMode: (isLiveMode) => set({ isLiveMode }),
 
