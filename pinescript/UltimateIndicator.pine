@@ -535,23 +535,20 @@ plot(showFib ? fib382 : na, "Fib 0.382", color=color.new(C_GOLD, 70), style=plot
 plot(showFib ? fib500 : na, "Fib 0.5", color=color.new(C_GOLD, 60), style=plot.style_linebr, linewidth=1)
 plot(showFib ? fib618 : na, "Fib 0.618", color=color.new(C_GOLD, 50), style=plot.style_linebr, linewidth=1)
 
-// Signal markers (small triangles only)
-plotshape(buySignal and showSignalLabels, "BUY", shape.triangleup, location.belowbar, C_BULL, size=size.small)
-plotshape(sellSignal and showSignalLabels, "SELL", shape.triangledown, location.abovebar, C_BEAR, size=size.small)
+// Signal markers (minimal dots)
+plotshape(buySignal and showSignalLabels, "BUY", shape.circle, location.belowbar, C_BULL, size=size.tiny)
+plotshape(sellSignal and showSignalLabels, "SELL", shape.circle, location.abovebar, C_BEAR, size=size.tiny)
 
-// Pattern markers (subtle, small)
-plotshape(showPatterns and shootingStar, "Shooting Star", shape.xcross, location.abovebar, color.new(C_BEAR, 30), size=size.tiny)
-plotshape(showPatterns and hammer, "Hammer", shape.xcross, location.belowbar, color.new(C_BULL, 30), size=size.tiny)
-plotshape(showPatterns and bullishEngulfing, "Bull Engulf", shape.diamond, location.belowbar, color.new(C_BULL, 50), size=size.tiny)
-plotshape(showPatterns and bearishEngulfing, "Bear Engulf", shape.diamond, location.abovebar, color.new(C_BEAR, 50), size=size.tiny)
-plotshape(showPatterns and doji, "Doji", shape.circle, location.abovebar, color.new(C_GOLD, 50), size=size.tiny)
+// Pattern markers (very subtle - only show key reversals)
+plotshape(showPatterns and shootingStar, "Shooting Star", shape.cross, location.abovebar, color.new(C_BEAR, 50), size=size.auto)
+plotshape(showPatterns and hammer, "Hammer", shape.cross, location.belowbar, color.new(C_BULL, 50), size=size.auto)
 
-// RSI Divergence markers
-plotshape(showRSIDivergence and bullishDivergence, "Bull Div", shape.labelup, location.belowbar, color.new(C_BULL, 30), text="D", textcolor=color.white, size=size.tiny)
-plotshape(showRSIDivergence and bearishDivergence, "Bear Div", shape.labeldown, location.abovebar, color.new(C_BEAR, 30), text="D", textcolor=color.white, size=size.tiny)
+// RSI Divergence markers (subtle dots only, no text)
+plotshape(showRSIDivergence and bullishDivergence, "Bull Div", shape.diamond, location.belowbar, color.new(C_BULL, 50), size=size.auto)
+plotshape(showRSIDivergence and bearishDivergence, "Bear Div", shape.diamond, location.abovebar, color.new(C_BEAR, 50), size=size.auto)
 
 // ══════════════════════════════════════════════════════════════════════════════
-// TRADE LEVEL LINES - CURRENT SETUP ONLY (Using line.new for proper horizontal lines)
+// TRADE LEVEL LINES - CURRENT SETUP ONLY
 // ══════════════════════════════════════════════════════════════════════════════
 
 // Persistent line objects for current trade
@@ -560,17 +557,15 @@ var line slLine = na
 var line tp1Line = na
 var line tp2Line = na
 var line tp3Line = na
-var label tradeLabel = na
+var label entryLabel = na
+var label slLabel = na
+var label tp1Label = na
+var label tp2Label = na
+var label tp3Label = na
+var int tradeStartBar = na
 
-// Colors for lines
-var color entryColor = color.rgb(255, 255, 255)  // White
-var color slColor = color.rgb(255, 82, 82)       // Red
-var color tp1Color = color.rgb(0, 212, 170, 60)  // Teal light
-var color tp2Color = color.rgb(0, 212, 170, 40)  // Teal medium
-var color tp3Color = color.rgb(0, 212, 170, 20)  // Teal solid
-
-// Delete old lines when new signal or trade ends
-if (buySignal or sellSignal or (not inLongTrade and not inShortTrade)) and showTPSL
+// Helper function to delete all trade lines
+deleteTradeLines() =>
     if not na(entryLine)
         line.delete(entryLine)
     if not na(slLine)
@@ -581,49 +576,67 @@ if (buySignal or sellSignal or (not inLongTrade and not inShortTrade)) and showT
         line.delete(tp2Line)
     if not na(tp3Line)
         line.delete(tp3Line)
-    if not na(tradeLabel)
-        label.delete(tradeLabel)
+    if not na(entryLabel)
+        label.delete(entryLabel)
+    if not na(slLabel)
+        label.delete(slLabel)
+    if not na(tp1Label)
+        label.delete(tp1Label)
+    if not na(tp2Label)
+        label.delete(tp2Label)
+    if not na(tp3Label)
+        label.delete(tp3Label)
 
-    entryLine := na
-    slLine := na
-    tp1Line := na
-    tp2Line := na
-    tp3Line := na
-    tradeLabel := na
-
-// Create new lines on signal
+// Create new lines on BUY signal
 if buySignal and showTPSL
-    entryLine := line.new(bar_index, entryPrice, bar_index + 50, entryPrice, xloc.bar_index, extend.right, entryColor, line.style_solid, 2)
-    slLine := line.new(bar_index, stopLoss, bar_index + 50, stopLoss, xloc.bar_index, extend.right, slColor, line.style_dashed, 1)
-    tp1Line := line.new(bar_index, tp1, bar_index + 50, tp1, xloc.bar_index, extend.right, tp1Color, line.style_dotted, 1)
-    tp2Line := line.new(bar_index, tp2, bar_index + 50, tp2, xloc.bar_index, extend.right, tp2Color, line.style_dotted, 1)
-    tp3Line := line.new(bar_index, tp3, bar_index + 50, tp3, xloc.bar_index, extend.right, tp3Color, line.style_solid, 1)
-    tradeLabel := label.new(bar_index, entryPrice, "LONG", xloc.bar_index, yloc.price, C_BULL, label.style_label_left, color.white, size.small)
+    deleteTradeLines()
+    tradeStartBar := bar_index
+    // Entry line (white, solid)
+    entryLine := line.new(bar_index, entryPrice, bar_index + 100, entryPrice, xloc.bar_index, extend.right, color.white, line.style_solid, 2)
+    entryLabel := label.new(bar_index + 2, entryPrice, "ENTRY " + str.tostring(entryPrice, "#.0"), xloc.bar_index, yloc.price, color.new(color.white, 80), label.style_label_left, color.white, size.tiny)
+    // Stop Loss (red, dashed)
+    slLine := line.new(bar_index, stopLoss, bar_index + 100, stopLoss, xloc.bar_index, extend.right, C_BEAR, line.style_dashed, 1)
+    slLabel := label.new(bar_index + 2, stopLoss, "SL " + str.tostring(stopLoss, "#.0"), xloc.bar_index, yloc.price, color.new(C_BEAR, 80), label.style_label_left, color.white, size.tiny)
+    // Take Profits (green, dotted to solid)
+    tp1Line := line.new(bar_index, tp1, bar_index + 100, tp1, xloc.bar_index, extend.right, color.new(C_BULL, 60), line.style_dotted, 1)
+    tp1Label := label.new(bar_index + 2, tp1, "TP1", xloc.bar_index, yloc.price, color.new(C_BULL, 80), label.style_label_left, color.white, size.tiny)
+    tp2Line := line.new(bar_index, tp2, bar_index + 100, tp2, xloc.bar_index, extend.right, color.new(C_BULL, 40), line.style_dotted, 1)
+    tp2Label := label.new(bar_index + 2, tp2, "TP2", xloc.bar_index, yloc.price, color.new(C_BULL, 80), label.style_label_left, color.white, size.tiny)
+    tp3Line := line.new(bar_index, tp3, bar_index + 100, tp3, xloc.bar_index, extend.right, C_BULL, line.style_solid, 1)
+    tp3Label := label.new(bar_index + 2, tp3, "TP3", xloc.bar_index, yloc.price, color.new(C_BULL, 80), label.style_label_left, color.white, size.tiny)
 
+// Create new lines on SELL signal
 if sellSignal and showTPSL
-    entryLine := line.new(bar_index, entryPrice, bar_index + 50, entryPrice, xloc.bar_index, extend.right, entryColor, line.style_solid, 2)
-    slLine := line.new(bar_index, stopLoss, bar_index + 50, stopLoss, xloc.bar_index, extend.right, slColor, line.style_dashed, 1)
-    tp1Line := line.new(bar_index, tp1, bar_index + 50, tp1, xloc.bar_index, extend.right, tp1Color, line.style_dotted, 1)
-    tp2Line := line.new(bar_index, tp2, bar_index + 50, tp2, xloc.bar_index, extend.right, tp2Color, line.style_dotted, 1)
-    tp3Line := line.new(bar_index, tp3, bar_index + 50, tp3, xloc.bar_index, extend.right, tp3Color, line.style_solid, 1)
-    tradeLabel := label.new(bar_index, entryPrice, "SHORT", xloc.bar_index, yloc.price, C_BEAR, label.style_label_left, color.white, size.small)
+    deleteTradeLines()
+    tradeStartBar := bar_index
+    // Entry line (white, solid)
+    entryLine := line.new(bar_index, entryPrice, bar_index + 100, entryPrice, xloc.bar_index, extend.right, color.white, line.style_solid, 2)
+    entryLabel := label.new(bar_index + 2, entryPrice, "ENTRY " + str.tostring(entryPrice, "#.0"), xloc.bar_index, yloc.price, color.new(color.white, 80), label.style_label_left, color.white, size.tiny)
+    // Stop Loss (red, dashed)
+    slLine := line.new(bar_index, stopLoss, bar_index + 100, stopLoss, xloc.bar_index, extend.right, C_BEAR, line.style_dashed, 1)
+    slLabel := label.new(bar_index + 2, stopLoss, "SL " + str.tostring(stopLoss, "#.0"), xloc.bar_index, yloc.price, color.new(C_BEAR, 80), label.style_label_left, color.white, size.tiny)
+    // Take Profits (green, dotted to solid)
+    tp1Line := line.new(bar_index, tp1, bar_index + 100, tp1, xloc.bar_index, extend.right, color.new(C_BULL, 60), line.style_dotted, 1)
+    tp1Label := label.new(bar_index + 2, tp1, "TP1", xloc.bar_index, yloc.price, color.new(C_BULL, 80), label.style_label_left, color.white, size.tiny)
+    tp2Line := line.new(bar_index, tp2, bar_index + 100, tp2, xloc.bar_index, extend.right, color.new(C_BULL, 40), line.style_dotted, 1)
+    tp2Label := label.new(bar_index + 2, tp2, "TP2", xloc.bar_index, yloc.price, color.new(C_BULL, 80), label.style_label_left, color.white, size.tiny)
+    tp3Line := line.new(bar_index, tp3, bar_index + 100, tp3, xloc.bar_index, extend.right, C_BULL, line.style_solid, 1)
+    tp3Label := label.new(bar_index + 2, tp3, "TP3", xloc.bar_index, yloc.price, color.new(C_BULL, 80), label.style_label_left, color.white, size.tiny)
 
-// Clear lines when trade closes
-if not inLongTrade and not inShortTrade and not na(entryLine)
-    line.delete(entryLine)
-    line.delete(slLine)
-    line.delete(tp1Line)
-    line.delete(tp2Line)
-    line.delete(tp3Line)
-    if not na(tradeLabel)
-        label.delete(tradeLabel)
-
+// Clear lines when trade closes (but not on new signal)
+if not inLongTrade and not inShortTrade and not buySignal and not sellSignal and not na(tradeStartBar)
+    deleteTradeLines()
     entryLine := na
     slLine := na
     tp1Line := na
     tp2Line := na
     tp3Line := na
-    tradeLabel := na
+    entryLabel := na
+    slLabel := na
+    tp1Label := na
+    tp2Label := na
+    tp3Label := na
+    tradeStartBar := na
 
 // ══════════════════════════════════════════════════════════════════════════════
 // DASHBOARD - PROFESSIONAL MINIMALIST DESIGN
