@@ -1,0 +1,461 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// @version=6
+// STRATEGY VERSION - For Backtesting Only
+// Use UltimateIndicator.pine for live trading signals
+
+strategy("UTS PRO Strategy", shorttitle="UTS STRAT", overlay=true,
+         default_qty_type=strategy.percent_of_equity,
+         default_qty_value=10,
+         initial_capital=10000,
+         commission_type=strategy.commission.percent,
+         commission_value=0.1,
+         slippage=1,
+         pyramiding=0)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// INPUTS
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Strategy Settings
+string G_STRAT = "Strategy Settings"
+useTP1 = input.bool(true, "Use TP1 (Partial)", group=G_STRAT)
+tp1Percent = input.float(50, "TP1 Close %", minval=10, maxval=90, group=G_STRAT)
+useTrailingStop = input.bool(false, "Use Trailing Stop", group=G_STRAT)
+trailOffset = input.float(1.0, "Trail ATR Mult", minval=0.5, maxval=3.0, group=G_STRAT)
+
+// Signal Settings
+string G_SIG = "Signal Settings"
+signalMode = input.string("Normal", "Signal Mode", options=["Aggressive", "Normal", "Conservative"], group=G_SIG)
+requireConfirmation = input.bool(true, "Require Candle Close", group=G_SIG)
+
+// Trend Settings
+string G_TREND = "Trend Analysis"
+emaFastLen = input.int(21, "Fast EMA", minval=5, group=G_TREND)
+emaSlowLen = input.int(55, "Slow EMA", minval=10, group=G_TREND)
+ema200Len = input.int(200, "Trend EMA", minval=50, group=G_TREND)
+
+// RSI Settings
+string G_RSI = "RSI Settings"
+rsiLen = input.int(14, "RSI Length", minval=5, group=G_RSI)
+rsiOB = input.int(70, "Overbought", group=G_RSI)
+rsiOS = input.int(30, "Oversold", group=G_RSI)
+
+// Volume Settings
+string G_VOL = "Volume Analysis"
+volLen = input.int(20, "Volume MA Length", minval=5, group=G_VOL)
+volThreshold = input.float(1.5, "Volume Spike Threshold", minval=1.0, step=0.1, group=G_VOL)
+
+// S/R Settings
+string G_SR = "Support/Resistance"
+srLookback = input.int(100, "S/R Lookback", minval=50, group=G_SR)
+srClusters = input.int(5, "S/R Cluster Count", minval=3, maxval=8, group=G_SR)
+srProximity = input.float(0.5, "S/R Proximity %", minval=0.1, maxval=2.0, step=0.1, group=G_SR)
+
+// Risk Management
+string G_RISK = "Risk Management"
+atrLen = input.int(14, "ATR Length", minval=5, group=G_RISK)
+slMultiplier = input.float(1.5, "Stop Loss ATR Mult", minval=0.5, maxval=3.0, step=0.1, group=G_RISK)
+tp1Multiplier = input.float(1.5, "TP1 ATR Mult", minval=0.5, maxval=3.0, step=0.1, group=G_RISK)
+tp2Multiplier = input.float(2.5, "TP2 ATR Mult", minval=1.0, maxval=5.0, step=0.1, group=G_RISK)
+tp3Multiplier = input.float(4.0, "TP3 ATR Mult", minval=2.0, maxval=8.0, step=0.1, group=G_RISK)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CORE CALCULATIONS (Simplified for strategy - same logic as indicator)
+// ══════════════════════════════════════════════════════════════════════════════
+
+float o = open
+float h = high
+float l = low
+float c = close
+float v = volume
+
+// Candle properties
+float bodySize = math.abs(c - o)
+float upperWick = h - math.max(c, o)
+float lowerWick = math.min(c, o) - l
+float totalRange = h - l
+bool isBullish = c > o
+bool isBearish = c < o
+
+// ATR
+atr = ta.atr(atrLen)
+atrMA = ta.sma(atr, 100)
+atrStd = ta.stdev(atr, 100)
+normATR = atrStd > 0 ? (atr - atrMA) / atrStd : 0
+
+// ADX
+[diPlus, diMinus, adxValue] = ta.dmi(14, 14)
+
+// Regime
+var int regime = 1
+regimeRaw = normATR < -0.5 ? 0 : normATR > 1.0 ? 2 : adxValue > 25 ? 3 : 1
+regime := int(math.round(ta.sma(regimeRaw, 5)))
+
+// EMAs
+emaFast = ta.ema(c, emaFastLen)
+emaSlow = ta.ema(c, emaSlowLen)
+ema200 = ta.ema(c, ema200Len)
+
+trendUp = c > ema200 and emaFast > emaSlow
+trendDown = c < ema200 and emaFast < emaSlow
+goldenCross = ta.crossover(emaFast, emaSlow)
+deathCross = ta.crossunder(emaFast, emaSlow)
+
+// RSI
+rsi = ta.rsi(c, rsiLen)
+adaptiveRsiOB = regime == 2 ? rsiOB + 5 : regime == 3 ? rsiOB + 10 : rsiOB
+adaptiveRsiOS = regime == 2 ? rsiOS - 5 : regime == 3 ? rsiOS - 10 : rsiOS
+
+// RSI Divergence (simplified for strategy)
+pivotLenDiv = 5
+pricePivotLow = ta.pivotlow(l, pivotLenDiv, pivotLenDiv)
+pricePivotHigh = ta.pivothigh(h, pivotLenDiv, pivotLenDiv)
+
+var float lastPriceLow = na, var float lastPriceLow2 = na
+var float lastRsiAtPriceLow = na, var float lastRsiAtPriceLow2 = na
+var float lastPriceHigh = na, var float lastPriceHigh2 = na
+var float lastRsiAtPriceHigh = na, var float lastRsiAtPriceHigh2 = na
+
+if not na(pricePivotLow)
+    lastPriceLow2 := lastPriceLow
+    lastRsiAtPriceLow2 := lastRsiAtPriceLow
+    lastPriceLow := pricePivotLow
+    lastRsiAtPriceLow := rsi[pivotLenDiv]
+
+if not na(pricePivotHigh)
+    lastPriceHigh2 := lastPriceHigh
+    lastRsiAtPriceHigh2 := lastRsiAtPriceHigh
+    lastPriceHigh := pricePivotHigh
+    lastRsiAtPriceHigh := rsi[pivotLenDiv]
+
+bullishDivergence = not na(lastPriceLow) and not na(lastPriceLow2) and lastPriceLow < lastPriceLow2 and lastRsiAtPriceLow > lastRsiAtPriceLow2 and rsi < 50
+bearishDivergence = not na(lastPriceHigh) and not na(lastPriceHigh2) and lastPriceHigh > lastPriceHigh2 and lastRsiAtPriceHigh < lastRsiAtPriceHigh2 and rsi > 50
+
+// MACD
+[macdLine, signalLine, histLine] = ta.macd(c, 12, 26, 9)
+macdBullish = ta.crossover(macdLine, signalLine)
+macdBearish = ta.crossunder(macdLine, signalLine)
+
+// Volume
+volMA = ta.sma(v, volLen)
+volRatio = v / volMA
+volSpike = volRatio > volThreshold
+bullVolume = volSpike and isBullish
+bearVolume = volSpike and isBearish
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ENHANCED ORDER FLOW (MATCHING INDICATOR)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Order Flow Settings
+cvdWindowLen = 50
+absorptionVolMult = 2.0
+absorptionRangeMult = 0.5
+
+// Improved Delta Estimation with Wick Confidence
+closePosition = totalRange > 0 ? (c - l) / totalRange : 0.5
+buyingPressure = closePosition
+sellingPressure = 1.0 - closePosition
+
+// Wick ratio - large wicks = less reliable signal
+wickRatio = totalRange > 0 ? (upperWick + lowerWick) / math.max(bodySize, totalRange * 0.01) : 0
+confidenceFactor = 1.0 / (1.0 + wickRatio * 0.3)
+confidenceFactor := math.max(0.2, math.min(1.0, confidenceFactor))
+
+// Enhanced delta estimation
+rawDelta = v * (buyingPressure - sellingPressure)
+estimatedDelta = rawDelta * confidenceFactor
+deltaMA = ta.ema(estimatedDelta, 14)
+
+// Rolling Window CVD (fixes infinite accumulation)
+var float[] cvdBuffer = array.new_float(cvdWindowLen, 0.0)
+array.shift(cvdBuffer)
+array.push(cvdBuffer, estimatedDelta)
+cvdRolling = array.sum(cvdBuffer)
+
+// CVD trend detection
+cvdMA = ta.sma(cvdRolling, 20)
+cvdTrendUp = cvdRolling > cvdMA and cvdRolling > 0
+cvdTrendDown = cvdRolling < cvdMA and cvdRolling < 0
+
+// Legacy CVD for compatibility
+var float cvd = 0.0
+cvd := cvdRolling
+
+// Absorption Detection
+rangeATRRatio = atr > 0 ? totalRange / atr : 1.0
+isHighVolume = volRatio > absorptionVolMult
+isSmallRange = rangeATRRatio < absorptionRangeMult
+absorption = isHighVolume and isSmallRange
+
+// Delta Divergence
+priceHH = h > ta.highest(h[1], 10)
+priceLL = l < ta.lowest(l[1], 10)
+cvdLH = cvdRolling < ta.highest(cvdRolling, 10)[1]
+cvdHL = cvdRolling > ta.lowest(cvdRolling, 10)[1]
+bearishDeltaDivergence = priceHH and cvdLH and rsi > 50
+bullishDeltaDivergence = priceLL and cvdHL and rsi < 50
+
+// Exhaustion Detection
+bullishRejection = lowerWick > bodySize * 1.5 and lowerWick > upperWick * 2
+bearishRejection = upperWick > bodySize * 1.5 and upperWick > lowerWick * 2
+climaxVolume = volRatio > volThreshold * 2
+
+// Stacked Imbalance
+bullishDeltaBar = estimatedDelta > deltaMA * 0.5
+bearishDeltaBar = estimatedDelta < deltaMA * 0.5 * -1
+var int consecutiveBullDelta = 0
+var int consecutiveBearDelta = 0
+if bullishDeltaBar
+    consecutiveBullDelta := consecutiveBullDelta + 1
+    consecutiveBearDelta := 0
+else if bearishDeltaBar
+    consecutiveBearDelta := consecutiveBearDelta + 1
+    consecutiveBullDelta := 0
+else
+    consecutiveBullDelta := 0
+    consecutiveBearDelta := 0
+stackedBullishImbalance = consecutiveBullDelta >= 3
+stackedBearishImbalance = consecutiveBearDelta >= 3
+
+// Volume/Price Divergence
+priceUp5 = c > c[5]
+priceDown5 = c < c[5]
+cvdUp5 = cvdRolling > cvdRolling[5]
+cvdDown5 = cvdRolling < cvdRolling[5]
+volumePriceDivBull = priceDown5 and cvdUp5
+volumePriceDivBear = priceUp5 and cvdDown5
+
+// Market Structure
+structurePivotLen = 5
+structureSwingHigh = ta.pivothigh(h, structurePivotLen, structurePivotLen)
+structureSwingLow = ta.pivotlow(l, structurePivotLen, structurePivotLen)
+
+var float prevSwingHigh = na, var float prevSwingHigh2 = na
+var float prevSwingLow = na, var float prevSwingLow2 = na
+
+if not na(structureSwingHigh)
+    prevSwingHigh2 := prevSwingHigh
+    prevSwingHigh := structureSwingHigh
+
+if not na(structureSwingLow)
+    prevSwingLow2 := prevSwingLow
+    prevSwingLow := structureSwingLow
+
+higherHigh = not na(prevSwingHigh) and not na(prevSwingHigh2) and prevSwingHigh > prevSwingHigh2
+higherLow = not na(prevSwingLow) and not na(prevSwingLow2) and prevSwingLow > prevSwingLow2
+lowerHigh = not na(prevSwingHigh) and not na(prevSwingHigh2) and prevSwingHigh < prevSwingHigh2
+lowerLow = not na(prevSwingLow) and not na(prevSwingLow2) and prevSwingLow < prevSwingLow2
+
+bullishStructure = higherHigh and higherLow
+bearishStructure = lowerHigh and lowerLow
+
+// S/R (simplified)
+highestH = ta.highest(h, srLookback)
+lowestL = ta.lowest(l, srLookback)
+priceRange = highestH - lowestL
+
+rangeHigh = ta.highest(h, 50)
+rangeLow = ta.lowest(l, 50)
+rangeSize = rangeHigh - rangeLow
+inLowerRange = c < rangeLow + rangeSize * 0.25
+inUpperRange = c > rangeHigh - rangeSize * 0.25
+equilibrium = (rangeHigh + rangeLow) / 2
+inDiscountZone = c < equilibrium
+inPremiumZone = c > equilibrium
+
+// Patterns (simplified with context)
+avgBody = ta.sma(bodySize, 14)
+swingLookback = 10
+isAtSwingLow = l == ta.lowest(l, swingLookback)
+isAtSwingHigh = h == ta.highest(h, swingLookback)
+
+patternVolConfirm = volRatio > 1.2
+hammer = lowerWick > bodySize * 2 and upperWick < bodySize * 0.3 and isAtSwingLow and inLowerRange
+shootingStar = upperWick > bodySize * 2 and lowerWick < bodySize * 0.3 and isAtSwingHigh and inUpperRange
+bullishEngulfing = isBullish and c[1] < o[1] and bodySize > math.abs(c[1] - o[1]) and (isAtSwingLow or inLowerRange) and patternVolConfirm
+bearishEngulfing = isBearish and c[1] > o[1] and bodySize > math.abs(c[1] - o[1]) and (isAtSwingHigh or inUpperRange) and patternVolConfirm
+
+bullPattern = hammer or bullishEngulfing
+bearPattern = shootingStar or bearishEngulfing
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CONFLUENCE SCORING (ENHANCED WITH ORDER FLOW)
+// ══════════════════════════════════════════════════════════════════════════════
+
+var float bullScore = 0.0
+var float bearScore = 0.0
+
+bullScore := 0.0
+bearScore := 0.0
+
+// Trend
+bullScore := bullScore + (c > ema200 ? 1.0 : 0) + (emaFast > emaSlow ? 0.75 : 0) + (goldenCross ? 2.0 : 0)
+bearScore := bearScore + (c < ema200 ? 1.0 : 0) + (emaFast < emaSlow ? 0.75 : 0) + (deathCross ? 2.0 : 0)
+
+// Structure
+bullScore := bullScore + (bullishStructure ? 1.5 : 0) - (bearishStructure ? 1.0 : 0) + (inDiscountZone ? 0.5 : 0)
+bearScore := bearScore + (bearishStructure ? 1.5 : 0) - (bullishStructure ? 1.0 : 0) + (inPremiumZone ? 0.5 : 0)
+
+// RSI
+bullScore := bullScore + (rsi > 50 and rsi < adaptiveRsiOB ? 0.5 : 0) + (bullishDivergence ? 2.0 : 0)
+bearScore := bearScore + (rsi < 50 and rsi > adaptiveRsiOS ? 0.5 : 0) + (bearishDivergence ? 2.0 : 0)
+
+// MACD
+bullScore := bullScore + (macdBullish ? 1.5 : 0)
+bearScore := bearScore + (macdBearish ? 1.5 : 0)
+
+// Volume & Order Flow (Enhanced)
+bullScore := bullScore + (bullVolume ? 1.5 : 0) + (cvdTrendUp ? 1.0 : 0)
+bearScore := bearScore + (bearVolume ? 1.5 : 0) + (cvdTrendDown ? 1.0 : 0)
+
+// Volume/Price Divergence
+bullScore := bullScore + (volumePriceDivBull ? 1.5 : 0)
+bearScore := bearScore + (volumePriceDivBear ? 1.5 : 0)
+
+// Absorption (institutional activity)
+bullishAbsorption = absorption and inLowerRange and (isBullish or closePosition > 0.4)
+bearishAbsorption = absorption and inUpperRange and (isBearish or closePosition < 0.6)
+bullScore := bullScore + (bullishAbsorption ? 2.0 : 0)
+bearScore := bearScore + (bearishAbsorption ? 2.0 : 0)
+
+// Delta Divergence
+bullScore := bullScore + (bullishDeltaDivergence ? 2.0 : 0)
+bearScore := bearScore + (bearishDeltaDivergence ? 2.0 : 0)
+
+// Exhaustion at key levels
+bullishExhaustion = volSpike and bullishRejection and inLowerRange
+bearishExhaustion = volSpike and bearishRejection and inUpperRange
+bullScore := bullScore + (bullishExhaustion ? 1.5 : 0)
+bearScore := bearScore + (bearishExhaustion ? 1.5 : 0)
+
+// Climax Exhaustion
+bullishClimaxExhaustion = climaxVolume and bullishRejection and inLowerRange
+bearishClimaxExhaustion = climaxVolume and bearishRejection and inUpperRange
+bullScore := bullScore + (bullishClimaxExhaustion ? 2.5 : 0)
+bearScore := bearScore + (bearishClimaxExhaustion ? 2.5 : 0)
+
+// Stacked Imbalance
+bullScore := bullScore + (stackedBullishImbalance ? 1.0 : 0)
+bearScore := bearScore + (stackedBearishImbalance ? 1.0 : 0)
+
+// Patterns
+bullScore := bullScore + (bullPattern ? 2.0 : 0)
+bearScore := bearScore + (bearPattern ? 2.0 : 0)
+
+// ADX
+bullScore := bullScore + (adxValue > 25 and diPlus > diMinus ? 1.0 : 0)
+bearScore := bearScore + (adxValue > 25 and diMinus > diPlus ? 1.0 : 0)
+
+bullScore := math.max(0, bullScore)
+bearScore := math.max(0, bearScore)
+
+// Category count for quality gate (now 6 categories with order flow)
+bullOrderFlow = cvdTrendUp or bullishAbsorption or bullishDeltaDivergence or stackedBullishImbalance
+bearOrderFlow = cvdTrendDown or bearishAbsorption or bearishDeltaDivergence or stackedBearishImbalance
+bullCategories = (c > ema200 ? 1 : 0) + (bullishStructure ? 1 : 0) + (bullPattern ? 1 : 0) + (bullVolume ? 1 : 0) + (bullOrderFlow ? 1 : 0)
+bearCategories = (c < ema200 ? 1 : 0) + (bearishStructure ? 1 : 0) + (bearPattern ? 1 : 0) + (bearVolume ? 1 : 0) + (bearOrderFlow ? 1 : 0)
+
+// Multi-category bonus
+bullScore := bullCategories >= 4 ? bullScore * 1.3 : bullCategories >= 3 ? bullScore * 1.2 : bullScore
+bearScore := bearCategories >= 4 ? bearScore * 1.3 : bearCategories >= 3 ? bearScore * 1.2 : bearScore
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SIGNAL GENERATION
+// ══════════════════════════════════════════════════════════════════════════════
+
+baseMinScore = signalMode == "Aggressive" ? 6.0 : signalMode == "Conservative" ? 10.0 : 8.0
+effectiveMinScore = baseMinScore + (regime == 0 ? 1.0 : regime == 2 ? -1.0 : 0)
+maxOpposingScore = signalMode == "Aggressive" ? 4.0 : signalMode == "Conservative" ? 2.5 : 3.0
+
+var int lastSignalBar = -999
+adaptiveCooldown = regime == 0 ? 8 : regime == 2 ? 3 : 5
+barsSinceSignal = bar_index - lastSignalBar
+cooldownMet = barsSinceSignal > adaptiveCooldown
+
+confirmBar = requireConfirmation ? barstate.isconfirmed : true
+bullQualityGate = bullCategories >= 2
+bearQualityGate = bearCategories >= 2
+
+bullSignalRaw = bullScore >= effectiveMinScore and bearScore < maxOpposingScore and cooldownMet and confirmBar and bullQualityGate
+bearSignalRaw = bearScore >= effectiveMinScore and bullScore < maxOpposingScore and cooldownMet and confirmBar and bearQualityGate
+
+buySignal = bullSignalRaw and not bullSignalRaw[1]
+sellSignal = bearSignalRaw and not bearSignalRaw[1]
+
+if buySignal or sellSignal
+    lastSignalBar := bar_index
+
+// ══════════════════════════════════════════════════════════════════════════════
+// STRATEGY EXECUTION
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Calculate levels
+longSL = c - (atr * slMultiplier)
+longTP1 = c + (atr * tp1Multiplier)
+longTP2 = c + (atr * tp2Multiplier)
+longTP3 = c + (atr * tp3Multiplier)
+
+shortSL = c + (atr * slMultiplier)
+shortTP1 = c - (atr * tp1Multiplier)
+shortTP2 = c - (atr * tp2Multiplier)
+shortTP3 = c - (atr * tp3Multiplier)
+
+// Entry logic
+if buySignal and strategy.position_size == 0
+    strategy.entry("Long", strategy.long)
+    if useTP1
+        strategy.exit("TP1", "Long", qty_percent=tp1Percent, limit=longTP1, stop=longSL)
+        strategy.exit("TP2", "Long", qty_percent=50, limit=longTP2)
+        strategy.exit("TP3", "Long", limit=longTP3)
+    else
+        strategy.exit("Exit Long", "Long", limit=longTP3, stop=longSL)
+
+if sellSignal and strategy.position_size == 0
+    strategy.entry("Short", strategy.short)
+    if useTP1
+        strategy.exit("TP1", "Short", qty_percent=tp1Percent, limit=shortTP1, stop=shortSL)
+        strategy.exit("TP2", "Short", qty_percent=50, limit=shortTP2)
+        strategy.exit("TP3", "Short", limit=shortTP3)
+    else
+        strategy.exit("Exit Short", "Short", limit=shortTP3, stop=shortSL)
+
+// Close on opposite signal
+if sellSignal and strategy.position_size > 0
+    strategy.close("Long", comment="Reverse")
+
+if buySignal and strategy.position_size < 0
+    strategy.close("Short", comment="Reverse")
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PLOTTING
+// ══════════════════════════════════════════════════════════════════════════════
+
+plot(emaFast, "Fast EMA", color=color.new(color.teal, 70), linewidth=1)
+plot(emaSlow, "Slow EMA", color=color.new(color.red, 70), linewidth=1)
+plot(ema200, "EMA 200", color=color.new(color.yellow, 50), linewidth=2)
+
+plotshape(buySignal, "BUY", shape.triangleup, location.belowbar, color.teal, size=size.small)
+plotshape(sellSignal, "SELL", shape.triangledown, location.abovebar, color.red, size=size.small)
+
+// Performance table
+var table perfTable = table.new(position.bottom_right, 2, 6, bgcolor=color.new(color.black, 80))
+if barstate.islast
+    table.cell(perfTable, 0, 0, "Net Profit", text_color=color.white, text_size=size.tiny)
+    table.cell(perfTable, 1, 0, str.tostring(strategy.netprofit, "#.00"), text_color=strategy.netprofit > 0 ? color.teal : color.red, text_size=size.tiny)
+
+    table.cell(perfTable, 0, 1, "Win Rate", text_color=color.white, text_size=size.tiny)
+    winRate = strategy.closedtrades > 0 ? (strategy.wintrades / strategy.closedtrades) * 100 : 0
+    table.cell(perfTable, 1, 1, str.tostring(winRate, "#.0") + "%", text_color=winRate > 50 ? color.teal : color.red, text_size=size.tiny)
+
+    table.cell(perfTable, 0, 2, "Profit Factor", text_color=color.white, text_size=size.tiny)
+    table.cell(perfTable, 1, 2, str.tostring(strategy.grossprofit / math.max(1, strategy.grossloss), "#.00"), text_color=color.white, text_size=size.tiny)
+
+    table.cell(perfTable, 0, 3, "Total Trades", text_color=color.white, text_size=size.tiny)
+    table.cell(perfTable, 1, 3, str.tostring(strategy.closedtrades), text_color=color.white, text_size=size.tiny)
+
+    table.cell(perfTable, 0, 4, "Max DD", text_color=color.white, text_size=size.tiny)
+    table.cell(perfTable, 1, 4, str.tostring(strategy.max_drawdown, "#.00"), text_color=color.red, text_size=size.tiny)
+
+    table.cell(perfTable, 0, 5, "Bull/Bear", text_color=color.white, text_size=size.tiny)
+    table.cell(perfTable, 1, 5, str.tostring(bullScore, "#.0") + "/" + str.tostring(bearScore, "#.0"), text_color=color.white, text_size=size.tiny)
