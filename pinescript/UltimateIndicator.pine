@@ -217,64 +217,68 @@ obvTrendDown = obv < obvEma
 // SUPPORT/RESISTANCE CLUSTERING (K-MEANS INSPIRED)
 // ══════════════════════════════════════════════════════════════════════════════
 
-// Get price range
+// Get price range (called at global scope for consistency)
 highestH = ta.highest(h, srLookback)
 lowestL = ta.lowest(l, srLookback)
 priceRange = highestH - lowestL
 
+// Pivot detection using ta.pivothigh/pivotlow (more reliable)
+pivotHigh = ta.pivothigh(h, 5, 5)
+pivotLow = ta.pivotlow(l, 5, 5)
+
 // Initialize cluster centroids
 var float[] srLevels = array.new_float(srClusters, 0.0)
+var float[] recentPivots = array.new_float(0)
 var bool srInit = false
 
-if not srInit
+// Initialize with evenly distributed levels
+if bar_index == srLookback and not srInit
     for i = 0 to srClusters - 1
         array.set(srLevels, i, lowestL + priceRange * (i + 0.5) / srClusters)
     srInit := true
 
-// Update clusters periodically
-if bar_index % 10 == 0 and barstate.isconfirmed
-    // Collect pivot points
-    var float[] pivots = array.new_float(0)
-    array.clear(pivots)
+// Collect pivots into array
+if not na(pivotHigh)
+    if array.size(recentPivots) >= 50
+        array.shift(recentPivots)
+    array.push(recentPivots, pivotHigh)
 
-    for i = 2 to math.min(srLookback - 2, bar_index - 2)
-        // Swing highs
-        if h[i] > h[i-1] and h[i] > h[i-2] and h[i] > h[i+1] and h[i] > h[i+2]
-            array.push(pivots, h[i])
-        // Swing lows
-        if l[i] < l[i-1] and l[i] < l[i-2] and l[i] < l[i+1] and l[i] < l[i+2]
-            array.push(pivots, l[i])
+if not na(pivotLow)
+    if array.size(recentPivots) >= 50
+        array.shift(recentPivots)
+    array.push(recentPivots, pivotLow)
 
+// Update clusters periodically (only after enough data)
+if bar_index > srLookback and bar_index % 10 == 0 and barstate.isconfirmed and array.size(recentPivots) >= srClusters
     // K-means iteration
-    if array.size(pivots) >= srClusters
-        var float[] clusterSums = array.new_float(srClusters, 0.0)
-        var int[] clusterCounts = array.new_int(srClusters, 0)
+    var float[] clusterSums = array.new_float(srClusters, 0.0)
+    var int[] clusterCounts = array.new_int(srClusters, 0)
 
-        // Reset
-        for i = 0 to srClusters - 1
-            array.set(clusterSums, i, 0.0)
-            array.set(clusterCounts, i, 0)
+    // Reset
+    for i = 0 to srClusters - 1
+        array.set(clusterSums, i, 0.0)
+        array.set(clusterCounts, i, 0)
 
-        // Assign pivots to nearest centroid
-        for i = 0 to array.size(pivots) - 1
-            pivot = array.get(pivots, i)
-            minDist = 999999999.0
-            nearest = 0
+    // Assign pivots to nearest centroid
+    for i = 0 to array.size(recentPivots) - 1
+        pivot = array.get(recentPivots, i)
+        minDist = 999999999.0
+        nearest = 0
 
-            for j = 0 to srClusters - 1
-                dist = math.abs(pivot - array.get(srLevels, j))
-                if dist < minDist
-                    minDist := dist
-                    nearest := j
+        for j = 0 to srClusters - 1
+            dist = math.abs(pivot - array.get(srLevels, j))
+            if dist < minDist
+                minDist := dist
+                nearest := j
 
-            array.set(clusterSums, nearest, array.get(clusterSums, nearest) + pivot)
-            array.set(clusterCounts, nearest, array.get(clusterCounts, nearest) + 1)
+        array.set(clusterSums, nearest, array.get(clusterSums, nearest) + pivot)
+        array.set(clusterCounts, nearest, array.get(clusterCounts, nearest) + 1)
 
-        // Update centroids
-        for i = 0 to srClusters - 1
-            cnt = array.get(clusterCounts, i)
-            if cnt > 0
-                array.set(srLevels, i, array.get(clusterSums, i) / cnt)
+    // Update centroids
+    for i = 0 to srClusters - 1
+        cnt = array.get(clusterCounts, i)
+        if cnt > 0
+            array.set(srLevels, i, array.get(clusterSums, i) / cnt)
 
 // Find nearest support and resistance
 nearestSupport = 0.0
