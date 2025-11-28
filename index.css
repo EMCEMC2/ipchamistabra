@@ -176,20 +176,6 @@
   }
 
   .badge-premium.badge-bearish {
-    background: var(--accent-bearish-muted);
-    border-color: var(--accent-bearish);
-    color: var(--accent-bearish-bright);
-  }
-
-  /* Tooltip */
-  .tooltip {
-    position: absolute;
-    z-index: var(--z-tooltip);
-    padding: var(--space-xs) var(--space-sm);
-    background: var(--chart-tooltip-bg);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--radius-sm);
-    font-size: var(--text-xs);
 /* Import Elite Design System */
 @import url('./styles/design-tokens.css');
 
@@ -202,7 +188,7 @@
     @apply bg-terminal-bg text-terminal-text font-sans antialiased;
     font-size: var(--text-sm);
     line-height: var(--leading-normal);
-    background-image:
+    background-image: 
       linear-gradient(rgba(0, 243, 255, 0.03) 1px, transparent 1px),
       linear-gradient(90deg, rgba(0, 243, 255, 0.03) 1px, transparent 1px);
     background-size: 40px 40px;
