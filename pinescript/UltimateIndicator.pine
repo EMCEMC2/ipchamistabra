@@ -96,8 +96,9 @@ enableAlerts = input.bool(true, "Enable Alerts", group=G_ALERT)
 
 // Multi-Timeframe Settings
 string G_MTF = "Multi-Timeframe"
-useMTF = input.bool(true, "Use HTF Confirmation", group=G_MTF, tooltip="Require higher timeframe trend alignment")
-htfTimeframe = input.timeframe("D", "HTF Timeframe", group=G_MTF, tooltip="Higher timeframe for trend confirmation")
+useMTF = input.bool(true, "Enable HTF Confirmation", group=G_MTF, tooltip="Require higher timeframe trend alignment")
+htfTimeframe = input.timeframe("240", "HTF Timeframe", group=G_MTF, tooltip="Higher timeframe for trend confirmation (240=4H)")
+htfEmaLen = input.int(50, "HTF EMA Length", minval=10, maxval=200, group=G_MTF)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // CORE CALCULATIONS
@@ -178,23 +179,23 @@ goldenCross = ta.crossover(emaFast, emaSlow)
 deathCross = ta.crossunder(emaFast, emaSlow)
 
 // ══════════════════════════════════════════════════════════════════════════════
-// MULTI-TIMEFRAME TREND CONFIRMATION
+// MULTI-TIMEFRAME ANALYSIS
 // ══════════════════════════════════════════════════════════════════════════════
 
-// HTF EMAs (request from higher timeframe)
-htfEmaFast = request.security(syminfo.tickerid, htfTimeframe, ta.ema(close, emaFastLen), lookahead=barmerge.lookahead_off)
-htfEmaSlow = request.security(syminfo.tickerid, htfTimeframe, ta.ema(close, emaSlowLen), lookahead=barmerge.lookahead_off)
-htfEma200 = request.security(syminfo.tickerid, htfTimeframe, ta.ema(close, 200), lookahead=barmerge.lookahead_off)
-htfClose = request.security(syminfo.tickerid, htfTimeframe, close, lookahead=barmerge.lookahead_off)
+// HTF trend detection using request.security()
+// Note: These calls are evaluated even if useMTF is false (Pine limitation)
+htfClose = request.security(syminfo.tickerid, htfTimeframe, close, barmerge.gaps_off, barmerge.lookahead_off)
+htfEma = request.security(syminfo.tickerid, htfTimeframe, ta.ema(close, htfEmaLen), barmerge.gaps_off, barmerge.lookahead_off)
+htfEma200 = request.security(syminfo.tickerid, htfTimeframe, ta.ema(close, 200), barmerge.gaps_off, barmerge.lookahead_off)
 
-// HTF Trend Direction
-htfTrendUp = htfClose > htfEma200 and htfEmaFast > htfEmaSlow
-htfTrendDown = htfClose < htfEma200 and htfEmaFast < htfEmaSlow
+// HTF trend conditions
+htfTrendUp = htfClose > htfEma and htfClose > htfEma200
+htfTrendDown = htfClose < htfEma and htfClose < htfEma200
 htfTrendNeutral = not htfTrendUp and not htfTrendDown
 
-// MTF Alignment Check (used in signal generation)
-mtfBullishAligned = not useMTF or htfTrendUp or htfTrendNeutral  // Allow neutral for ranging markets
-mtfBearishAligned = not useMTF or htfTrendDown or htfTrendNeutral
+// HTF trend strength (for scoring)
+htfStrongUp = htfClose > htfEma and htfEma > htfEma200
+htfStrongDown = htfClose < htfEma and htfEma < htfEma200
 
 // ══════════════════════════════════════════════════════════════════════════════
 // RSI WITH PIVOT-BASED DIVERGENCE (FIXED)
@@ -807,6 +808,16 @@ bearScore := bearScore + (c < emaFast ? 0.5 : 0)
 bullScore := bullScore + (goldenCross ? 2.0 : 0)
 bearScore := bearScore + (deathCross ? 2.0 : 0)
 
+// HTF Trend Alignment (CRITICAL - max 2.5 points)
+if useMTF
+    // Strong bonus for trading with HTF trend
+    bullScore := bullScore + (htfStrongUp ? 2.0 : htfTrendUp ? 1.5 : 0)
+    bearScore := bearScore + (htfStrongDown ? 2.0 : htfTrendDown ? 1.5 : 0)
+
+    // Penalty for trading against HTF trend
+    bullScore := bullScore - (htfTrendDown ? 1.5 : 0)
+    bearScore := bearScore - (htfTrendUp ? 1.5 : 0)
+
 // ────────────────────────────────────────────────────────────────────────────────
 // 2. MARKET STRUCTURE (NEW - max ~4 points)
 // ────────────────────────────────────────────────────────────────────────────────
@@ -970,12 +981,18 @@ cooldownMet = barsSinceSignal > adaptiveCooldown
 // Signal conditions with quality gate
 confirmBar = requireConfirmation ? barstate.isconfirmed : true
 
-// Quality gate: require minimum category diversity
-bullQualityGate = bullCategories >= 2  // Must have at least 2 categories contributing
-bearQualityGate = bearCategories >= 2
+// Quality gate: require minimum category diversity (v2.1: increased to 3)
+bullQualityGate = bullCategories >= 3  // Must have at least 3 categories contributing
+bearQualityGate = bearCategories >= 3
 
-bullSignalRaw = bullScore >= effectiveMinScore and bearScore < maxOpposingScore and cooldownMet and confirmBar and bullQualityGate and mtfBullishAligned
-bearSignalRaw = bearScore >= effectiveMinScore and bullScore < maxOpposingScore and cooldownMet and confirmBar and bearQualityGate and mtfBearishAligned
+// MINIMUM VOLUME FILTER - No signals in dead volume (< 0.8x average)
+minVolumeMet = volRatio >= 0.8
+
+// Conflicting momentum filter - no signal if opposing score is too high
+noConflictingMomentum = not (bullScore >= effectiveMinScore and bearScore >= effectiveMinScore * 0.6)
+
+bullSignalRaw = bullScore >= effectiveMinScore and bearScore < maxOpposingScore and cooldownMet and confirmBar and bullQualityGate and minVolumeMet and noConflictingMomentum
+bearSignalRaw = bearScore >= effectiveMinScore and bullScore < maxOpposingScore and cooldownMet and confirmBar and bearQualityGate and minVolumeMet and noConflictingMomentum
 
 // Final signals
 buySignal = bullSignalRaw and not bullSignalRaw[1]
@@ -1057,26 +1074,12 @@ plot(showFib ? fib382 : na, "Fib 0.382", color=color.new(C_GOLD, 70), style=plot
 plot(showFib ? fib500 : na, "Fib 0.5", color=color.new(C_GOLD, 60), style=plot.style_linebr, linewidth=1)
 plot(showFib ? fib618 : na, "Fib 0.618", color=color.new(C_GOLD, 50), style=plot.style_linebr, linewidth=1)
 
-// Signal markers (minimal dots)
-plotshape(buySignal and showSignalLabels, "BUY", shape.circle, location.belowbar, C_BULL, size=size.tiny)
-plotshape(sellSignal and showSignalLabels, "SELL", shape.circle, location.abovebar, C_BEAR, size=size.tiny)
+// Signal markers - ONLY BUY/SELL signals (v2.1: triangles, cleaner chart)
+plotshape(buySignal and showSignalLabels, "BUY", shape.triangleup, location.belowbar, C_BULL, size=size.small)
+plotshape(sellSignal and showSignalLabels, "SELL", shape.triangledown, location.abovebar, C_BEAR, size=size.small)
 
-// Pattern markers (minimalistic dots)
-plotshape(showPatterns and shootingStar, "Shooting Star", shape.circle, location.abovebar, color.new(C_BEAR, 60), size=size.tiny)
-plotshape(showPatterns and hammer, "Hammer", shape.circle, location.belowbar, color.new(C_BULL, 60), size=size.tiny)
-
-// RSI Divergence markers (subtle dots)
-plotshape(showRSIDivergence and bullishDivergence, "Bull Div", shape.diamond, location.belowbar, color.new(C_BULL, 60), size=size.tiny)
-plotshape(showRSIDivergence and bearishDivergence, "Bear Div", shape.diamond, location.abovebar, color.new(C_BEAR, 60), size=size.tiny)
-
-// Market Structure markers (BOS/CHoCH) - minimalistic dots only
-plotshape(showStructure and bullishBOS, "Bullish BOS", shape.circle, location.belowbar, color.new(C_BULL, 60), size=size.tiny)
-plotshape(showStructure and bearishBOS, "Bearish BOS", shape.circle, location.abovebar, color.new(C_BEAR, 60), size=size.tiny)
-plotshape(showStructure and bullishCHoCH, "Bullish CHoCH", shape.diamond, location.belowbar, color.new(C_GOLD, 40), size=size.tiny)
-plotshape(showStructure and bearishCHoCH, "Bearish CHoCH", shape.diamond, location.abovebar, color.new(C_GOLD, 40), size=size.tiny)
-
-// FVG zones removed - too complex for clean display
-// Use plotshape for simple markers instead
+// Pattern/Divergence/BOS/CHoCH markers REMOVED in v2.1 - too cluttery
+// All pattern and divergence info is shown in the dashboard instead
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TRADE LEVELS - USING PLOT (PROPERLY ANCHORED TO CHART)
@@ -1090,25 +1093,28 @@ plot(showTPSL and inTrade ? tp1 : na, "TP1", color.new(C_BULL, 50), 1, plot.styl
 plot(showTPSL and inTrade ? tp3 : na, "TP3", C_BULL, 1, plot.style_linebr)
 
 // ══════════════════════════════════════════════════════════════════════════════
-// DASHBOARD - PROFESSIONAL MINIMALIST DESIGN (ENHANCED)
+// DASHBOARD - PROFESSIONAL MINIMALIST DESIGN (v2.1 ENHANCED)
 // ══════════════════════════════════════════════════════════════════════════════
 
 if showDashboard and barstate.islast
-    var table dash = table.new(position.top_right, 2, compactMode ? 12 : 20, bgcolor=color.new(C_BG, 5), border_width=1, border_color=color.new(C_MUTED, 70))
+    var table dash = table.new(position.top_right, 2, compactMode ? 10 : 22, bgcolor=color.new(C_BG, 5), border_width=1, border_color=color.new(C_MUTED, 70))
 
     // Header
     table.cell(dash, 0, 0, "UTS PRO", bgcolor=color.new(C_GOLD, 20), text_color=C_BG, text_size=size.small)
-    table.cell(dash, 1, 0, "v2.0", bgcolor=color.new(C_GOLD, 20), text_color=C_BG, text_size=size.small)
+    table.cell(dash, 1, 0, "v2.1", bgcolor=color.new(C_GOLD, 20), text_color=C_BG, text_size=size.small)
 
-    // Regime
-    table.cell(dash, 0, 1, "REGIME", text_color=C_MUTED, text_size=size.tiny)
-    table.cell(dash, 1, 1, regimeName, text_color=regimeColor, text_size=size.tiny)
+    // POSITION STATUS (separate from setup)
+    positionText = inLongTrade ? "LONG" : inShortTrade ? "SHORT" : "FLAT"
+    positionColor = inLongTrade ? C_BULL : inShortTrade ? C_BEAR : C_MUTED
+    table.cell(dash, 0, 1, "POS", text_color=C_MUTED, text_size=size.tiny)
+    table.cell(dash, 1, 1, positionText, text_color=positionColor, text_size=size.tiny)
 
-    // Market Structure
-    structureText = bullishStructure ? "BULLISH" : bearishStructure ? "BEARISH" : "RANGING"
-    structureColor = bullishStructure ? C_BULL : bearishStructure ? C_BEAR : C_MUTED
-    table.cell(dash, 0, 2, "STRUCT", text_color=C_MUTED, text_size=size.tiny)
-    table.cell(dash, 1, 2, structureText, text_color=structureColor, text_size=size.tiny)
+    // SETUP STATUS (current market conditions)
+    setupReady = (bullScore >= effectiveMinScore and bullQualityGate and minVolumeMet) or (bearScore >= effectiveMinScore and bearQualityGate and minVolumeMet)
+    setupText = not minVolumeMet ? "LOW VOL" : bullScore >= effectiveMinScore and bullQualityGate ? "BULL RDY" : bearScore >= effectiveMinScore and bearQualityGate ? "BEAR RDY" : "WAIT"
+    setupColor = not minVolumeMet ? color.orange : bullScore >= effectiveMinScore and bullQualityGate ? C_BULL : bearScore >= effectiveMinScore and bearQualityGate ? C_BEAR : C_MUTED
+    table.cell(dash, 0, 2, "SETUP", text_color=C_MUTED, text_size=size.tiny)
+    table.cell(dash, 1, 2, setupText, text_color=setupColor, text_size=size.tiny)
 
     // HTF Trend (Multi-Timeframe)
     htfText = htfTrendUp ? "UP" : htfTrendDown ? "DOWN" : "NEUTRAL"
@@ -1117,25 +1123,27 @@ if showDashboard and barstate.islast
     table.cell(dash, 0, 3, htfLabel, text_color=C_MUTED, text_size=size.tiny)
     table.cell(dash, 1, 3, htfText, text_color=htfColor, text_size=size.tiny)
 
-    // Signal Status
-    signalStatus = inLongTrade ? "LONG" : inShortTrade ? "SHORT" : bullScore >= effectiveMinScore and bullQualityGate ? "BULL SETUP" : bearScore >= effectiveMinScore and bearQualityGate ? "BEAR SETUP" : "SCANNING"
-    signalColor = inLongTrade ? C_BULL : inShortTrade ? C_BEAR : bullScore >= effectiveMinScore ? C_BULL : bearScore >= effectiveMinScore ? C_BEAR : C_MUTED
-    table.cell(dash, 0, 4, "SIGNAL", text_color=C_MUTED, text_size=size.tiny)
-    table.cell(dash, 1, 4, signalStatus, text_color=signalColor, text_size=size.tiny)
+    // Volume Status (CRITICAL - highlighted when too low)
+    volText = str.tostring(volRatio, "#.0") + "x"
+    volColor = volRatio < 0.8 ? color.red : volRatio >= volThreshold ? C_GOLD : C_TEXT
+    volWarning = volRatio < 0.8 ? " !" : ""
+    table.cell(dash, 0, 4, "VOL", text_color=C_MUTED, text_size=size.tiny)
+    table.cell(dash, 1, 4, volText + volWarning, text_color=volColor, text_size=size.tiny)
 
     // Confluence Scores with threshold indicator
     bullScoreText = str.tostring(bullScore, "#.0") + "/" + str.tostring(effectiveMinScore, "#.0")
     bearScoreText = str.tostring(bearScore, "#.0") + "/" + str.tostring(effectiveMinScore, "#.0")
     table.cell(dash, 0, 5, "BULL", text_color=C_MUTED, text_size=size.tiny)
-    table.cell(dash, 1, 5, bullScoreText, text_color=bullScore >= effectiveMinScore ? C_BULL : C_MUTED, text_size=size.tiny)
+    table.cell(dash, 1, 5, bullScoreText, text_color=bullScore >= effectiveMinScore and bullQualityGate ? C_BULL : C_MUTED, text_size=size.tiny)
 
     table.cell(dash, 0, 6, "BEAR", text_color=C_MUTED, text_size=size.tiny)
-    table.cell(dash, 1, 6, bearScoreText, text_color=bearScore >= effectiveMinScore ? C_BEAR : C_MUTED, text_size=size.tiny)
+    table.cell(dash, 1, 6, bearScoreText, text_color=bearScore >= effectiveMinScore and bearQualityGate ? C_BEAR : C_MUTED, text_size=size.tiny)
 
-    // Quality gate (categories contributing - now 6 categories)
+    // Quality gate (categories - need 3+ now)
+    maxCat = math.max(bullCategories, bearCategories)
+    qualityText = str.tostring(maxCat) + "/6 CAT"
+    qualityColor = maxCat >= 4 ? C_GOLD : maxCat >= 3 ? color.new(C_GOLD, 50) : color.red
     table.cell(dash, 0, 7, "QUALITY", text_color=C_MUTED, text_size=size.tiny)
-    qualityText = str.tostring(math.max(bullCategories, bearCategories)) + "/6 CAT"
-    qualityColor = math.max(bullCategories, bearCategories) >= 4 ? C_GOLD : math.max(bullCategories, bearCategories) >= 3 ? color.new(C_GOLD, 50) : C_MUTED
     table.cell(dash, 1, 7, qualityText, text_color=qualityColor, text_size=size.tiny)
 
     // Key Indicators
@@ -1146,22 +1154,19 @@ if showDashboard and barstate.islast
     table.cell(dash, 0, 9, "ADX", text_color=C_MUTED, text_size=size.tiny)
     table.cell(dash, 1, 9, str.tostring(adxValue, "#.0"), text_color=adxValue > 25 ? C_GOLD : C_MUTED, text_size=size.tiny)
 
-    table.cell(dash, 0, 10, "VOL", text_color=C_MUTED, text_size=size.tiny)
-    table.cell(dash, 1, 10, str.tostring(volRatio, "#.0") + "x", text_color=volSpike ? C_GOLD : C_MUTED, text_size=size.tiny)
-
-    // CVD trend (enhanced with rolling window)
-    table.cell(dash, 0, 11, "CVD", text_color=C_MUTED, text_size=size.tiny)
-    cvdText = cvdTrendUp ? "BUYING" : cvdTrendDown ? "SELLING" : "NEUTRAL"
-    cvdColor = cvdTrendUp ? C_BULL : cvdTrendDown ? C_BEAR : C_MUTED
-    table.cell(dash, 1, 11, cvdText, text_color=cvdColor, text_size=size.tiny)
-
-    // Order Flow Status (absorption/exhaustion)
-    table.cell(dash, 0, 12, "FLOW", text_color=C_MUTED, text_size=size.tiny)
-    flowText = bullishAbsorption ? "ABSORB+" : bearishAbsorption ? "ABSORB-" : bullishExhaustion ? "EXHST+" : bearishExhaustion ? "EXHST-" : stackedBullishImbalance ? "STACK+" : stackedBearishImbalance ? "STACK-" : "-"
-    flowColor = bullishAbsorption or bullishExhaustion or stackedBullishImbalance ? C_BULL : bearishAbsorption or bearishExhaustion or stackedBearishImbalance ? C_BEAR : C_MUTED
-    table.cell(dash, 1, 12, flowText, text_color=flowColor, text_size=size.tiny)
-
     if not compactMode
+        // CVD trend
+        table.cell(dash, 0, 10, "CVD", text_color=C_MUTED, text_size=size.tiny)
+        cvdText = cvdTrendUp ? "BUYING" : cvdTrendDown ? "SELLING" : "NEUTRAL"
+        cvdColor = cvdTrendUp ? C_BULL : cvdTrendDown ? C_BEAR : C_MUTED
+        table.cell(dash, 1, 10, cvdText, text_color=cvdColor, text_size=size.tiny)
+
+        // Order Flow Status
+        table.cell(dash, 0, 11, "FLOW", text_color=C_MUTED, text_size=size.tiny)
+        flowText = bullishAbsorption ? "ABSORB+" : bearishAbsorption ? "ABSORB-" : bullishExhaustion ? "EXHST+" : bearishExhaustion ? "EXHST-" : stackedBullishImbalance ? "STACK+" : stackedBearishImbalance ? "STACK-" : "-"
+        flowColor = bullishAbsorption or bullishExhaustion or stackedBullishImbalance ? C_BULL : bearishAbsorption or bearishExhaustion or stackedBearishImbalance ? C_BEAR : C_MUTED
+        table.cell(dash, 1, 11, flowText, text_color=flowColor, text_size=size.tiny)
+
         // S/R Levels with strength
         supportText = nearestSupport > 0 ? str.tostring(nearestSupport, "#") + (strongSupport ? "*" : "") : "-"
         resistText = nearestResistance < 999999999 ? str.tostring(nearestResistance, "#") + (strongResistance ? "*" : "") : "-"

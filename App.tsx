@@ -57,6 +57,7 @@ function App() {
   const [activeView, setActiveView] = useState<ViewMode>('TERMINAL');
   const [bottomView, setBottomView] = useState<BottomViewMode>('POSITIONS');
   const [isApiKeyMissing, setIsApiKeyMissing] = useState(false);
+  const [apiKeyError, setApiKeyError] = useState<string>('');
 
   // Keyboard Shortcuts
   useKeyboardShortcuts({ setActiveView });
@@ -88,24 +89,45 @@ function App() {
     const fromProcessEnv = import.meta.env.VITE_GEMINI_API_KEY;
     const fromStorage = localStorage.getItem('GEMINI_API_KEY');
 
+    // Check if key is missing
     if (!fromProcessEnv && !fromStorage) {
       setIsApiKeyMissing(true);
     }
+
+    // Check if key is the placeholder or leaked key
+    const currentKey = fromProcessEnv || fromStorage || '';
+    if (currentKey.includes('YOUR_NEW_API_KEY_HERE') || currentKey === 'AIzaSyC8prxBzZ6-rwUQ_M5GKGpnFpvOAZsOWWc') {
+      setIsApiKeyMissing(true);
+      setApiKeyError('Your API key was reported as leaked. Please generate a new one.');
+    }
+
+    // Listen for API key errors from agents
+    const handleApiError = (event: CustomEvent<{ message: string }>) => {
+      if (event.detail.message.includes('leaked') || event.detail.message.includes('403') || event.detail.message.includes('PERMISSION_DENIED')) {
+        setIsApiKeyMissing(true);
+        setApiKeyError(event.detail.message);
+        localStorage.removeItem('GEMINI_API_KEY');
+      }
+    };
+
+    window.addEventListener('gemini-api-error' as any, handleApiError);
 
     // Expire signals older than 4 hours (14400000ms)
     const currentTime = Date.now();
     const SIGNAL_EXPIRY = 4 * 60 * 60 * 1000; // 4 hours
     const signals = useStore.getState().signals || [];
-    if (!signals) return;
-    
-    const validSignals = signals.filter(s => currentTime - s.timestamp < SIGNAL_EXPIRY);
+    if (signals && signals.length > 0) {
+      const validSignals = signals.filter(s => currentTime - s.timestamp < SIGNAL_EXPIRY);
 
-    if (validSignals.length < signals.length) {
-      useStore.setState({ signals: validSignals });
-      if (import.meta.env.DEV) {
-        console.log(`[Signals] Expired ${signals.length - validSignals.length} stale signals`);
+      if (validSignals.length < signals.length) {
+        useStore.setState({ signals: validSignals });
+        if (import.meta.env.DEV) {
+          console.log(`[Signals] Expired ${signals.length - validSignals.length} stale signals`);
+        }
       }
     }
+
+    return () => window.removeEventListener('gemini-api-error' as any, handleApiError);
   }, []);
 
   // Start Market Data Sync
@@ -241,7 +263,7 @@ function App() {
 
   return (
     <div className="h-screen bg-black text-gray-200 font-sans selection:bg-green-900 selection:text-white overflow-hidden flex flex-col">
-      {isApiKeyMissing && <ApiKeyModal />}
+      {isApiKeyMissing && <ApiKeyModal errorMessage={apiKeyError} />}
 
       {/* Elite Header with Glass Morphism */}
       <header className="h-14 border-b border-white/10 flex items-center justify-between px-6 glass relative z-50 shrink-0">

@@ -85,31 +85,23 @@ async function fetchBTCDominance(): Promise<number> {
  */
 async function fetchVIX(): Promise<number> {
   try {
-    // Use Yahoo Finance v8 API (public, no auth)
-    // Note: This often fails with CORS in browser, so we have a robust fallback
-    const symbol = '^VIX';
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
-
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0',
-        'Accept': 'application/json'
-      }
+    // Fetch from backend proxy to avoid browser CORS failures
+    const apiBase = import.meta.env.VITE_API_BASE || '';
+    const response = await fetch(`${apiBase}/api/macro/vix`, {
+      headers: { 'Accept': 'application/json' }
     });
 
     if (!response.ok) {
-      throw new Error(`Yahoo Finance API failed: ${response.status}`);
+      throw new Error(`Macro API VIX failed: ${response.status}`);
     }
 
     const data = await response.json();
-    const quote = data.chart.result[0].meta.regularMarketPrice;
-
-    if (typeof quote !== 'number' || isNaN(quote)) {
+    if (typeof data.value !== 'number' || isNaN(data.value)) {
       throw new Error('Invalid VIX data');
     }
 
-    console.log(`[Macro Data] VIX: ${quote.toFixed(2)} (Yahoo Finance)`);
-    return quote;
+    console.log(`[Macro Data] VIX: ${data.value.toFixed(2)} (backend proxy)`);
+    return data.value;
   } catch (error) {
     console.warn('[Macro Data] VIX fetch failed, using fallback:', error);
     // Return 0 to indicate failure (no mock data)
@@ -123,29 +115,22 @@ async function fetchVIX(): Promise<number> {
  */
 async function fetchDXY(): Promise<number> {
   try {
-    const symbol = 'DX-Y.NYB';
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
-
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0',
-        'Accept': 'application/json'
-      }
+    const apiBase = import.meta.env.VITE_API_BASE || '';
+    const response = await fetch(`${apiBase}/api/macro/dxy`, {
+      headers: { 'Accept': 'application/json' }
     });
 
     if (!response.ok) {
-      throw new Error(`Yahoo Finance API failed: ${response.status}`);
+      throw new Error(`Macro API DXY failed: ${response.status}`);
     }
 
     const data = await response.json();
-    const quote = data.chart.result[0].meta.regularMarketPrice;
-
-    if (typeof quote !== 'number' || isNaN(quote)) {
+    if (typeof data.value !== 'number' || isNaN(data.value)) {
       throw new Error('Invalid DXY data');
     }
 
-    console.log(`[Macro Data] DXY: ${quote.toFixed(2)} (Yahoo Finance)`);
-    return quote;
+    console.log(`[Macro Data] DXY: ${data.value.toFixed(2)} (backend proxy)`);
+    return data.value;
   } catch (error) {
     console.warn('[Macro Data] DXY fetch failed, using fallback:', error);
     // Return 0 to indicate failure (no mock data)
