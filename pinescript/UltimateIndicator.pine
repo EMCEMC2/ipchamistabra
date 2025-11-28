@@ -562,74 +562,71 @@ plotshape(showRSIDivergence and bearishDivergence, "Bear Div", shape.labeldown, 
 // ══════════════════════════════════════════════════════════════════════════════
 
 if showDashboard and barstate.islast
-    var table dash = table.new(position.top_right, 3, compactMode ? 10 : 16, bgcolor=color.new(C_BG, 5), border_width=1, border_color=color.new(C_MUTED, 70))
+    var table dash = table.new(position.top_right, 2, compactMode ? 10 : 16, bgcolor=color.new(C_BG, 5), border_width=1, border_color=color.new(C_MUTED, 70))
 
     // Header
-    table.cell(dash, 0, 0, "UTS", bgcolor=color.new(C_GOLD, 20), text_color=C_BG, text_size=size.small)
-    table.cell(dash, 1, 0, "PRO", bgcolor=color.new(C_GOLD, 20), text_color=C_BG, text_size=size.small)
-    table.cell(dash, 2, 0, "v1.0", bgcolor=color.new(C_GOLD, 20), text_color=C_BG, text_size=size.small)
+    table.cell(dash, 0, 0, "UTS PRO", bgcolor=color.new(C_GOLD, 20), text_color=C_BG, text_size=size.small)
+    table.cell(dash, 1, 0, "v1.0", bgcolor=color.new(C_GOLD, 20), text_color=C_BG, text_size=size.small)
 
     // Regime
     table.cell(dash, 0, 1, "REGIME", text_color=C_MUTED, text_size=size.tiny)
-    table.cell(dash, 1, 1, regimeName, text_color=regimeColor, text_size=size.tiny, colspan=2)
+    table.cell(dash, 1, 1, regimeName, text_color=regimeColor, text_size=size.tiny)
 
     // Signal Status
     signalStatus = inLongTrade ? "LONG" : inShortTrade ? "SHORT" : bullScore >= effectiveMinScore ? "BULL SETUP" : bearScore >= effectiveMinScore ? "BEAR SETUP" : "SCANNING"
     signalColor = inLongTrade ? C_BULL : inShortTrade ? C_BEAR : bullScore >= effectiveMinScore ? C_BULL : bearScore >= effectiveMinScore ? C_BEAR : C_MUTED
     table.cell(dash, 0, 2, "SIGNAL", text_color=C_MUTED, text_size=size.tiny)
-    table.cell(dash, 1, 2, signalStatus, text_color=signalColor, text_size=size.tiny, colspan=2)
+    table.cell(dash, 1, 2, signalStatus, text_color=signalColor, text_size=size.tiny)
 
     // Confluence Scores
     table.cell(dash, 0, 3, "BULL", text_color=C_MUTED, text_size=size.tiny)
-    table.cell(dash, 1, 3, str.tostring(bullScore, "#.0"), text_color=bullScore >= effectiveMinScore ? C_BULL : C_MUTED, text_size=size.tiny)
-    table.cell(dash, 2, 3, "/" + str.tostring(maxScore, "#"), text_color=C_MUTED, text_size=size.tiny)
+    table.cell(dash, 1, 3, str.tostring(bullScore, "#.0") + "/" + str.tostring(maxScore, "#"), text_color=bullScore >= effectiveMinScore ? C_BULL : C_MUTED, text_size=size.tiny)
 
     table.cell(dash, 0, 4, "BEAR", text_color=C_MUTED, text_size=size.tiny)
-    table.cell(dash, 1, 4, str.tostring(bearScore, "#.0"), text_color=bearScore >= effectiveMinScore ? C_BEAR : C_MUTED, text_size=size.tiny)
-    table.cell(dash, 2, 4, "/" + str.tostring(maxScore, "#"), text_color=C_MUTED, text_size=size.tiny)
+    table.cell(dash, 1, 4, str.tostring(bearScore, "#.0") + "/" + str.tostring(maxScore, "#"), text_color=bearScore >= effectiveMinScore ? C_BEAR : C_MUTED, text_size=size.tiny)
 
     // Key Indicators
     table.cell(dash, 0, 5, "RSI", text_color=C_MUTED, text_size=size.tiny)
     rsiColor = rsi > adaptiveRsiOB ? C_BEAR : rsi < adaptiveRsiOS ? C_BULL : C_TEXT
-    table.cell(dash, 1, 5, str.tostring(rsi, "#.0"), text_color=rsiColor, text_size=size.tiny, colspan=2)
+    table.cell(dash, 1, 5, str.tostring(rsi, "#.0"), text_color=rsiColor, text_size=size.tiny)
 
     table.cell(dash, 0, 6, "ADX", text_color=C_MUTED, text_size=size.tiny)
-    table.cell(dash, 1, 6, str.tostring(adxValue, "#.0"), text_color=adxValue > 25 ? C_GOLD : C_MUTED, text_size=size.tiny, colspan=2)
+    table.cell(dash, 1, 6, str.tostring(adxValue, "#.0"), text_color=adxValue > 25 ? C_GOLD : C_MUTED, text_size=size.tiny)
 
     table.cell(dash, 0, 7, "VOL", text_color=C_MUTED, text_size=size.tiny)
-    table.cell(dash, 1, 7, str.tostring(volRatio, "#.0") + "x", text_color=volSpike ? C_GOLD : C_MUTED, text_size=size.tiny, colspan=2)
+    table.cell(dash, 1, 7, str.tostring(volRatio, "#.0") + "x", text_color=volSpike ? C_GOLD : C_MUTED, text_size=size.tiny)
 
     if not compactMode
         // S/R Levels
         table.cell(dash, 0, 8, "SUPPORT", text_color=C_MUTED, text_size=size.tiny)
-        table.cell(dash, 1, 8, nearestSupport > 0 ? str.tostring(nearestSupport, "#") : "-", text_color=nearSupport ? C_BULL : C_TEXT, text_size=size.tiny, colspan=2)
+        table.cell(dash, 1, 8, nearestSupport > 0 ? str.tostring(nearestSupport, "#") : "-", text_color=nearSupport ? C_BULL : C_TEXT, text_size=size.tiny)
 
         table.cell(dash, 0, 9, "RESIST", text_color=C_MUTED, text_size=size.tiny)
-        table.cell(dash, 1, 9, nearestResistance < 999999999 ? str.tostring(nearestResistance, "#") : "-", text_color=nearResistance ? C_BEAR : C_TEXT, text_size=size.tiny, colspan=2)
+        table.cell(dash, 1, 9, nearestResistance < 999999999 ? str.tostring(nearestResistance, "#") : "-", text_color=nearResistance ? C_BEAR : C_TEXT, text_size=size.tiny)
 
         // Trade Levels (if in trade)
         if inLongTrade or inShortTrade
             table.cell(dash, 0, 10, "ENTRY", text_color=C_MUTED, text_size=size.tiny)
-            table.cell(dash, 1, 10, str.tostring(entryPrice, "#.0"), text_color=C_TEXT, text_size=size.tiny, colspan=2)
+            table.cell(dash, 1, 10, str.tostring(entryPrice, "#.0"), text_color=C_TEXT, text_size=size.tiny)
 
             table.cell(dash, 0, 11, "SL", text_color=C_MUTED, text_size=size.tiny)
-            table.cell(dash, 1, 11, str.tostring(stopLoss, "#.0"), text_color=C_BEAR, text_size=size.tiny, colspan=2)
+            table.cell(dash, 1, 11, str.tostring(stopLoss, "#.0"), text_color=C_BEAR, text_size=size.tiny)
 
             table.cell(dash, 0, 12, "TP1", text_color=C_MUTED, text_size=size.tiny)
-            table.cell(dash, 1, 12, str.tostring(tp1, "#.0"), text_color=C_BULL, text_size=size.tiny, colspan=2)
+            table.cell(dash, 1, 12, str.tostring(tp1, "#.0"), text_color=C_BULL, text_size=size.tiny)
 
             table.cell(dash, 0, 13, "TP2", text_color=C_MUTED, text_size=size.tiny)
-            table.cell(dash, 1, 13, str.tostring(tp2, "#.0"), text_color=C_BULL, text_size=size.tiny, colspan=2)
+            table.cell(dash, 1, 13, str.tostring(tp2, "#.0"), text_color=C_BULL, text_size=size.tiny)
 
             table.cell(dash, 0, 14, "TP3", text_color=C_MUTED, text_size=size.tiny)
-            table.cell(dash, 1, 14, str.tostring(tp3, "#.0"), text_color=C_BULL, text_size=size.tiny, colspan=2)
+            table.cell(dash, 1, 14, str.tostring(tp3, "#.0"), text_color=C_BULL, text_size=size.tiny)
 
             // R:R Ratio
             riskDist = math.abs(entryPrice - stopLoss)
             rewardDist = math.abs(tp3 - entryPrice)
             rrRatio = riskDist > 0 ? rewardDist / riskDist : 0
             table.cell(dash, 0, 15, "R:R", text_color=C_MUTED, text_size=size.tiny)
-            table.cell(dash, 1, 15, "1:" + str.tostring(rrRatio, "#.0"), text_color=C_GOLD, text_size=size.tiny, colspan=2)
+            table.cell(dash, 1, 15, "1:" + str.tostring(rrRatio, "#.0"), text_color=C_GOLD, text_size=size.tiny)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // SIGNAL LABELS WITH TRADE INFO
