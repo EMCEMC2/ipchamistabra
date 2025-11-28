@@ -1,14 +1,16 @@
 /**
- * REAL MACRO DATA SERVICE
- * Fetches VIX, DXY, BTC Dominance from actual APIs (no AI search hallucinations)
- * Now uses backend proxy to avoid CORS issues
+ * MACRO DATA SERVICE
+ * Real data from free public APIs:
+ * - DVOL (BTC Volatility): Deribit API (replaces VIX for crypto context)
+ * - BTC Dominance: CoinGecko API
+ * - Funding Rate: Binance Futures API
  */
 
 export interface MacroData {
-  vix: number;
+  vix: number;  // Actually DVOL (Deribit BTC Volatility Index)
   dxy: number;
   btcd: number;
-  fundingRate?: number; // Optional: BTC perpetual funding rate (%)
+  fundingRate?: number;
 }
 
 
@@ -78,36 +80,43 @@ async function fetchBTCDominance(): Promise<number> {
 }
 
 /**
- * Fetch VIX from Yahoo Finance via public proxy
- * VIX ticker: ^VIX
- * Uses query1.finance.yahoo.com which allows CORS
+ * Fetch DVOL (Deribit BTC Volatility Index) - REAL DATA
+ * Public API, no auth required, CORS-friendly
+ * Range typically 40-100 (higher = more volatile)
  */
-async function fetchVIX(): Promise<number> {
+async function fetchDVOL(): Promise<number> {
   try {
-    // Yahoo Finance public API endpoint (CORS-friendly)
+    const now = Date.now();
+    const dayAgo = now - 86400000;
+
     const response = await fetch(
-      'https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?interval=1d&range=1d',
-      {
-        headers: { 'Accept': 'application/json' }
-      }
+      `https://www.deribit.com/api/v2/public/get_volatility_index_data?currency=BTC&resolution=1D&start_timestamp=${dayAgo}&end_timestamp=${now}`,
+      { headers: { 'Accept': 'application/json' } }
     );
 
     if (!response.ok) {
-      throw new Error(`Yahoo Finance VIX failed: ${response.status}`);
+      throw new Error(`Deribit API failed: ${response.status}`);
     }
 
     const data = await response.json();
-    const quote = data.chart?.result?.[0]?.meta?.regularMarketPrice;
+    const candles = data.result?.data;
 
-    if (typeof quote !== 'number' || isNaN(quote)) {
-      throw new Error('Invalid VIX data from Yahoo');
+    if (!candles || candles.length === 0) {
+      throw new Error('No DVOL data returned');
     }
 
-    console.log(`[Macro Data] VIX: ${quote.toFixed(2)} (Yahoo Finance)`);
-    return quote;
+    // Get latest candle's close value [timestamp, open, high, low, close]
+    const latestCandle = candles[candles.length - 1];
+    const dvol = latestCandle[4]; // Close price
+
+    if (typeof dvol !== 'number' || isNaN(dvol)) {
+      throw new Error('Invalid DVOL data');
+    }
+
+    console.log(`[Macro Data] DVOL: ${dvol.toFixed(2)} (Deribit)`);
+    return dvol;
   } catch (error) {
-    console.warn('[Macro Data] VIX fetch failed:', error);
-    // Return 0 to indicate failure
+    console.warn('[Macro Data] DVOL fetch failed:', error);
     return 0;
   }
 }
@@ -159,7 +168,7 @@ export async function fetchMacroData(): Promise<MacroData> {
     // Fetch all data in parallel
     // VIX and DXY now use the backend proxy to avoid CORS
     const [vix, dxy, btcd, fundingRate] = await Promise.all([
-      fetchVIX(),
+      fetchDVOL(),
       fetchDXY(),
       fetchBTCDominance(),
       fetchFundingRate()

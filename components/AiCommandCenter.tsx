@@ -95,11 +95,11 @@ export const AiCommandCenter: React.FC = () => {
           </span>
         </div>
 
-        {/* VIX */}
+        {/* DVOL - BTC Volatility Index from Deribit */}
         <div className="bg-terminal-card px-3 py-2">
-          <span className="text-[9px] text-gray-500 uppercase tracking-wide block mb-1">VIX</span>
-          <span className={`text-sm font-mono ${vix > 20 ? 'text-red-400' : 'text-green-400'}`}>
-            {vix?.toFixed(2) || '0.00'}
+          <span className="text-[9px] text-gray-500 uppercase tracking-wide block mb-1">DVOL</span>
+          <span className={`text-sm font-mono ${vix > 60 ? 'text-red-400' : vix > 40 ? 'text-yellow-400' : 'text-green-400'}`}>
+            {vix?.toFixed(1) || '0.0'}
           </span>
         </div>
 
