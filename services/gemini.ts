@@ -173,6 +173,17 @@ export const generateTradeSetup = async (context: string): Promise<AiResponse> =
 
     } catch (fallbackError: any) {
       console.error("Gemini Setup Error (Both Models Failed):", fallbackError);
+
+      // Dispatch event for leaked/revoked API key errors
+      const errorMsg = fallbackError.message || '';
+      if (errorMsg.includes('leaked') || errorMsg.includes('403') || errorMsg.includes('PERMISSION_DENIED')) {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('gemini-api-error', {
+            detail: { message: errorMsg }
+          }));
+        }
+      }
+
       return {
         text: `Error generating setup: ${fallbackError.message || "Unknown API Error"}`,
         sources: []
@@ -298,8 +309,19 @@ export const scanMarketForSignals = async (
     console.log(`[Signal Scan] Generated ${validatedSignals.length} validated signals (from ${rawData.length} raw)`);
     return validatedSignals;
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Signal Scan Error:", error);
+
+    // Dispatch event for leaked/revoked API key errors
+    const errorMsg = error.message || '';
+    if (errorMsg.includes('leaked') || errorMsg.includes('403') || errorMsg.includes('PERMISSION_DENIED')) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('gemini-api-error', {
+          detail: { message: errorMsg }
+        }));
+      }
+    }
+
     return [];
   }
 };
@@ -395,6 +417,17 @@ export const runAgentSimulation = async (role: AgentRole, context: any): Promise
       stack: e.stack,
       response: e.response?.data
     });
+
+    // Dispatch event for leaked/revoked API key errors
+    const errorMsg = e.message || '';
+    if (errorMsg.includes('leaked') || errorMsg.includes('403') || errorMsg.includes('PERMISSION_DENIED')) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('gemini-api-error', {
+          detail: { message: errorMsg }
+        }));
+      }
+    }
+
     return { success: false, message: `Agent Error: ${e.message}` };
   }
 }
@@ -479,8 +512,19 @@ export const scanGlobalIntel = async (): Promise<IntelItem[]> => {
       return []; // Fallback on validation error
     }
 
-  } catch (e) {
+  } catch (e: any) {
     console.error("Intel Scan Error:", e);
+
+    // Dispatch event for leaked/revoked API key errors
+    const errorMsg = e.message || '';
+    if (errorMsg.includes('leaked') || errorMsg.includes('403') || errorMsg.includes('PERMISSION_DENIED')) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('gemini-api-error', {
+          detail: { message: errorMsg }
+        }));
+      }
+    }
+
     return []; // Fallback on API error
   }
 };
@@ -524,8 +568,19 @@ export const analyzeTradeJournal = async (entry: JournalEntry): Promise<string> 
     });
 
     return response.text || "Analysis unavailable.";
-  } catch (error) {
+  } catch (error: any) {
     console.error("Trade Journal Analysis Error:", error);
+
+    // Dispatch event for leaked/revoked API key errors
+    const errorMsg = error.message || '';
+    if (errorMsg.includes('leaked') || errorMsg.includes('403') || errorMsg.includes('PERMISSION_DENIED')) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('gemini-api-error', {
+          detail: { message: errorMsg }
+        }));
+      }
+    }
+
     return "Error generating trade analysis. Please check your API Key and connection.";
   }
 };
