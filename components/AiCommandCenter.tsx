@@ -14,7 +14,8 @@ export const AiCommandCenter: React.FC = () => {
     btcd,
     sentimentScore,
     sentimentLabel,
-    technicals
+    technicals,
+    timeframe
   } = useStore();
 
   // Format price with commas
@@ -69,7 +70,10 @@ export const AiCommandCenter: React.FC = () => {
       <div className="flex-1 grid grid-cols-2 gap-px bg-terminal-border">
         {/* RSI */}
         <div className="bg-terminal-card px-3 py-2">
-          <span className="text-[9px] text-gray-500 uppercase tracking-wide block mb-1">RSI (14)</span>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[9px] text-gray-500 uppercase tracking-wide">RSI (14)</span>
+            <span className="text-[8px] text-gray-600 font-mono">{timeframe}</span>
+          </div>
           <span className={`text-sm font-mono ${
             (technicals?.rsi || 0) > 70 ? 'text-red-400' :
             (technicals?.rsi || 0) < 30 ? 'text-green-400' : 'text-white'
@@ -80,7 +84,10 @@ export const AiCommandCenter: React.FC = () => {
 
         {/* MACD */}
         <div className="bg-terminal-card px-3 py-2">
-          <span className="text-[9px] text-gray-500 uppercase tracking-wide block mb-1">MACD</span>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[9px] text-gray-500 uppercase tracking-wide">MACD</span>
+            <span className="text-[8px] text-gray-600 font-mono">{timeframe}</span>
+          </div>
           <span className={`text-sm font-mono ${
             (technicals?.macd?.histogram || 0) >= 0 ? 'text-green-400' : 'text-red-400'
           }`}>

@@ -11,8 +11,6 @@ export interface MacroData {
   fundingRate?: number; // Optional: BTC perpetual funding rate (%)
 }
 
-// Backend proxy URL (adjust port if needed)
-const PROXY_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
 
 /**
  * Fetch BTC Perpetual Funding Rate from Binance Futures
@@ -80,31 +78,36 @@ async function fetchBTCDominance(): Promise<number> {
 }
 
 /**
- * Fetch VIX from Yahoo Finance API (via yfinance alternative - no key needed)
+ * Fetch VIX from Yahoo Finance via public proxy
  * VIX ticker: ^VIX
+ * Uses query1.finance.yahoo.com which allows CORS
  */
 async function fetchVIX(): Promise<number> {
   try {
-    // Fetch from backend proxy to avoid browser CORS failures
-    const apiBase = import.meta.env.VITE_API_BASE || '';
-    const response = await fetch(`${apiBase}/api/macro/vix`, {
-      headers: { 'Accept': 'application/json' }
-    });
+    // Yahoo Finance public API endpoint (CORS-friendly)
+    const response = await fetch(
+      'https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?interval=1d&range=1d',
+      {
+        headers: { 'Accept': 'application/json' }
+      }
+    );
 
     if (!response.ok) {
-      throw new Error(`Macro API VIX failed: ${response.status}`);
+      throw new Error(`Yahoo Finance VIX failed: ${response.status}`);
     }
 
     const data = await response.json();
-    if (typeof data.value !== 'number' || isNaN(data.value)) {
-      throw new Error('Invalid VIX data');
+    const quote = data.chart?.result?.[0]?.meta?.regularMarketPrice;
+
+    if (typeof quote !== 'number' || isNaN(quote)) {
+      throw new Error('Invalid VIX data from Yahoo');
     }
 
-    console.log(`[Macro Data] VIX: ${data.value.toFixed(2)} (backend proxy)`);
-    return data.value;
+    console.log(`[Macro Data] VIX: ${quote.toFixed(2)} (Yahoo Finance)`);
+    return quote;
   } catch (error) {
-    console.warn('[Macro Data] VIX fetch failed, using fallback:', error);
-    // Return 0 to indicate failure (no mock data)
+    console.warn('[Macro Data] VIX fetch failed:', error);
+    // Return 0 to indicate failure
     return 0;
   }
 }
@@ -112,28 +115,34 @@ async function fetchVIX(): Promise<number> {
 /**
  * Fetch DXY (US Dollar Index) from Yahoo Finance
  * DXY ticker: DX-Y.NYB
+ * Uses query1.finance.yahoo.com which allows CORS
  */
 async function fetchDXY(): Promise<number> {
   try {
-    const apiBase = import.meta.env.VITE_API_BASE || '';
-    const response = await fetch(`${apiBase}/api/macro/dxy`, {
-      headers: { 'Accept': 'application/json' }
-    });
+    // Yahoo Finance public API endpoint (CORS-friendly)
+    const response = await fetch(
+      'https://query1.finance.yahoo.com/v8/finance/chart/DX-Y.NYB?interval=1d&range=1d',
+      {
+        headers: { 'Accept': 'application/json' }
+      }
+    );
 
     if (!response.ok) {
-      throw new Error(`Macro API DXY failed: ${response.status}`);
+      throw new Error(`Yahoo Finance DXY failed: ${response.status}`);
     }
 
     const data = await response.json();
-    if (typeof data.value !== 'number' || isNaN(data.value)) {
-      throw new Error('Invalid DXY data');
+    const quote = data.chart?.result?.[0]?.meta?.regularMarketPrice;
+
+    if (typeof quote !== 'number' || isNaN(quote)) {
+      throw new Error('Invalid DXY data from Yahoo');
     }
 
-    console.log(`[Macro Data] DXY: ${data.value.toFixed(2)} (backend proxy)`);
-    return data.value;
+    console.log(`[Macro Data] DXY: ${quote.toFixed(2)} (Yahoo Finance)`);
+    return quote;
   } catch (error) {
-    console.warn('[Macro Data] DXY fetch failed, using fallback:', error);
-    // Return 0 to indicate failure (no mock data)
+    console.warn('[Macro Data] DXY fetch failed:', error);
+    // Return 0 to indicate failure
     return 0;
   }
 }
