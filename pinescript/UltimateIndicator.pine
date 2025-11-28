@@ -526,40 +526,104 @@ plot(showEMAs ? ema200 : na, "EMA 200", color=color.new(C_GOLD, 50), linewidth=2
 // Regime background (very subtle)
 bgcolor(color.new(regimeColor, 97))
 
-// Support/Resistance levels
-plot(showSR and nearestSupport > 0 ? nearestSupport : na, "Support", color=color.new(C_BULL, 60), style=plot.style_circles, linewidth=2)
-plot(showSR and nearestResistance < 999999999 ? nearestResistance : na, "Resistance", color=color.new(C_BEAR, 60), style=plot.style_circles, linewidth=2)
+// Support/Resistance levels (horizontal lines)
+plot(showSR and nearestSupport > 0 ? nearestSupport : na, "Support", color=color.new(C_BULL, 40), style=plot.style_linebr, linewidth=1)
+plot(showSR and nearestResistance < 999999999 ? nearestResistance : na, "Resistance", color=color.new(C_BEAR, 40), style=plot.style_linebr, linewidth=1)
 
-// Fibonacci levels (minimal)
-plot(showFib ? fib382 : na, "Fib 0.382", color=color.new(C_GOLD, 80), style=plot.style_cross)
-plot(showFib ? fib500 : na, "Fib 0.5", color=color.new(C_GOLD, 70), style=plot.style_cross)
-plot(showFib ? fib618 : na, "Fib 0.618", color=color.new(C_GOLD, 60), style=plot.style_cross)
+// Fibonacci levels (minimal horizontal lines)
+plot(showFib ? fib382 : na, "Fib 0.382", color=color.new(C_GOLD, 70), style=plot.style_linebr, linewidth=1)
+plot(showFib ? fib500 : na, "Fib 0.5", color=color.new(C_GOLD, 60), style=plot.style_linebr, linewidth=1)
+plot(showFib ? fib618 : na, "Fib 0.618", color=color.new(C_GOLD, 50), style=plot.style_linebr, linewidth=1)
 
-// Signal markers
+// Signal markers (small triangles only)
 plotshape(buySignal and showSignalLabels, "BUY", shape.triangleup, location.belowbar, C_BULL, size=size.small)
 plotshape(sellSignal and showSignalLabels, "SELL", shape.triangledown, location.abovebar, C_BEAR, size=size.small)
 
-// Pattern markers (subtle)
+// Pattern markers (subtle, small)
 plotshape(showPatterns and shootingStar, "Shooting Star", shape.xcross, location.abovebar, color.new(C_BEAR, 30), size=size.tiny)
 plotshape(showPatterns and hammer, "Hammer", shape.xcross, location.belowbar, color.new(C_BULL, 30), size=size.tiny)
 plotshape(showPatterns and bullishEngulfing, "Bull Engulf", shape.diamond, location.belowbar, color.new(C_BULL, 50), size=size.tiny)
 plotshape(showPatterns and bearishEngulfing, "Bear Engulf", shape.diamond, location.abovebar, color.new(C_BEAR, 50), size=size.tiny)
 plotshape(showPatterns and doji, "Doji", shape.circle, location.abovebar, color.new(C_GOLD, 50), size=size.tiny)
 
-// Trade levels (only when in trade)
-plot(showTPSL and inLongTrade ? stopLoss : na, "Long SL", color=color.new(C_BEAR, 40), style=plot.style_linebr, linewidth=1)
-plot(showTPSL and inLongTrade ? tp1 : na, "Long TP1", color=color.new(C_BULL, 60), style=plot.style_linebr, linewidth=1)
-plot(showTPSL and inLongTrade ? tp2 : na, "Long TP2", color=color.new(C_BULL, 40), style=plot.style_linebr, linewidth=1)
-plot(showTPSL and inLongTrade ? tp3 : na, "Long TP3", color=color.new(C_BULL, 20), style=plot.style_linebr, linewidth=1)
-
-plot(showTPSL and inShortTrade ? stopLoss : na, "Short SL", color=color.new(C_BEAR, 40), style=plot.style_linebr, linewidth=1)
-plot(showTPSL and inShortTrade ? tp1 : na, "Short TP1", color=color.new(C_BULL, 60), style=plot.style_linebr, linewidth=1)
-plot(showTPSL and inShortTrade ? tp2 : na, "Short TP2", color=color.new(C_BULL, 40), style=plot.style_linebr, linewidth=1)
-plot(showTPSL and inShortTrade ? tp3 : na, "Short TP3", color=color.new(C_BULL, 20), style=plot.style_linebr, linewidth=1)
-
 // RSI Divergence markers
 plotshape(showRSIDivergence and bullishDivergence, "Bull Div", shape.labelup, location.belowbar, color.new(C_BULL, 30), text="D", textcolor=color.white, size=size.tiny)
 plotshape(showRSIDivergence and bearishDivergence, "Bear Div", shape.labeldown, location.abovebar, color.new(C_BEAR, 30), text="D", textcolor=color.white, size=size.tiny)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TRADE LEVEL LINES - CURRENT SETUP ONLY (Using line.new for proper horizontal lines)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Persistent line objects for current trade
+var line entryLine = na
+var line slLine = na
+var line tp1Line = na
+var line tp2Line = na
+var line tp3Line = na
+var label tradeLabel = na
+
+// Colors for lines
+var color entryColor = color.rgb(255, 255, 255)  // White
+var color slColor = color.rgb(255, 82, 82)       // Red
+var color tp1Color = color.rgb(0, 212, 170, 60)  // Teal light
+var color tp2Color = color.rgb(0, 212, 170, 40)  // Teal medium
+var color tp3Color = color.rgb(0, 212, 170, 20)  // Teal solid
+
+// Delete old lines when new signal or trade ends
+if (buySignal or sellSignal or (not inLongTrade and not inShortTrade)) and showTPSL
+    if not na(entryLine)
+        line.delete(entryLine)
+    if not na(slLine)
+        line.delete(slLine)
+    if not na(tp1Line)
+        line.delete(tp1Line)
+    if not na(tp2Line)
+        line.delete(tp2Line)
+    if not na(tp3Line)
+        line.delete(tp3Line)
+    if not na(tradeLabel)
+        label.delete(tradeLabel)
+
+    entryLine := na
+    slLine := na
+    tp1Line := na
+    tp2Line := na
+    tp3Line := na
+    tradeLabel := na
+
+// Create new lines on signal
+if buySignal and showTPSL
+    entryLine := line.new(bar_index, entryPrice, bar_index + 50, entryPrice, xloc.bar_index, extend.right, entryColor, line.style_solid, 2)
+    slLine := line.new(bar_index, stopLoss, bar_index + 50, stopLoss, xloc.bar_index, extend.right, slColor, line.style_dashed, 1)
+    tp1Line := line.new(bar_index, tp1, bar_index + 50, tp1, xloc.bar_index, extend.right, tp1Color, line.style_dotted, 1)
+    tp2Line := line.new(bar_index, tp2, bar_index + 50, tp2, xloc.bar_index, extend.right, tp2Color, line.style_dotted, 1)
+    tp3Line := line.new(bar_index, tp3, bar_index + 50, tp3, xloc.bar_index, extend.right, tp3Color, line.style_solid, 1)
+    tradeLabel := label.new(bar_index, entryPrice, "LONG", xloc.bar_index, yloc.price, C_BULL, label.style_label_left, color.white, size.small)
+
+if sellSignal and showTPSL
+    entryLine := line.new(bar_index, entryPrice, bar_index + 50, entryPrice, xloc.bar_index, extend.right, entryColor, line.style_solid, 2)
+    slLine := line.new(bar_index, stopLoss, bar_index + 50, stopLoss, xloc.bar_index, extend.right, slColor, line.style_dashed, 1)
+    tp1Line := line.new(bar_index, tp1, bar_index + 50, tp1, xloc.bar_index, extend.right, tp1Color, line.style_dotted, 1)
+    tp2Line := line.new(bar_index, tp2, bar_index + 50, tp2, xloc.bar_index, extend.right, tp2Color, line.style_dotted, 1)
+    tp3Line := line.new(bar_index, tp3, bar_index + 50, tp3, xloc.bar_index, extend.right, tp3Color, line.style_solid, 1)
+    tradeLabel := label.new(bar_index, entryPrice, "SHORT", xloc.bar_index, yloc.price, C_BEAR, label.style_label_left, color.white, size.small)
+
+// Clear lines when trade closes
+if not inLongTrade and not inShortTrade and not na(entryLine)
+    line.delete(entryLine)
+    line.delete(slLine)
+    line.delete(tp1Line)
+    line.delete(tp2Line)
+    line.delete(tp3Line)
+    if not na(tradeLabel)
+        label.delete(tradeLabel)
+
+    entryLine := na
+    slLine := na
+    tp1Line := na
+    tp2Line := na
+    tp3Line := na
+    tradeLabel := na
 
 // ══════════════════════════════════════════════════════════════════════════════
 // DASHBOARD - PROFESSIONAL MINIMALIST DESIGN
@@ -632,17 +696,8 @@ if showDashboard and barstate.islast
             table.cell(dash, 0, 15, "R:R", text_color=C_MUTED, text_size=size.tiny)
             table.cell(dash, 1, 15, "1:" + str.tostring(rrRatio, "#.0"), text_color=C_GOLD, text_size=size.tiny)
 
-// ══════════════════════════════════════════════════════════════════════════════
-// SIGNAL LABELS WITH TRADE INFO
-// ══════════════════════════════════════════════════════════════════════════════
-
-if buySignal and showSignalLabels
-    labelText = "LONG\nEntry: " + str.tostring(c, "#.0") + "\nSL: " + str.tostring(stopLoss, "#.0") + "\nTP1: " + str.tostring(tp1, "#.0") + "\nTP2: " + str.tostring(tp2, "#.0") + "\nTP3: " + str.tostring(tp3, "#.0")
-    label.new(bar_index, l - atr, labelText, xloc.bar_index, yloc.price, color.new(C_BULL, 20), label.style_label_up, C_BG, size.small)
-
-if sellSignal and showSignalLabels
-    labelText = "SHORT\nEntry: " + str.tostring(c, "#.0") + "\nSL: " + str.tostring(stopLoss, "#.0") + "\nTP1: " + str.tostring(tp1, "#.0") + "\nTP2: " + str.tostring(tp2, "#.0") + "\nTP3: " + str.tostring(tp3, "#.0")
-    label.new(bar_index, h + atr, labelText, xloc.bar_index, yloc.price, color.new(C_BEAR, 20), label.style_label_down, C_BG, size.small)
+// Signal labels removed - using horizontal lines instead for cleaner display
+// Trade info shown in dashboard panel
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ALERTS
