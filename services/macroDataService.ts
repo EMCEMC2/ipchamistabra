@@ -144,33 +144,11 @@ async function fetchDXY(): Promise<number> {
  * Now uses backend proxy to avoid CORS issues
  */
 export async function fetchMacroData(): Promise<MacroData> {
-  console.log('[Macro Data] Fetching from backend proxy (CORS-safe)...');
+  console.log('[Macro Data] Fetching macro data...');
 
   try {
-    // Use backend proxy for CORS-free fetching (VIX, DXY, BTC.D)
-    const response = await fetch(`${PROXY_URL}/api/macro/all`);
-
-    if (!response.ok) {
-      throw new Error(`Proxy failed: ${response.status}`);
-    }
-
-    const data = await response.json();
-
-    // Fetch funding rate directly from Binance (no CORS issue)
-    const fundingRate = await fetchFundingRate();
-
-    console.log('[Macro Data] VIX:', data.vix, '| DXY:', data.dxy, '| BTC.D:', data.btcd, '| Funding:', fundingRate.toFixed(4) + '%');
-
-    return {
-      vix: data.vix || 0,
-      dxy: data.dxy || 0,
-      btcd: data.btcd || 0,
-      fundingRate
-    };
-  } catch (error) {
-    console.warn('[Macro Data] Proxy failed, falling back to direct API calls:', error);
-
-    // Fallback to direct API calls if proxy is down
+    // Fetch all data in parallel
+    // VIX and DXY now use the backend proxy to avoid CORS
     const [vix, dxy, btcd, fundingRate] = await Promise.all([
       fetchVIX(),
       fetchDXY(),
@@ -178,7 +156,12 @@ export async function fetchMacroData(): Promise<MacroData> {
       fetchFundingRate()
     ]);
 
+    console.log('[Macro Data] VIX:', vix, '| DXY:', dxy, '| BTC.D:', btcd, '| Funding:', fundingRate.toFixed(4) + '%');
+
     return { vix, dxy, btcd, fundingRate };
+  } catch (error) {
+    console.warn('[Macro Data] Failed to fetch macro data:', error);
+    return { vix: 0, dxy: 0, btcd: 0, fundingRate: 0 };
   }
 }
 

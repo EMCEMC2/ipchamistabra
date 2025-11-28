@@ -11,6 +11,7 @@ import { PositionsPanel } from './components/PositionsPanel';
 import { TradeJournal } from './components/TradeJournal';
 import { BacktestPanel } from './components/BacktestPanel';
 import { AggrOrderFlow } from './components/AggrOrderFlow';
+import { AiCommandCenter } from './components/AiCommandCenter';
 
 import { startMarketDataSync, fetchChartData, fetchSignals } from './services/marketData';
 import { calculateRSI, calculateATR, calculateADX, calculateEMA, calculateMACD } from './utils/technicalAnalysis';
@@ -409,8 +410,13 @@ function App() {
 
             {/* Trade Entry & Management (Fills remaining height) */}
             <div className="flex-1 min-h-0 flex flex-col gap-2">
-              {/* Order Entry (Full Height) */}
-              <div className="h-full flex flex-col">
+              {/* AI Intelligence (Top 35%) */}
+              <div className="h-[35%] min-h-[140px]">
+                <AiCommandCenter />
+              </div>
+
+              {/* Order Entry (Bottom 65%) */}
+              <div className="h-[65%] flex flex-col">
                 <div className="flex items-center gap-1.5 mb-1.5 px-1">
                   <Target size={12} className="text-gray-400" />
                   <span className="text-[11px] font-bold tracking-wide text-gray-200">ORDER ENTRY</span>

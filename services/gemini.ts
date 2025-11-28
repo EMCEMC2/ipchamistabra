@@ -120,6 +120,83 @@ When analyzing, always reference these specific mechanics. Interpret signals bas
 - Do NOT use code blocks for normal text.
 `;
 
+/**
+ * Generate real-time AI market analysis with active signals context
+ */
+export const generateMarketAnalysis = async (query: string, activeSignals?: TradeSignal[]): Promise<AiResponse> => {
+  const ai = getAiClient();
+
+  let contents = query;
+  if (activeSignals && activeSignals.length > 0) {
+    const signalsStr = activeSignals.map(s =>
+      `[${s.pair} ${s.type}] Entry: ${s.entryZone}, Regime: ${s.regime}, Conf: ${s.confidence}%`
+    ).join('\n');
+    contents += `\n\nCURRENT ACTIVE ALGO SIGNALS:\n${signalsStr}\n\nAnalyze these signals in the context of the strategy.`;
+  }
+
+  // Attempt 1: Reasoning Model
+  try {
+    const response = await ai.models.generateContent({
+      model: REASONING_MODEL_ID,
+      contents: contents,
+      config: {
+        systemInstruction: BITMIND_STRATEGY_CONTEXT + " Focus on key metrics: Price action, Support/Resistance, Volume anomalies, VIX (Volatility), DXY (Dollar Index) correlation, and BTC Dominance. Use professional trader terminology. Leverage deep thinking to analyze multi-timeframe market structures before responding.",
+        thinkingConfig: { thinkingBudget: 8192 },
+        tools: [{ googleSearch: {} }],
+      },
+    });
+
+    const text = response.text || "Analysis unavailable.";
+    const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const sources: GroundingSource[] = chunks
+      .filter((c: any) => c.web?.uri && c.web?.title)
+      .map((c: any) => ({ title: c.web.title, uri: c.web.uri }));
+
+    return { text, sources };
+
+  } catch (error: any) {
+    console.warn("[AI Analysis] Reasoning Model Failed, switching to Fast Model...", error.message);
+
+    // Attempt 2: Fast Model Fallback
+    try {
+      const response = await ai.models.generateContent({
+        model: FAST_MODEL_ID,
+        contents: contents,
+        config: {
+          systemInstruction: BITMIND_STRATEGY_CONTEXT + " Provide a concise market analysis. Focus on key levels and current trend.",
+          tools: [{ googleSearch: {} }],
+        },
+      });
+
+      const text = response.text || "Analysis unavailable.";
+      const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+      const sources: GroundingSource[] = chunks
+        .filter((c: any) => c.web?.uri && c.web?.title)
+        .map((c: any) => ({ title: c.web.title, uri: c.web.uri }));
+
+      return { text, sources };
+
+    } catch (fallbackError: any) {
+      console.error("[AI Analysis] Both Models Failed:", fallbackError.message);
+
+      // Dispatch event for leaked/revoked API key errors
+      const errorMsg = fallbackError.message || '';
+      if (errorMsg.includes('leaked') || errorMsg.includes('403') || errorMsg.includes('PERMISSION_DENIED')) {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('gemini-api-error', {
+            detail: { message: errorMsg }
+          }));
+        }
+      }
+
+      return {
+        text: `Analysis temporarily unavailable. ${fallbackError.message || "API Error"}`,
+        sources: []
+      };
+    }
+  }
+};
+
 export const generateTradeSetup = async (context: string): Promise<AiResponse> => {
   const ai = getAiClient();
 

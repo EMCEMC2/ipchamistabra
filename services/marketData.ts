@@ -4,6 +4,7 @@ import {
     getSentimentAnalysis,
     scanGlobalIntel,
     scanMarketForSignals,
+    generateMarketAnalysis,
     isAiAvailable
 } from './gemini';
 import { fetchMacroData, fetchDerivativesMetrics } from './macroDataService';
@@ -169,6 +170,42 @@ export const fetchSignals = async () => {
     }
 };
 
+/**
+ * Fetch AI market analysis and update store
+ */
+export const fetchAiAnalysis = async () => {
+    if (!isAiAvailable()) {
+        console.log('[AI Analysis] Skipping - No API Key');
+        return;
+    }
+
+    try {
+        const { price, vix, btcd, sentimentScore, technicals, signals } = useStore.getState();
+
+        const query = `
+            Analyze the current BTC market conditions:
+            - Price: $${price?.toLocaleString() || 'N/A'}
+            - VIX: ${vix || 'N/A'}
+            - BTC Dominance: ${btcd || 'N/A'}%
+            - Fear & Greed: ${sentimentScore || 'N/A'}
+            - RSI: ${technicals?.rsi?.toFixed(1) || 'N/A'}
+            - MACD: ${technicals?.macd?.histogram?.toFixed(2) || 'N/A'}
+            - Trend: ${technicals?.trend || 'N/A'}
+
+            Provide a concise tactical analysis for short-term trading.
+        `;
+
+        const result = await generateMarketAnalysis(query, signals);
+
+        if (result.text) {
+            useStore.getState().setLatestAnalysis(result.text);
+            console.log('[AI Analysis] Updated latestAnalysis');
+        }
+    } catch (error) {
+        console.error('[AI Analysis] Error:', error);
+    }
+};
+
 export const startMarketDataSync = () => {
     // Start the DataSyncAgent
     dataSyncAgent.start();
@@ -176,6 +213,11 @@ export const startMarketDataSync = () => {
     // Initial Fetch
     fetchGlobalData();
     fetchChartData();
+
+    // Delayed AI analysis (wait for initial data to load)
+    setTimeout(() => {
+        fetchAiAnalysis();
+    }, 5000);
 
     // Adaptive chart polling based on timeframe
     const getChartInterval = (): number => {
@@ -194,6 +236,7 @@ export const startMarketDataSync = () => {
     // Intervals
     const globalInterval = setInterval(fetchGlobalData, 60000); // 1 min
     let chartInterval = setInterval(fetchChartData, getChartInterval());
+    const aiAnalysisInterval = setInterval(fetchAiAnalysis, 120000); // 2 min for AI analysis
 
     // Subscribe to timeframe changes to adjust polling
     // Subscribe to timeframe changes to adjust polling
@@ -213,6 +256,7 @@ export const startMarketDataSync = () => {
     return () => {
         clearInterval(globalInterval);
         clearInterval(chartInterval);
+        clearInterval(aiAnalysisInterval);
         unsubscribe();
         dataSyncAgent.stop();
     };
