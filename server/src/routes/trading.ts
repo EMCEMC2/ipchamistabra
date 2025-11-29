@@ -3,6 +3,7 @@ import axios from 'axios';
 import rateLimit from 'express-rate-limit';
 import { config } from '../config';
 import { binanceSigner } from '../services/binanceSigner';
+import { auditService } from '../services/auditService';
 
 const router = express.Router();
 
@@ -95,8 +96,31 @@ router.post('/order', orderRateLimiter, async (req, res) => {
         if (timeInForce) params.timeInForce = timeInForce;
 
         const result = await binanceRequest('POST', '/fapi/v1/order', params);
+        
+        // Audit Log: Success
+        auditService.logOrderAction({
+            action: 'ORDER_PLACED',
+            symbol,
+            side,
+            quantity,
+            price,
+            orderId: result.orderId,
+            status: 'SUCCESS'
+        });
+
         res.json(result);
-    } catch (error) {
+    } catch (error: any) {
+        // Audit Log: Failure
+        auditService.logOrderAction({
+            action: 'ORDER_FAILED',
+            symbol: req.body.symbol,
+            side: req.body.side,
+            quantity: req.body.quantity,
+            price: req.body.price,
+            status: 'FAILURE',
+            error: error.message || JSON.stringify(error)
+        });
+
         res.status(500).json({ error: 'Order Failed', details: error });
     }
 });
@@ -106,8 +130,26 @@ router.delete('/order', orderRateLimiter, async (req, res) => {
     try {
         const { symbol, orderId } = req.body;
         const result = await binanceRequest('DELETE', '/fapi/v1/order', { symbol, orderId });
+
+        // Audit Log: Success
+        auditService.logOrderAction({
+            action: 'ORDER_CANCELLED',
+            symbol,
+            orderId,
+            status: 'SUCCESS'
+        });
+
         res.json(result);
-    } catch (error) {
+    } catch (error: any) {
+        // Audit Log: Failure
+        auditService.logOrderAction({
+            action: 'ERROR',
+            symbol: req.body.symbol,
+            orderId: req.body.orderId,
+            status: 'FAILURE',
+            error: error.message || JSON.stringify(error)
+        });
+
         res.status(500).json({ error: 'Cancel Failed', details: error });
     }
 });

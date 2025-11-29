@@ -5,6 +5,8 @@ import WebSocket from 'ws';
 import { config } from './config';
 import { tradingRoutes } from './routes/trading';
 import { macroRoutes } from './routes/macro';
+import { keyRoutes } from './routes/keys';
+import { aiRoutes } from './routes/ai';
 
 const app = express();
 const server = http.createServer(app);
@@ -12,15 +14,20 @@ const server = http.createServer(app);
 // WebSocket Server for Order Flow Proxy
 const wss = new WebSocket.Server({ server, path: '/ws/orderflow' });
 
-// CORS Configuration - Restrict to allowed origins
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
-    : ['http://localhost:5173', 'http://localhost:3000'];
+// CORS Configuration
+const isDev = process.env.NODE_ENV !== 'production';
+const allowedOrigins = isDev
+    ? (process.env.CORS_ORIGINS_DEV ? process.env.CORS_ORIGINS_DEV.split(',') : ['http://localhost:5173', 'http://localhost:3000'])
+    : (process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : []);
 
 app.use(cors({
     origin: (origin, callback) => {
-        // Allow requests with no origin (like mobile apps or curl)
-        if (!origin) return callback(null, true);
+        // Allow requests with no origin (like mobile apps or curl) ONLY in Dev
+        if (!origin) {
+            if (isDev) return callback(null, true);
+            console.warn('CORS: Blocked request with no origin in Production');
+            return callback(new Error('Not allowed by CORS'));
+        }
 
         if (allowedOrigins.includes(origin)) {
             callback(null, true);
@@ -31,13 +38,15 @@ app.use(cors({
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'x-trading-key', 'X-MBX-APIKEY']
+    allowedHeaders: ['Content-Type', 'x-trading-key', 'X-MBX-APIKEY', 'x-admin-secret']
 }));
 app.use(express.json());
 
 // Routes
 app.use('/api/trading', tradingRoutes);
 app.use('/api/macro', macroRoutes);
+app.use('/api/keys', keyRoutes);
+app.use('/api/ai', aiRoutes);
 
 // ==================== ORDER FLOW REST API ====================
 

@@ -18,6 +18,7 @@ const pendingRequests = new Map<string, { resolve: (value: any) => void, reject:
 const getWorker = () => {
     if (!tradingWorker) {
         tradingWorker = new Worker(new URL('./tradingWorker.ts', import.meta.url), { type: 'module' });
+        console.log('[Worker] Initialized');
         
         tradingWorker.onmessage = (e) => {
             const { type, payload, requestId } = e.data;
@@ -34,11 +35,28 @@ const getWorker = () => {
         };
 
         tradingWorker.onerror = (e) => {
-            console.error('[Worker] Error:', e);
+            console.error('[Worker] Error encountered:', e);
+            // Terminate and clear to force recreation on next request
+            if (tradingWorker) {
+                tradingWorker.terminate();
+                tradingWorker = null;
+            }
+            // Reject all pending requests
+            for (const [requestId, { reject }] of pendingRequests) {
+                reject(new Error('Worker crashed'));
+            }
+            pendingRequests.clear();
+        };
+
+        tradingWorker.onmessageerror = (e) => {
+            console.error('[Worker] Message Deserialization Error:', e);
         };
     }
     return tradingWorker;
 };
+
+let globalDataFailures = 0;
+const MAX_FAILURES = 3;
 
 export const fetchGlobalData = async () => {
     try {
@@ -74,16 +92,25 @@ export const fetchGlobalData = async () => {
 
         // Mark data source as updated
         dataSyncAgent.markDataUpdated('MACRO_DATA');
+        globalDataFailures = 0; // Reset failures on success
 
         addBreadcrumb('Global data synced successfully', 'marketData');
         console.log("Global Data Synced (REAL APIs)");
     } catch (error) {
+        globalDataFailures++;
         captureError(error as Error, 'Global Data Sync Failed', {
             macro: 'failed',
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            failures: globalDataFailures
         });
+        
         dataSyncAgent.updateSourceStatus('MACRO_DATA', 'error', (error as Error).message);
-        console.error("Global Data Sync Error:", error);
+        console.error(`Global Data Sync Error (Attempt ${globalDataFailures}):`, error);
+
+        if (globalDataFailures >= MAX_FAILURES) {
+            console.warn('[MarketData] Global data sync failing repeatedly. Data may be stale.');
+            // Ideally trigger a UI banner here via store
+        }
     }
 };
 
@@ -130,12 +157,12 @@ export const fetchChartData = async () => {
 };
 
 export const fetchSignals = async () => {
+    const start = performance.now();
     try {
         useStore.setState({ isScanning: true });
         const { price, vix, btcd, sentimentScore, technicals, chartData } = useStore.getState();
 
         // HYBRID APPROACH: Tactical v2 (rule-based) + AI validation + ORDER FLOW
-        // Step 1: Get current order flow stats (REAL-TIME)
         // Step 1: Get current order flow stats (REAL-TIME)
         const { aggrService } = await import('./aggrService');
         const orderFlowStats = aggrService.getStats();
@@ -222,6 +249,14 @@ export const fetchSignals = async () => {
 
         useStore.setState({ signals, isScanning: false });
         dataSyncAgent.markDataUpdated('SIGNALS');
+        
+        const duration = performance.now() - start;
+        if (duration > 500) {
+            console.warn(`[Perf] Signal Generation took ${duration.toFixed(2)}ms`);
+        } else {
+            console.log(`[Perf] Signal Generation took ${duration.toFixed(2)}ms`);
+        }
+        
         console.log(`[Signal Gen] Complete: ${signals.length} signals (Tactical: ${tacticalResult.signal ? 1 : 0}, AI: ${rawSignals.length})`);
     } catch (e) {
         console.error("Signal Fetch Error:", e);

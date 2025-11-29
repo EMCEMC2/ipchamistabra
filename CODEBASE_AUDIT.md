@@ -21,7 +21,7 @@
 ### 2.2 Order Routing and Latency
 
 - **Flow**: `marketData` fetch → `worker` generate → signals stored → UI prefill → `binanceApi` REST → Proxy → Binance Testnet.
-- **Latency**: No measured P99. Worker offload removes main-thread contention but adds per-scan startup overhead (tens of ms).
+- **Latency**: No measured P99. Worker offload removes main-thread contention. Singleton pattern eliminates per-scan startup overhead.
 
 ## 3. Interconnectivity and External API Integration
 
@@ -53,8 +53,8 @@
 
 ### 7.1 Critical Performance Bottlenecks
 
-- **Worker Instantiation**: Per-scan creation adds overhead (tens of ms). Should be a pooled worker or singleton to reduce startup cost.
-- **Order Flow**: Array filtering on every tick is O(n) on the recent window, potential bottleneck under high load.
+- **Worker Instantiation**: [RESOLVED] Implemented Singleton Worker pattern in `marketData.ts`.
+- **Order Flow**: [RESOLVED] Implemented batched pruning (once/sec) in `dataProcessor.worker.ts`, reducing per-tick complexity to O(1).
 - **State Serialization**: `JSON.stringify` for worker payloads is costly for large state.
 
 ### 7.2 Maintainability
@@ -64,6 +64,14 @@
 
 ### 7.3 Compliance
 
-- **Audit Trails**: Missing server-side logs for orders/cancels.
-- **Time Sync**: No NTP/clock skew handling.
+- **Audit Trails**: [PARTIAL] Added "Export Audit Log" (JSON) in UI. _Limitation: Client-side only, no server-side persistence._
+- **Time Sync**: [RESOLVED] Added `checkTimeSync` in `DataSyncAgent` (warns on >5s skew). _Limitation: Pass-on-error. NTP/clock discipline still recommended._
 - **Data Persistence**: No DB; relies on `localStorage`.
+
+## 8. Recommended Next Actions
+
+- **Audit Logging**: Add server-side audit logging for orders/cancels with exchange IDs and timestamps. Surface a minimal log viewer or API.
+- **Security**: Remove keys from localStorage. Use backend-stored AI keys or a proxy. Tighten CORS to disallow no-origin.
+- **Reliability**: Add retry/backoff and health checks for WS/REST. Consider a circuit breaker for Binance/Aggr.
+- **Concurrency**: Fix `lastSignalBar` to be instance-scoped or store-scoped to avoid races.
+- **Instrumentation**: Instrument latency (signal→order) and resource usage to replace speculative metrics.

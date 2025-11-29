@@ -1,35 +1,52 @@
-
-import { GoogleGenAI, Type } from "@google/genai";
 import { ChatMessage, GroundingSource, TradeSignal, JournalEntry, IntelItem, AgentRole, AgentTaskResult, IntelItemSchema, TradeSignalSchema } from "../types";
 import { z } from 'zod';
 import { validateSignal, calculateRiskReward, parsePrice, classifyMarketRegime } from '../utils/tradingCalculations';
 
-export const isAiAvailable = (): boolean => {
-  const fromProcessEnv = process.env.API_KEY;
-  const fromImportMeta = import.meta.env.VITE_GEMINI_API_KEY;
-  const fromStorage = typeof window !== 'undefined' ? localStorage.getItem('GEMINI_API_KEY') : null;
-  const apiKey = (fromProcessEnv || fromImportMeta || fromStorage || "").trim();
-  return !!apiKey;
+const BACKEND_URL = import.meta.env.VITE_TRADING_API_URL || 'http://localhost:3000';
+
+let aiAvailabilityCache: { available: boolean; timestamp: number } | null = null;
+const CACHE_DURATION = 60000; // 1 minute
+
+export const isAiAvailable = async (): Promise<boolean> => {
+    if (aiAvailabilityCache && Date.now() - aiAvailabilityCache.timestamp < CACHE_DURATION) {
+        return aiAvailabilityCache.available;
+    }
+
+    try {
+        const response = await fetch(`${BACKEND_URL}/api/keys/check`);
+        if (!response.ok) return false;
+        
+        const data = await response.json();
+        const available = !!data.geminiKeyConfigured;
+        
+        aiAvailabilityCache = { available, timestamp: Date.now() };
+        return available;
+    } catch (e) {
+        console.warn('Failed to check AI availability:', e);
+        return false;
+    }
 };
 
-const getAiClient = () => {
-  const fromProcessEnv = process.env.API_KEY;
-  const fromImportMeta = import.meta.env.VITE_GEMINI_API_KEY;
+const callAiProxy = async (model: string, contents: any, config?: any) => {
+    try {
+        const response = await fetch(`${BACKEND_URL}/api/ai/generate`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ model, contents, config })
+        });
 
-  const fromStorage = typeof window !== 'undefined' ? localStorage.getItem('GEMINI_API_KEY') : null;
-  const apiKey = (fromProcessEnv || fromImportMeta || fromStorage || "").trim();
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.details || error.error || 'AI Proxy Request Failed');
+        }
 
-  if (!apiKey) {
-    console.error("[Gemini Service] ERROR: API_KEY is missing from both sources!");
-    throw new Error("API_KEY is not defined. Please add VITE_GEMINI_API_KEY to your environment or settings.");
-  }
-
-  // Basic validation for Google AI keys (usually start with AIza)
-  if (!apiKey.startsWith("AIza")) {
-    console.warn("[Gemini Service] WARNING: API Key does not start with 'AIza'. It might be invalid.");
-  }
-
-  return new GoogleGenAI({ apiKey });
+        return await response.json();
+    } catch (error: any) {
+        console.error('[Gemini Proxy] Error:', error);
+        throw error;
+    }
 };
 
 // UPGRADED MODELS
@@ -124,7 +141,7 @@ When analyzing, always reference these specific mechanics. Interpret signals bas
  * Generate real-time AI market analysis with active signals context
  */
 export const generateMarketAnalysis = async (query: string, activeSignals?: TradeSignal[]): Promise<AiResponse> => {
-  const ai = getAiClient();
+
 
   let contents = query;
   if (activeSignals && activeSignals.length > 0) {
@@ -136,15 +153,15 @@ export const generateMarketAnalysis = async (query: string, activeSignals?: Trad
 
   // Attempt 1: Reasoning Model
   try {
-    const response = await ai.models.generateContent({
-      model: REASONING_MODEL_ID,
-      contents: contents,
-      config: {
+    const response = await callAiProxy(
+      REASONING_MODEL_ID,
+      contents,
+      {
         systemInstruction: BITMIND_STRATEGY_CONTEXT + " Focus on key metrics: Price action, Support/Resistance, Volume anomalies, VIX (Volatility), DXY (Dollar Index) correlation, and BTC Dominance. Use professional trader terminology. Leverage deep thinking to analyze multi-timeframe market structures before responding.",
         thinkingConfig: { thinkingBudget: 8192 },
         tools: [{ googleSearch: {} }],
-      },
-    });
+      }
+    );
 
     const text = response.text || "Analysis unavailable.";
     const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
@@ -159,14 +176,14 @@ export const generateMarketAnalysis = async (query: string, activeSignals?: Trad
 
     // Attempt 2: Fast Model Fallback
     try {
-      const response = await ai.models.generateContent({
-        model: FAST_MODEL_ID,
-        contents: contents,
-        config: {
+      const response = await callAiProxy(
+        FAST_MODEL_ID,
+        contents,
+        {
           systemInstruction: BITMIND_STRATEGY_CONTEXT + " Provide a concise market analysis. Focus on key levels and current trend.",
           tools: [{ googleSearch: {} }],
-        },
-      });
+        }
+      );
 
       const text = response.text || "Analysis unavailable.";
       const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
@@ -198,7 +215,7 @@ export const generateMarketAnalysis = async (query: string, activeSignals?: Trad
 };
 
 export const generateTradeSetup = async (context: string): Promise<AiResponse> => {
-  const ai = getAiClient();
+
 
   const prompt = `
     Based on the following market context:
@@ -218,15 +235,15 @@ export const generateTradeSetup = async (context: string): Promise<AiResponse> =
 
   // Attempt 1: Reasoning Model
   try {
-    const response = await ai.models.generateContent({
-      model: REASONING_MODEL_ID,
-      contents: prompt,
-      config: {
+    const response = await callAiProxy(
+      REASONING_MODEL_ID,
+      prompt,
+      {
         systemInstruction: "You are a senior trade strategist running the BitMind Tactical v2 system. Output actionable trade plans based on probability. Use your thinking capabilities to validate levels against recent volatility.",
         thinkingConfig: { thinkingBudget: 16384 }, // Reduced budget
         tools: [{ googleSearch: {} }],
-      },
-    });
+      }
+    );
 
     const text = response.text || "Setup unavailable.";
     return { text, sources: [] };
@@ -236,14 +253,14 @@ export const generateTradeSetup = async (context: string): Promise<AiResponse> =
 
     // Attempt 2: Fast Model Fallback
     try {
-      const response = await ai.models.generateContent({
-        model: FAST_MODEL_ID,
-        contents: prompt,
-        config: {
+      const response = await callAiProxy(
+        FAST_MODEL_ID,
+        prompt,
+        {
           systemInstruction: "You are a senior trade strategist. Provide a concise, actionable trade setup based on the context.",
           tools: [{ googleSearch: {} }],
-        },
-      });
+        }
+      );
 
       const text = response.text || "Setup unavailable.";
       return { text, sources: [] };
@@ -273,7 +290,7 @@ export const scanMarketForSignals = async (
   context: string,
   tacticalSignal?: { signal: any; bullScore: number; bearScore: number; regime: string; reasoning: string[] }
 ): Promise<Omit<TradeSignal, 'id' | 'timestamp'>[]> => {
-  const ai = getAiClient();
+
 
   // If Tactical v2 generated a signal, enhance it with AI validation
   const tacticalContext = tacticalSignal
@@ -288,9 +305,9 @@ export const scanMarketForSignals = async (
     : '';
 
   try {
-    const response = await ai.models.generateContent({
-      model: FAST_MODEL_ID,
-      contents: `Analyze the provided market context and generate 1-3 algorithmic trading signals based on BitMind Tactical v2 logic.
+    const response = await callAiProxy(
+      FAST_MODEL_ID,
+      `Analyze the provided market context and generate 1-3 algorithmic trading signals based on BitMind Tactical v2 logic.
       Context: ${context}${tacticalContext}
 
       **System Rules (STRICTLY FOLLOW PROVIDED INDICATORS):**
@@ -311,27 +328,27 @@ export const scanMarketForSignals = async (
 
       **IMPORTANT:** Do NOT calculate R:R or regime yourself. Just provide the prices and confidence.
       `,
-      config: {
+      {
         responseMimeType: "application/json",
         responseSchema: {
-          type: Type.ARRAY,
+          type: "ARRAY", // Changed from Type.ARRAY to string as we removed Type import
           items: {
-            type: Type.OBJECT,
+            type: "OBJECT",
             properties: {
-              pair: { type: Type.STRING },
-              type: { type: Type.STRING, enum: ["LONG", "SHORT"] },
-              entryZone: { type: Type.STRING },
-              invalidation: { type: Type.STRING },
-              targets: { type: Type.ARRAY, items: { type: Type.STRING } },
-              confidence: { type: Type.NUMBER },
-              reasoning: { type: Type.STRING },
-              status: { type: Type.STRING, enum: ["SCANNING", "ACTIVE"] },
+              pair: { type: "STRING" },
+              type: { type: "STRING", enum: ["LONG", "SHORT"] },
+              entryZone: { type: "STRING" },
+              invalidation: { type: "STRING" },
+              targets: { type: "ARRAY", items: { type: "STRING" } },
+              confidence: { type: "NUMBER" },
+              reasoning: { type: "STRING" },
+              status: { type: "STRING", enum: ["SCANNING", "ACTIVE"] },
             },
             required: ["pair", "type", "entryZone", "invalidation", "targets", "confidence", "reasoning", "status"],
           },
         },
-      },
-    });
+      }
+    );
 
     const text = response.text;
     if (!text) return [];
@@ -420,7 +437,7 @@ const fetchBtcDominance = async (): Promise<number | null> => {
 
 // --- NEW: AGENT SIMULATION WITH STRUCTURED OUTPUT ---
 export const runAgentSimulation = async (role: AgentRole, context: any): Promise<AgentTaskResult> => {
-  const ai = getAiClient();
+
   let systemPrompt = "";
   let userContent = "";
 
@@ -459,22 +476,22 @@ export const runAgentSimulation = async (role: AgentRole, context: any): Promise
     console.log(`[runAgentSimulation] Model: ${FAST_MODEL_ID}`);
     console.log(`[runAgentSimulation] Context:`, context);
 
-    const response = await ai.models.generateContent({
-      model: FAST_MODEL_ID,
-      contents: userContent,
-      config: {
+    const response = await callAiProxy(
+      FAST_MODEL_ID,
+      userContent,
+      {
         systemInstruction: systemPrompt,
         responseMimeType: "application/json",
         responseSchema: {
-          type: Type.OBJECT,
+          type: "OBJECT",
           properties: {
-            success: { type: Type.BOOLEAN },
-            message: { type: Type.STRING }
+            success: { type: "BOOLEAN" },
+            message: { type: "STRING" }
           },
           required: ["success", "message"]
         }
       }
-    });
+    );
 
     const text = response.text;
     console.log(`[runAgentSimulation] Response received for ${role}:`, text);
@@ -514,7 +531,7 @@ export const runAgentSimulation = async (role: AgentRole, context: any): Promise
 
 
 export const scanGlobalIntel = async (): Promise<IntelItem[]> => {
-  const ai = getAiClient();
+
 
   try {
     const prompt = `
@@ -550,14 +567,14 @@ export const scanGlobalIntel = async (): Promise<IntelItem[]> => {
       Use real-time search to find ACTUAL current events. Do NOT fabricate news.
     `;
 
-    const response = await ai.models.generateContent({
-      model: FAST_MODEL_ID,
-      contents: prompt,
-      config: {
+    const response = await callAiProxy(
+      FAST_MODEL_ID,
+      prompt,
+      {
         tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
       }
-    });
+    );
 
     const text = response.text;
     if (!text) {
@@ -609,7 +626,7 @@ export const scanGlobalIntel = async (): Promise<IntelItem[]> => {
 
 
 export const analyzeTradeJournal = async (entry: JournalEntry): Promise<string> => {
-  const ai = getAiClient();
+
 
   const prompt = `
     You are a professional trading psychologist and performance analyst.
@@ -636,13 +653,13 @@ export const analyzeTradeJournal = async (entry: JournalEntry): Promise<string> 
   `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: FAST_MODEL_ID,
-      contents: prompt,
-      config: {
+    const response = await callAiProxy(
+      FAST_MODEL_ID,
+      prompt,
+      {
         systemInstruction: BITMIND_STRATEGY_CONTEXT + " Analyze this trade from the perspective of the Tactical v2 system. Was it aligned with regime detection rules?",
       }
-    });
+    );
 
     return response.text || "Analysis unavailable.";
   } catch (error: any) {

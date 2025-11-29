@@ -17,17 +17,30 @@ export type WorkerResponse =
 // Worker context
 const ctx: Worker = self as any;
 
+// State for signal generation
+let lastSignalBar = -999;
+
 ctx.addEventListener('message', (event: MessageEvent<WorkerMessage>) => {
   const message = event.data;
 
   try {
     switch (message.type) {
       case 'GENERATE_SIGNALS':
+        const start = performance.now();
         const { chartData, orderFlowStats, state } = message.payload;
         
         // Run heavy calculations
-        const tacticalResult = generateTacticalSignal(chartData, undefined, orderFlowStats);
+        const tacticalResult = generateTacticalSignal(chartData, undefined, orderFlowStats, lastSignalBar);
+        
+        // Update state
+        lastSignalBar = tacticalResult.lastSignalBar;
+
         const consensusData = generateConsensus(tacticalResult, state);
+
+        const duration = performance.now() - start;
+        if (duration > 100) {
+             console.warn(`[Worker] Calculation took ${duration.toFixed(2)}ms`);
+        }
 
         ctx.postMessage({
           type: 'SIGNALS_GENERATED',

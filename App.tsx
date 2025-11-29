@@ -27,6 +27,7 @@ import { BinancePriceFeed } from './services/websocket';
 import { useStore } from './store/useStore';
 import { ChartDataPoint, TradeSignal } from './types';
 import { ApiKeyModal } from './components/ApiKeyModal';
+import { KeyMigration } from './components/KeyMigration';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { usePositionMonitor } from './hooks/usePositionMonitor';
 import { aggrService } from './services/aggrService';
@@ -74,22 +75,38 @@ function App() {
   // Refs
   const binanceWS = useRef(new BinancePriceFeed());
 
-  // Check for API Key on Mount & Expire Stale Signals
-  useEffect(() => {
-    const fromProcessEnv = import.meta.env.VITE_GEMINI_API_KEY;
-    const fromStorage = localStorage.getItem('GEMINI_API_KEY');
+    // Check for API Key on Mount & Expire Stale Signals
+    useEffect(() => {
+        const fromProcessEnv = import.meta.env.VITE_GEMINI_API_KEY;
+        const fromStorage = localStorage.getItem('GEMINI_API_KEY');
 
-    // Check if key is missing
-    if (!fromProcessEnv && !fromStorage) {
-      setIsApiKeyMissing(true);
-    }
+        const checkKeys = async () => {
+            // Check backend status
+            try {
+                const response = await fetch('http://localhost:3000/api/keys/check');
+                const data = await response.json();
+                
+                // If backend configured, we are good
+                if (data.configured) {
+                    return;
+                }
+            } catch (e) {
+                console.error('Backend check failed', e);
+            }
 
-    // Check if key is the placeholder or leaked key
-    const currentKey = fromProcessEnv || fromStorage || '';
-    if (currentKey.includes('YOUR_NEW_API_KEY_HERE') || currentKey === 'AIzaSyC8prxBzZ6-rwUQ_M5GKGpnFpvOAZsOWWc') {
-      setIsApiKeyMissing(true);
-      setApiKeyError('Your API key was reported as leaked. Please generate a new one.');
-    }
+            if (!fromProcessEnv && !fromStorage) {
+                 setIsApiKeyMissing(true);
+            }
+        };
+        
+        checkKeys();
+
+        // Check if key is the placeholder or leaked key
+        const currentKey = fromProcessEnv || fromStorage || '';
+        if (currentKey.includes('YOUR_NEW_API_KEY_HERE') || currentKey === 'AIzaSyC8prxBzZ6-rwUQ_M5GKGpnFpvOAZsOWWc') {
+            setIsApiKeyMissing(true);
+            setApiKeyError('Your API key was reported as leaked. Please generate a new one.');
+        }
 
     // Listen for API key errors from agents
     const handleApiError = (event: CustomEvent<{ message: string }>) => {
@@ -253,6 +270,7 @@ function App() {
 
   return (
     <div className="h-screen bg-black text-gray-200 font-sans selection:bg-green-900 selection:text-white overflow-hidden flex flex-col">
+      <KeyMigration />
       {isApiKeyMissing && <ApiKeyModal errorMessage={apiKeyError} />}
 
       {/* Elite Header with Glass Morphism */}

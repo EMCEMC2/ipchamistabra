@@ -47,9 +47,8 @@ export interface TacticalSignalResult {
   bearScore: number;
   regime: 'LOW_VOL' | 'NORMAL' | 'HIGH_VOL';
   reasoning: string[];
+  lastSignalBar: number; // Return updated state
 }
-
-let lastSignalBar = -999; // Track last signal to enforce cooldown
 
 /**
  * FIX #4: Slippage model for realistic execution simulation
@@ -110,11 +109,13 @@ function applySlippage(
  * @param chartData - OHLCV candle data (minimum 200 candles)
  * @param config - Configuration for signal generation
  * @param orderFlowStats - OPTIONAL: Real-time order flow data (CVD, liquidations, pressure)
+ * @param lastSignalBar - State from previous run (default: -999)
  */
 export function generateTacticalSignal(
   chartData: ChartDataPoint[],
   config: TacticalSignalConfig = DEFAULT_CONFIG,
-  orderFlowStats?: AggrStats | null
+  orderFlowStats?: AggrStats | null,
+  lastSignalBar: number = -999
 ): TacticalSignalResult {
   if (!chartData || chartData.length < 200) {
     return {
@@ -122,7 +123,8 @@ export function generateTacticalSignal(
       bullScore: 0,
       bearScore: 0,
       regime: 'NORMAL',
-      reasoning: ['Insufficient data (need 200+ candles)']
+      reasoning: ['Insufficient data (need 200+ candles)'],
+      lastSignalBar
     };
   }
 
@@ -287,8 +289,6 @@ export function generateTacticalSignal(
 
   // Check if signal threshold met
   if (bullScore >= minScore && bearScore < 2 && barsSinceLast > cooldown) {
-    lastSignalBar = i;
-
     // Calculate entry, stop, target based on current price and ATR
     const currentPrice = closes[i];
     const currentATR = atr[i];
@@ -330,11 +330,10 @@ export function generateTacticalSignal(
       bullScore,
       bearScore,
       regime,
-      reasoning
+      reasoning,
+      lastSignalBar: i // Update last signal bar
     };
   } else if (bearScore >= minScore && bullScore < 2 && barsSinceLast > cooldown) {
-    lastSignalBar = i;
-
     const currentPrice = closes[i];
     const currentATR = atr[i];
     const stopDistance = currentATR * 1.5;
@@ -375,7 +374,8 @@ export function generateTacticalSignal(
       bullScore,
       bearScore,
       regime,
-      reasoning
+      reasoning,
+      lastSignalBar: i // Update last signal bar
     };
   }
 
@@ -385,13 +385,9 @@ export function generateTacticalSignal(
     bullScore,
     bearScore,
     regime,
-    reasoning
+    reasoning,
+    lastSignalBar // Return unchanged
   };
 }
 
-/**
- * Reset cooldown (useful for testing or manual override)
- */
-export function resetSignalCooldown(): void {
-  lastSignalBar = -999;
-}
+

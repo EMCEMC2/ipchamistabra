@@ -3,28 +3,75 @@ import { useStore } from '../store/useStore';
 const BACKEND_URL = import.meta.env.VITE_TRADING_API_URL || 'http://localhost:3000/api/trading';
 const TRADING_KEY = import.meta.env.VITE_TRADING_API_KEY || '';
 
+const CIRCUIT_BREAKER_THRESHOLD = 5;
+const RESET_TIMEOUT = 60000; // 1 minute
+let failureCount = 0;
+let lastFailureTime = 0;
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+class ApiError extends Error {
+    status: number;
+    constructor(message: string, status: number) {
+        super(message);
+        this.status = status;
+    }
+}
+
 export const binanceApi = {
-    // Generic Helper
+    // Generic Helper with Backoff & Circuit Breaker
     request: async (endpoint: string, method: 'GET' | 'POST' | 'DELETE' | 'PUT' = 'GET', body?: any) => {
-        try {
-            const response = await fetch(`${BACKEND_URL}${endpoint}`, {
-                method,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-trading-key': TRADING_KEY
-                },
-                body: body ? JSON.stringify(body) : undefined
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.details?.msg || error.error || 'Backend Request Failed');
+        // Circuit Breaker Check
+        if (failureCount >= CIRCUIT_BREAKER_THRESHOLD) {
+            if (Date.now() - lastFailureTime < RESET_TIMEOUT) {
+                throw new Error(`Circuit Breaker Open: Too many failures. Retrying in ${Math.ceil((RESET_TIMEOUT - (Date.now() - lastFailureTime)) / 1000)}s`);
+            } else {
+                failureCount = 0; // Reset after timeout
             }
+        }
 
-            return await response.json();
-        } catch (error: any) {
-            console.error(`Backend API Error [${endpoint}]:`, error);
-            throw error;
+        let attempt = 0;
+        const maxRetries = method === 'GET' ? 3 : 1; // Only retry GET requests aggressively
+
+        while (attempt <= maxRetries) {
+            try {
+                const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-trading-key': TRADING_KEY
+                    },
+                    body: body ? JSON.stringify(body) : undefined
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new ApiError(error.details?.msg || error.error || 'Backend Request Failed', response.status);
+                }
+
+                const data = await response.json();
+                failureCount = 0; // Success resets circuit breaker
+                return data;
+
+            } catch (error: any) {
+                attempt++;
+                lastFailureTime = Date.now();
+                
+                // Check if it's a retryable error (Network error (no status), 429, or 5xx)
+                const status = error.status;
+                const isRetryable = !status || status === 429 || status >= 500;
+
+                if (!isRetryable || attempt > maxRetries) {
+                    failureCount++;
+                    console.error(`Backend API Error [${endpoint}] (Attempt ${attempt}):`, error);
+                    throw error;
+                }
+
+                // Exponential Backoff with Jitter
+                const backoff = Math.min(1000 * Math.pow(2, attempt) + Math.random() * 500, 10000);
+                console.warn(`[API] Retrying ${endpoint} in ${Math.round(backoff)}ms...`);
+                await sleep(backoff);
+            }
         }
     },
 
