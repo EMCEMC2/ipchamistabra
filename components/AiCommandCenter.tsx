@@ -1,16 +1,22 @@
 import React from 'react';
 import { Activity, BarChart2, Zap, TrendingUp, Brain, Globe } from 'lucide-react';
-import { useStore } from '../store/useStore';
 import { FeedTooltip } from './FeedTooltip';
 import { checkFeedHealth } from '../services/feedRegistry';
+import {
+  usePriceData,
+  useSentiment,
+  useDerivatives,
+  useTechnicals,
+  useEnhancedMetrics,
+  useFeed
+} from '../store/selectors';
 
-// Helper for freshness dot
+// Helper for freshness dot - uses targeted selector
 const FreshnessDot = ({ feedId }: { feedId: string }) => {
-  const { feeds } = useStore();
-  const feed = feeds[feedId];
+  const feed = useFeed(feedId);
   const health = feed ? checkFeedHealth(feed) : 'connecting';
-  
-  const color = 
+
+  const color =
     health === 'fresh' ? 'bg-green-500' :
     health === 'stale' ? 'bg-yellow-500' :
     health === 'error' ? 'bg-red-500' :
@@ -22,15 +28,12 @@ const FreshnessDot = ({ feedId }: { feedId: string }) => {
 };
 
 export const AiCommandCenter: React.FC = () => {
-  const { 
-    price, 
-    priceChange, 
-    sentimentScore, 
-    sentimentLabel,
-    derivatives,
-    technicals,
-    enhancedMetrics
-  } = useStore();
+  // Optimized selectors - only re-render when specific values change
+  const { price, priceChange } = usePriceData();
+  const { score: sentimentScore, label: sentimentLabel } = useSentiment();
+  const derivatives = useDerivatives();
+  const technicals = useTechnicals();
+  const enhancedMetrics = useEnhancedMetrics();
 
   return (
     <div className="h-full flex flex-col gap-2">

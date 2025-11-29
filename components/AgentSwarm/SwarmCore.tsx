@@ -2,13 +2,15 @@ import React, { useEffect, useRef } from 'react';
 import { useStore } from '../../store/useStore';
 import { AgentCard } from './AgentCard';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Square, Terminal, Cpu, Activity } from 'lucide-react';
+import { Play, Terminal, Cpu, Activity } from 'lucide-react';
 import { runAgentSimulation } from '../../services/gemini';
 import { analyzeMarketRegime } from '../../services/mlService';
 import { AgentRole } from '../../types';
 import clsx from 'clsx';
 import { generateConsensus } from '../../services/agentConsensus';
 import { TacticalSignalResult } from '../../services/tacticalSignals';
+import { runAgentWithTimeout } from '../../utils/agentTimeout';
+import { ConfluenceWeightsPanel } from './ConfluenceWeightsPanel';
 
 export const AgentSwarm: React.FC = () => {
     const agents = useStore((state) => state.agents) || [];
@@ -50,7 +52,8 @@ export const AgentSwarm: React.FC = () => {
             bullScore,
             bearScore,
             regime: technicals.atr > price * 0.02 ? 'HIGH_VOL' : 'NORMAL', // Approx regime check
-            reasoning: []
+            reasoning: [],
+            lastSignalBar: 0
         };
         return generateConsensus(liveResult, useStore.getState());
     }, [technicals, price, sentimentScore]); // Re-calc on key changes
@@ -65,22 +68,37 @@ export const AgentSwarm: React.FC = () => {
         setIsScanning(true);
         addCouncilLog('OVERMIND', 'Initializing Swarm Protocol v2.1...');
 
+        // Helper to run agent with timeout and status tracking
+        const runAgent = async (
+            role: AgentRole,
+            context: any,
+            logName: string,
+            workingMsg: string
+        ) => {
+            updateAgentStatus(role, 'WORKING', workingMsg);
+            const result = await runAgentWithTimeout(role, () => runAgentSimulation(role, context));
+
+            if (result.data?.timeout) {
+                updateAgentStatus(role, 'TIMEOUT', result.message);
+                addCouncilLog(logName, `TIMEOUT: ${role} exceeded SLA`);
+            } else {
+                updateAgentStatus(role, result.success ? 'SUCCESS' : 'FAILURE', result.message);
+                addCouncilLog(logName, result.message);
+            }
+
+            return result;
+        };
+
         try {
             // 1. Inspector Check
-            updateAgentStatus('INSPECTOR', 'WORKING', 'Verifying data integrity...');
-            const inspectRes = await runAgentSimulation('INSPECTOR', marketMetrics);
-            updateAgentStatus('INSPECTOR', inspectRes.success ? 'SUCCESS' : 'FAILURE', inspectRes.message);
-            addCouncilLog('WATCHDOG', inspectRes.message);
+            const inspectRes = await runAgent('INSPECTOR', marketMetrics, 'WATCHDOG', 'Verifying data integrity...');
 
             if (!inspectRes.success) {
                 setIsScanning(false);
                 return;
             }
 
-            // 2. Quant Research
-            updateAgentStatus('QUANT_RESEARCHER', 'WORKING', 'Analyzing market regime features...');
-
-            // Run ML Analysis
+            // 2. Quant Research - Run ML Analysis
             const mlAnalysis = analyzeMarketRegime(chartData, vix);
             const quantContext = {
                 ...marketMetrics,
@@ -91,22 +109,14 @@ export const AgentSwarm: React.FC = () => {
                 }
             };
 
-            const quantRes = await runAgentSimulation('QUANT_RESEARCHER', quantContext);
-            updateAgentStatus('QUANT_RESEARCHER', 'SUCCESS', quantRes.message);
-            addCouncilLog('DATAMIND', quantRes.message);
+            const quantRes = await runAgent('QUANT_RESEARCHER', quantContext, 'DATAMIND', 'Analyzing market regime features...');
 
             // 3. Risk Assessment
-            updateAgentStatus('RISK_OFFICER', 'WORKING', 'Calculating exposure limits...');
             const balance = useStore.getState().balance;
             const positions = useStore.getState().positions;
-            const riskRes = await runAgentSimulation('RISK_OFFICER', { balance, positions });
-            updateAgentStatus('RISK_OFFICER', 'SUCCESS', riskRes.message);
-            addCouncilLog('IRONCLAD', riskRes.message);
+            const riskRes = await runAgent('RISK_OFFICER', { balance, positions }, 'IRONCLAD', 'Calculating exposure limits...');
 
             // 4. Strategy Formulation
-            updateAgentStatus('STRATEGIST', 'WORKING', 'Synthesizing alpha signals...');
-
-            // Combine insights for the Strategist
             const strategistContext = {
                 marketMetrics,
                 mlAnalysis: {
@@ -119,9 +129,7 @@ export const AgentSwarm: React.FC = () => {
                 inspectorStatus: inspectRes.message
             };
 
-            const stratRes = await runAgentSimulation('STRATEGIST', strategistContext);
-            updateAgentStatus('STRATEGIST', 'SUCCESS', stratRes.message);
-            addCouncilLog('VANGUARD', stratRes.message);
+            const stratRes = await runAgent('STRATEGIST', strategistContext, 'VANGUARD', 'Synthesizing alpha signals...');
 
             addCouncilLog('OVERMIND', 'Swarm Cycle Complete. Waiting for next tick.');
         } catch (error: any) {
@@ -164,13 +172,18 @@ export const AgentSwarm: React.FC = () => {
                             <div className="flex gap-0.5">
                                 {liveConsensus.votes.map((v, i) => (
                                     <div key={i} className={`w-1.5 h-4 rounded-sm ${
-                                        v.vote === 'BULLISH' ? 'bg-green-500' : 
+                                        v.vote === 'BULLISH' ? 'bg-green-500' :
                                         v.vote === 'BEARISH' ? 'bg-red-500' : 'bg-gray-600'
                                     }`} title={`${v.agentName}: ${v.vote}`} />
                                 ))}
                             </div>
                         </div>
                     </div>
+                </div>
+
+                {/* CONFLUENCE WEIGHTS CONFIG */}
+                <div className="hidden lg:block w-56">
+                    <ConfluenceWeightsPanel />
                 </div>
 
                 <div className="flex items-center gap-4">

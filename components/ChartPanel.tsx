@@ -11,7 +11,7 @@ import {
   ISeriesApi,
   IPriceLine
 } from 'lightweight-charts';
-import { Code, Eye, EyeOff, Activity, Layers, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
+import { Code, Eye, EyeOff, Activity, Layers, ZoomIn, ZoomOut, Maximize2, Target } from 'lucide-react';
 import { PineScriptModal } from './PineScriptModal';
 import {
   calculateSMA,
@@ -21,7 +21,7 @@ import {
   calculateRMA,
   calculateStdev
 } from '../utils/technicalAnalysis';
-import { useStore } from '../store/useStore';
+import { useChartState, usePositions } from '../store/selectors';
 
 // Helper: Parse Price
 const parsePrice = (priceStr: string): number | null => {
@@ -31,8 +31,10 @@ const parsePrice = (priceStr: string): number | null => {
 };
 
 export const ChartPanel: React.FC = () => {
-  const { chartData: data, timeframe, setTimeframe: onTimeframeChange, signals } = useStore();
+  const { chartData: data, timeframe, setTimeframe: onTimeframeChange, signals } = useChartState();
+  const positions = usePositions();
   const safeData = data || [];
+  const safePositions = positions || [];
 
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -45,11 +47,13 @@ export const ChartPanel: React.FC = () => {
 
   // Overlay Refs
   const activePriceLinesRef = useRef<IPriceLine[]>([]);
+  const positionLinesRef = useRef<IPriceLine[]>([]);
   const clusterLinesRef = useRef<IPriceLine[]>([]);
 
   // UI State
   const [isScriptModalOpen, setIsScriptModalOpen] = useState(false);
   const [showSignals, setShowSignals] = useState(true);
+  const [showPositions, setShowPositions] = useState(true);
   const [showTactical, setShowTactical] = useState(true);
 
   const timeframes = [
@@ -352,6 +356,69 @@ export const ChartPanel: React.FC = () => {
     });
   }, [signals, showSignals, safeData]);
 
+  // --- POSITION OVERLAY ---
+  useEffect(() => {
+    if (!candleSeriesRef.current) return;
+
+    // Clear existing position lines
+    positionLinesRef.current.forEach(line => candleSeriesRef.current?.removePriceLine(line));
+    positionLinesRef.current = [];
+
+    if (!showPositions || safePositions.length === 0) return;
+
+    safePositions.forEach((pos, idx) => {
+      const posLabel = `P${idx + 1}`;
+
+      // Entry line (cyan for visibility)
+      if (pos.entryPrice > 0) {
+        positionLinesRef.current.push(candleSeriesRef.current!.createPriceLine({
+          price: pos.entryPrice,
+          color: '#06b6d4', // cyan
+          lineWidth: 2,
+          lineStyle: LineStyle.Solid,
+          axisLabelVisible: true,
+          title: `${posLabel} ENTRY`
+        }));
+      }
+
+      // Stop Loss line (red)
+      if (pos.stopLoss > 0) {
+        positionLinesRef.current.push(candleSeriesRef.current!.createPriceLine({
+          price: pos.stopLoss,
+          color: '#dc2626', // red
+          lineWidth: 1,
+          lineStyle: LineStyle.Dashed,
+          axisLabelVisible: true,
+          title: `${posLabel} SL`
+        }));
+      }
+
+      // Take Profit line (green)
+      if (pos.takeProfit > 0) {
+        positionLinesRef.current.push(candleSeriesRef.current!.createPriceLine({
+          price: pos.takeProfit,
+          color: '#16a34a', // green
+          lineWidth: 1,
+          lineStyle: LineStyle.Dashed,
+          axisLabelVisible: true,
+          title: `${posLabel} TP`
+        }));
+      }
+
+      // Liquidation line (orange warning)
+      if (pos.liquidationPrice > 0) {
+        positionLinesRef.current.push(candleSeriesRef.current!.createPriceLine({
+          price: pos.liquidationPrice,
+          color: '#f97316', // orange
+          lineWidth: 1,
+          lineStyle: LineStyle.Dotted,
+          axisLabelVisible: true,
+          title: `${posLabel} LIQ`
+        }));
+      }
+    });
+  }, [safePositions, showPositions, safeData]);
+
   // Zoom Controls
   const handleZoomIn = () => {
     if (!chartRef.current) return;
@@ -474,6 +541,19 @@ export const ChartPanel: React.FC = () => {
           >
             {showSignals ? <Eye size={12} /> : <EyeOff size={12} />}
             <span className="text-[10px] font-medium uppercase hidden sm:inline">SIGNALS</span>
+          </button>
+
+          <button
+            onClick={() => setShowPositions(!showPositions)}
+            className={`flex items-center gap-1 px-2 py-1 rounded-sm transition-all duration-200 border ${
+              showPositions
+                ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'
+                : 'bg-transparent text-gray-500 border-transparent hover:text-cyan-400'
+            }`}
+            title="Toggle Position Overlay (Entry/SL/TP)"
+          >
+            <Target size={12} />
+            <span className="text-[10px] font-medium uppercase hidden sm:inline">POS</span>
           </button>
 
           <button

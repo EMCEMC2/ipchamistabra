@@ -1,10 +1,10 @@
 import React from 'react';
 import { TrendingUp, TrendingDown, X, AlertTriangle, Shield, Wallet } from 'lucide-react';
-import { useStore } from '../store/useStore';
+import { usePositionsWithActions } from '../store/selectors';
 import { calculatePositionPnL } from '../utils/tradingCalculations';
 
 export const PositionsPanel: React.FC = () => {
-    const { positions, price, closePosition, addJournalEntry } = useStore();
+    const { positions, price, closePosition, addJournalEntry } = usePositionsWithActions();
     const safePositions = positions || [];
 
     const handleClose = (positionId: string) => {

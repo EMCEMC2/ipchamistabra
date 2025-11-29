@@ -19,7 +19,7 @@ const getGenAI = (): GoogleGenAI => {
     return genAI;
 };
 
-export const isAiAvailable = async (): Promise<boolean> => {
+export const isAiAvailable = (): boolean => {
     return !!API_KEY;
 };
 

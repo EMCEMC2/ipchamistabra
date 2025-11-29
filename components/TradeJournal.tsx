@@ -2,12 +2,12 @@
 import React, { useState } from 'react';
 import { BookOpen, Plus, Save, Tag, Brain, Calendar, MessageSquare, TrendingUp } from 'lucide-react';
 import { JournalEntry } from '../types';
-import { useStore } from '../store/useStore';
+import { useJournalWithActions } from '../store/selectors';
 import { analyzeTradeJournal } from '../services/gemini';
 import ReactMarkdown from 'react-markdown';
 
 export const TradeJournal: React.FC = () => {
-  const { journal: entries, addJournalEntry: onAddEntry } = useStore();
+  const { journal: entries, addJournalEntry: onAddEntry } = useJournalWithActions();
   const safeEntries = entries || [];
   const [isAdding, setIsAdding] = useState(false);
   const [newEntry, setNewEntry] = useState<Partial<JournalEntry>>({

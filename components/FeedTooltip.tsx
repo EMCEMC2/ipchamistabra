@@ -1,7 +1,7 @@
 import React from 'react';
 import { Info } from 'lucide-react';
 import { FEED_SOURCES, FeedState } from '../services/feedRegistry';
-import { useStore } from '../store/useStore';
+import { useFeeds } from '../store/selectors';
 
 interface FeedTooltipProps {
   feedId: string;
@@ -9,7 +9,7 @@ interface FeedTooltipProps {
 }
 
 export const FeedTooltip: React.FC<FeedTooltipProps> = ({ feedId, children }) => {
-  const { feeds } = useStore();
+  const feeds = useFeeds();
   const config = FEED_SOURCES[feedId];
   const state = feeds[feedId];
 

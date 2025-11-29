@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle, ChevronDown, ChevronUp, RefreshCw, CheckCircle } from 'lucide-react';
-import { useStore } from '../store/useStore';
+import { useFeedsWithUpdater } from '../store/selectors';
 import { FEED_SOURCES, checkFeedHealth } from '../services/feedRegistry';
 
 export const BlockedBanner: React.FC = () => {
-  const { feeds, updateFeedStatus } = useStore();
+  const { feeds, updateFeedStatus } = useFeedsWithUpdater();
   const [expanded, setExpanded] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [recovered, setRecovered] = useState(false);

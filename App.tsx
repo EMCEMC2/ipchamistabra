@@ -1,13 +1,3 @@
-import { BlockedBanner } from './components/BlockedBanner';
-
-// ... existing imports
-
-// ... inside App component return ...
-
-      {/* Elite Header with Glass Morphism */}
-      <header className="h-14 border-b border-white/10 flex items-center justify-between px-6 glass relative z-50 shrink-0">
-        {/* ... header content ... */}
-      </header>
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Terminal, Layout, Users, Brain, BookOpen, LineChart, Target, Globe } from 'lucide-react';
 import { ChartPanel } from './components/ChartPanel';
@@ -26,8 +16,7 @@ import { calculateRSI, calculateATR, calculateADX, calculateEMA, calculateMACD }
 import { BinancePriceFeed } from './services/websocket';
 import { useStore } from './store/useStore';
 import { ChartDataPoint, TradeSignal } from './types';
-import { ApiKeyModal } from './components/ApiKeyModal';
-import { KeyMigration } from './components/KeyMigration';
+import { BlockedBanner } from './components/BlockedBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { usePositionMonitor } from './hooks/usePositionMonitor';
 import { aggrService } from './services/aggrService';
@@ -47,8 +36,6 @@ function App() {
 
   // Local State for Dashboard
   const [activeView, setActiveView] = useState<ViewMode>('TERMINAL');
-  const [isApiKeyMissing, setIsApiKeyMissing] = useState(false);
-  const [apiKeyError, setApiKeyError] = useState<string>('');
 
   // Keyboard Shortcuts
   useKeyboardShortcuts({ setActiveView });
@@ -75,51 +62,8 @@ function App() {
   // Refs
   const binanceWS = useRef(new BinancePriceFeed());
 
-    // Check for API Key on Mount & Expire Stale Signals
-    useEffect(() => {
-        const fromProcessEnv = import.meta.env.VITE_GEMINI_API_KEY;
-        const fromStorage = localStorage.getItem('GEMINI_API_KEY');
-
-        const checkKeys = async () => {
-            // Check backend status
-            try {
-                const response = await fetch('http://localhost:3000/api/keys/check');
-                const data = await response.json();
-                
-                // If backend configured, we are good
-                if (data.configured) {
-                    return;
-                }
-            } catch (e) {
-                console.error('Backend check failed', e);
-            }
-
-            if (!fromProcessEnv && !fromStorage) {
-                 setIsApiKeyMissing(true);
-            }
-        };
-        
-        checkKeys();
-
-        // Check if key is the placeholder or leaked key
-        const currentKey = fromProcessEnv || fromStorage || '';
-        if (currentKey.includes('YOUR_NEW_API_KEY_HERE') || currentKey === 'AIzaSyC8prxBzZ6-rwUQ_M5GKGpnFpvOAZsOWWc') {
-            setIsApiKeyMissing(true);
-            setApiKeyError('Your API key was reported as leaked. Please generate a new one.');
-        }
-
-    // Listen for API key errors from agents
-    const handleApiError = (event: CustomEvent<{ message: string }>) => {
-      if (event.detail.message.includes('leaked') || event.detail.message.includes('403') || event.detail.message.includes('PERMISSION_DENIED')) {
-        setIsApiKeyMissing(true);
-        setApiKeyError(event.detail.message);
-        localStorage.removeItem('GEMINI_API_KEY');
-      }
-    };
-
-    window.addEventListener('gemini-api-error' as any, handleApiError);
-
-    // Expire signals older than 4 hours (14400000ms)
+  // Expire stale signals on mount
+  useEffect(() => {
     const currentTime = Date.now();
     const SIGNAL_EXPIRY = 4 * 60 * 60 * 1000; // 4 hours
     const signals = useStore.getState().signals || [];
@@ -133,8 +77,6 @@ function App() {
         }
       }
     }
-
-    return () => window.removeEventListener('gemini-api-error' as any, handleApiError);
   }, []);
 
   // Start Market Data Sync
@@ -270,9 +212,6 @@ function App() {
 
   return (
     <div className="h-screen bg-black text-gray-200 font-sans selection:bg-green-900 selection:text-white overflow-hidden flex flex-col">
-      <KeyMigration />
-      {isApiKeyMissing && <ApiKeyModal errorMessage={apiKeyError} />}
-
       {/* Elite Header with Glass Morphism */}
       <header className="h-14 border-b border-white/10 flex items-center justify-between px-6 glass relative z-50 shrink-0">
         {/* Subtle gradient overlay */}

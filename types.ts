@@ -174,7 +174,18 @@ export const IntelItemSchema = z.object({
 
 export type AgentRole = 'ORCHESTRATOR' | 'INSPECTOR' | 'STRATEGIST' | 'QUANT_RESEARCHER' | 'MODEL_OPTIMIZER' | 'RISK_OFFICER' | 'ENGINEER';
 
-export type AgentStatus = 'IDLE' | 'WORKING' | 'SUCCESS' | 'FAILURE' | 'WAITING';
+export type AgentStatus = 'IDLE' | 'WORKING' | 'SUCCESS' | 'FAILURE' | 'WAITING' | 'TIMEOUT';
+
+// Agent SLA configuration (in milliseconds)
+export const AGENT_SLA: Record<AgentRole, number> = {
+  ORCHESTRATOR: 5000,
+  INSPECTOR: 10000,
+  STRATEGIST: 30000,
+  QUANT_RESEARCHER: 20000,
+  MODEL_OPTIMIZER: 15000,
+  RISK_OFFICER: 10000,
+  ENGINEER: 15000
+};
 
 export interface AgentState {
   role: AgentRole;
@@ -182,6 +193,9 @@ export interface AgentState {
   description: string;
   status: AgentStatus;
   lastLog: string;
+  startedAt?: number;    // Timestamp when agent started working
+  completedAt?: number;  // Timestamp when agent finished
+  duration?: number;     // How long the agent took (ms)
 }
 
 export interface AgentTaskResult {

@@ -3,6 +3,49 @@ import { AgentVote, ConfidenceAdjustment, TradeSignal } from '../types';
 import { TacticalSignalResult } from './tacticalSignals';
 
 /**
+ * CONFLUENCE FACTOR WEIGHTS
+ * Configurable weights for each factor in the consensus calculation.
+ * Values represent the max boost/penalty each factor can contribute.
+ */
+export interface ConfluenceWeights {
+  technical: number;     // VANGUARD - Technical signals
+  volatility: number;    // DATAMIND - Volume/volatility regime
+  sentiment: number;     // OVERMIND - Market sentiment
+  orderFlow: number;     // WATCHDOG - Funding/order flow
+  macro: number;         // VIX/DXY/BTCD macro factors
+}
+
+export const DEFAULT_CONFLUENCE_WEIGHTS: ConfluenceWeights = {
+  technical: 10,   // Max 10 points boost/penalty
+  volatility: 5,   // Max 5 points
+  sentiment: 7,    // Max 7 points
+  orderFlow: 5,    // Max 5 points
+  macro: 3         // Max 3 points
+};
+
+// Current active weights (can be modified at runtime)
+let activeWeights: ConfluenceWeights = { ...DEFAULT_CONFLUENCE_WEIGHTS };
+
+/**
+ * Update confluence weights at runtime
+ */
+export const setConfluenceWeights = (weights: Partial<ConfluenceWeights>) => {
+  activeWeights = { ...activeWeights, ...weights };
+};
+
+/**
+ * Get current confluence weights
+ */
+export const getConfluenceWeights = (): ConfluenceWeights => ({ ...activeWeights });
+
+/**
+ * Reset weights to defaults
+ */
+export const resetConfluenceWeights = () => {
+  activeWeights = { ...DEFAULT_CONFLUENCE_WEIGHTS };
+};
+
+/**
  * VIRTUAL AGENT DEFINITIONS
  * These are pure functions that analyze state and return a vote.
  */
@@ -66,10 +109,10 @@ const getSentimentVote = (state: AppState): AgentVote => {
 const getOrderFlowVote = (state: AppState): AgentVote => {
   const { derivatives } = state;
   const funding = parseFloat(derivatives.fundingRate);
-  
+
   let vote: 'BULLISH' | 'BEARISH' | 'NEUTRAL' = 'NEUTRAL';
   let reason = 'Funding is neutral';
-  
+
   if (funding > 0.01) {
     vote = 'BEARISH'; // Contrarian: High funding = crowded longs
     reason = 'High funding (Crowded Longs)';
@@ -86,40 +129,144 @@ const getOrderFlowVote = (state: AppState): AgentVote => {
   };
 };
 
+// 5. MACRO SENTINEL - VIX/DXY/BTCD Analysis
+const getMacroVote = (state: AppState): AgentVote => {
+  const { vix, dxy, enhancedMetrics } = state;
+  const btcDominance = enhancedMetrics?.btcDominance || state.btcd || 50;
+
+  let vote: 'BULLISH' | 'BEARISH' | 'NEUTRAL' = 'NEUTRAL';
+  let reasons: string[] = [];
+  let bullPoints = 0;
+  let bearPoints = 0;
+
+  // VIX Analysis (Fear Index)
+  if (vix < 15) {
+    bullPoints += 1;
+    reasons.push('Low VIX (Risk-on)');
+  } else if (vix > 25) {
+    bearPoints += 1;
+    reasons.push('High VIX (Risk-off)');
+  }
+
+  // DXY Analysis (Dollar Strength)
+  if (dxy < 100) {
+    bullPoints += 1;
+    reasons.push('Weak DXY (Crypto favorable)');
+  } else if (dxy > 105) {
+    bearPoints += 1;
+    reasons.push('Strong DXY (Crypto headwind)');
+  }
+
+  // BTC Dominance Analysis
+  if (btcDominance > 55) {
+    // High BTC dominance = risk-off in crypto, money flowing to BTC
+    reasons.push('High BTC.D (Flight to safety)');
+  } else if (btcDominance < 45) {
+    bullPoints += 1;
+    reasons.push('Low BTC.D (Alt season potential)');
+  }
+
+  if (bullPoints > bearPoints) {
+    vote = 'BULLISH';
+  } else if (bearPoints > bullPoints) {
+    vote = 'BEARISH';
+  }
+
+  const confidence = Math.min(50 + Math.abs(bullPoints - bearPoints) * 15, 85);
+
+  return {
+    agentName: 'MACRO',
+    vote,
+    confidence,
+    reason: reasons.length > 0 ? reasons.join(', ') : 'Macro neutral'
+  };
+};
+
+/**
+ * Map agent names to weight keys
+ */
+const agentToWeightKey: Record<string, keyof ConfluenceWeights> = {
+  'VANGUARD': 'technical',
+  'DATAMIND': 'volatility',
+  'OVERMIND': 'sentiment',
+  'WATCHDOG': 'orderFlow',
+  'MACRO': 'macro'
+};
+
+/**
+ * Calculate weighted adjustment based on agent vote and confidence
+ */
+const calculateWeightedAdjustment = (
+  agentName: string,
+  vote: 'BULLISH' | 'BEARISH' | 'NEUTRAL',
+  confidence: number,
+  baseSignalType: 'LONG' | 'SHORT'
+): { value: number; type: 'boost' | 'penalty' } | null => {
+  const weightKey = agentToWeightKey[agentName];
+  if (!weightKey) return null;
+
+  const maxWeight = activeWeights[weightKey];
+  const isAligned = (baseSignalType === 'LONG' && vote === 'BULLISH') ||
+                    (baseSignalType === 'SHORT' && vote === 'BEARISH');
+  const isOpposed = (baseSignalType === 'LONG' && vote === 'BEARISH') ||
+                    (baseSignalType === 'SHORT' && vote === 'BULLISH');
+
+  if (vote === 'NEUTRAL') return null;
+
+  // Scale weight by confidence (0-100 -> 0-1)
+  const confidenceMultiplier = Math.min(confidence, 100) / 100;
+  const adjustedWeight = Math.round(maxWeight * confidenceMultiplier);
+
+  if (isAligned) {
+    return { value: adjustedWeight, type: 'boost' };
+  } else if (isOpposed) {
+    return { value: -adjustedWeight, type: 'penalty' };
+  }
+
+  return null;
+};
+
 /**
  * Main Consensus Engine
  */
 export const generateConsensus = (
-  signalResult: TacticalSignalResult, 
+  signalResult: TacticalSignalResult,
   state: AppState
-): { votes: AgentVote[]; breakdown: ConfidenceAdjustment[] } => {
-  
+): { votes: AgentVote[]; breakdown: ConfidenceAdjustment[]; totalAdjustment: number } => {
+
   const votes = [
     getTechnicalVote(signalResult),
     getVolatilityVote(state),
     getSentimentVote(state),
-    getOrderFlowVote(state)
+    getOrderFlowVote(state),
+    getMacroVote(state)
   ];
 
-  // Calculate Breakdown
+  // Calculate Breakdown with configurable weights
   const breakdown: ConfidenceAdjustment[] = [];
   const baseSignalType = signalResult.signal?.type || 'LONG';
 
   votes.forEach(v => {
     if (v.agentName === 'VANGUARD') return; // Base score, handled separately
 
-    const isAligned = (baseSignalType === 'LONG' && v.vote === 'BULLISH') ||
-                      (baseSignalType === 'SHORT' && v.vote === 'BEARISH');
-    
-    const isOpposed = (baseSignalType === 'LONG' && v.vote === 'BEARISH') ||
-                      (baseSignalType === 'SHORT' && v.vote === 'BULLISH');
+    const adjustment = calculateWeightedAdjustment(
+      v.agentName,
+      v.vote,
+      v.confidence,
+      baseSignalType
+    );
 
-    if (isAligned) {
-      breakdown.push({ label: v.agentName, value: 5, type: 'boost' });
-    } else if (isOpposed) {
-      breakdown.push({ label: v.agentName, value: -5, type: 'penalty' });
+    if (adjustment) {
+      breakdown.push({
+        label: v.agentName,
+        value: adjustment.value,
+        type: adjustment.type
+      });
     }
   });
 
-  return { votes, breakdown };
+  // Calculate total adjustment
+  const totalAdjustment = breakdown.reduce((sum, adj) => sum + adj.value, 0);
+
+  return { votes, breakdown, totalAdjustment };
 };

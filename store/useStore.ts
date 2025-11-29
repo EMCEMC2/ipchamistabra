@@ -1,9 +1,78 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist, createJSONStorage, PersistStorage, StorageValue } from 'zustand/middleware';
 import { ChartDataPoint, TradeSignal, Position, JournalEntry, AgentState, AgentRole, IntelItem } from '../types';
 import { EnhancedBTCMetrics } from '../services/macroDataService';
 import { FeedState, getInitialFeedState } from '../services/feedRegistry';
 import { RiskOfficerState, INITIAL_RISK_STATE } from '../services/riskOfficer';
+import {
+  CURRENT_STATE_VERSION,
+  STORAGE_KEY,
+  runMigrations,
+  validatePersistedState,
+  getDefaultPersistedState
+} from './migrations';
+import {
+  ConfluenceWeights,
+  DEFAULT_CONFLUENCE_WEIGHTS,
+  setConfluenceWeights as setGlobalConfluenceWeights
+} from '../services/agentConsensus';
+import {
+  indexedDBStorage,
+  isAvailable as isIndexedDBAvailable,
+  initBroadcastSync,
+  broadcastStateUpdate
+} from '../services/storage';
+
+// Initialize multi-tab sync
+if (typeof window !== 'undefined') {
+  initBroadcastSync();
+}
+
+/**
+ * Create hybrid storage adapter
+ * Uses IndexedDB when available, falls back to localStorage
+ */
+function createHybridStorage(): PersistStorage<unknown> {
+  const useIndexedDB = isIndexedDBAvailable();
+
+  if (useIndexedDB) {
+    console.log('[Store] Using IndexedDB for persistence');
+    return {
+      getItem: async (name: string): Promise<StorageValue<unknown> | null> => {
+        try {
+          const value = await indexedDBStorage.getItem(name);
+          return value ? JSON.parse(value) : null;
+        } catch (error) {
+          console.warn('[Store] IndexedDB read failed, falling back to localStorage:', error);
+          const fallback = localStorage.getItem(name);
+          return fallback ? JSON.parse(fallback) : null;
+        }
+      },
+      setItem: async (name: string, value: StorageValue<unknown>): Promise<void> => {
+        const stringValue = JSON.stringify(value);
+        try {
+          await indexedDBStorage.setItem(name, stringValue);
+          // Broadcast to other tabs
+          broadcastStateUpdate(name, value);
+        } catch (error) {
+          console.warn('[Store] IndexedDB write failed, falling back to localStorage:', error);
+          localStorage.setItem(name, stringValue);
+        }
+      },
+      removeItem: async (name: string): Promise<void> => {
+        try {
+          await indexedDBStorage.removeItem(name);
+        } catch (error) {
+          console.warn('[Store] IndexedDB remove failed:', error);
+          localStorage.removeItem(name);
+        }
+      }
+    };
+  }
+
+  console.log('[Store] Using localStorage for persistence (IndexedDB unavailable)');
+  return createJSONStorage(() => localStorage);
+}
 
 // Normalize journal entries loaded from storage or new additions so UI doesn't break on missing fields.
 const normalizeJournalEntry = (entry: any): JournalEntry => ({
@@ -90,8 +159,10 @@ interface UserState {
   dailyPnL: number; // Current day's P&L
   lastResetDate: string; // ISO date string for daily reset
   isCircuitBreakerTripped: boolean; // Trading halted if true
-  // NEW: Risk Officer State
+  // Risk Officer State
   riskOfficer: RiskOfficerState;
+  // Confluence Weights (persisted user preference)
+  confluenceWeights: ConfluenceWeights;
 }
 
 interface AgentSwarmState {
@@ -131,8 +202,11 @@ export interface AppState extends MarketState, UserState, AgentSwarmState {
   resetDailyPnL: () => void;
   checkCircuitBreaker: () => boolean;
   
-  // NEW: Risk Officer Actions
+  // Risk Officer Actions
   setRiskOfficerState: (state: Partial<RiskOfficerState>) => void;
+
+  // Confluence Weights Actions
+  setConfluenceWeights: (weights: Partial<ConfluenceWeights>) => void;
 
   updateAgentStatus: (role: AgentRole, status: AgentState['status'], log?: string) => void;
   addCouncilLog: (agentName: string, message: string) => void;
@@ -175,6 +249,7 @@ export const useStore = create<AppState>()(
       lastResetDate: new Date().toISOString().split('T')[0], // YYYY-MM-DD
       isCircuitBreakerTripped: false,
       riskOfficer: INITIAL_RISK_STATE,
+      confluenceWeights: { ...DEFAULT_CONFLUENCE_WEIGHTS },
 
       // Phase 2: Live Trading (Testnet)
       isLiveMode: false,
@@ -265,42 +340,86 @@ export const useStore = create<AppState>()(
         riskOfficer: { ...state.riskOfficer, ...riskState }
       })),
 
+      setConfluenceWeights: (weights) => set((state) => {
+        const newWeights = { ...state.confluenceWeights, ...weights };
+        // Sync with global confluence engine
+        setGlobalConfluenceWeights(newWeights);
+        return { confluenceWeights: newWeights };
+      }),
+
       updateAgentStatus: (role, status, log) => set((state) => ({
-        agents: state.agents.map((a) =>
-          a.role === role ? { ...a, status, lastLog: log || a.lastLog } : a
-        )
+        agents: state.agents.map((a) => {
+          if (a.role !== role) return a;
+
+          const now = Date.now();
+          const updates: Partial<typeof a> = {
+            status,
+            lastLog: log || a.lastLog
+          };
+
+          // Track timing
+          if (status === 'WORKING') {
+            updates.startedAt = now;
+            updates.completedAt = undefined;
+            updates.duration = undefined;
+          } else if (status === 'SUCCESS' || status === 'FAILURE' || status === 'TIMEOUT') {
+            updates.completedAt = now;
+            if (a.startedAt) {
+              updates.duration = now - a.startedAt;
+            }
+          }
+
+          return { ...a, ...updates };
+        })
       })),
       addCouncilLog: (agentName, message) => set((state) => ({
         councilLogs: [...state.councilLogs, { id: Date.now().toString(), agentName, message, timestamp: Date.now() }]
       }))
     }),
     {
-      name: 'ipcha-mistabra-storage',
-      storage: createJSONStorage(() => localStorage),
-      version: 1,
-      migrate: (persistedState: any) => {
-        if (!persistedState) return persistedState;
-        return {
-          ...persistedState,
-          journal: Array.isArray(persistedState.journal)
-            ? persistedState.journal.map(normalizeJournalEntry)
-            : [],
-          positions: Array.isArray(persistedState.positions) ? persistedState.positions : [],
-          signals: Array.isArray(persistedState.signals) ? persistedState.signals : [],
-          activeTradeSetup: persistedState.activeTradeSetup || null,
-          // Ensure riskOfficer is initialized if missing (legacy state)
-          riskOfficer: persistedState.riskOfficer || INITIAL_RISK_STATE
-        };
+      name: STORAGE_KEY,
+      storage: createHybridStorage(),
+      version: CURRENT_STATE_VERSION,
+      migrate: (persistedState: any, version: number) => {
+        if (!persistedState) return getDefaultPersistedState();
+
+        // Run sequential migrations
+        const migrated = runMigrations(persistedState, version);
+
+        // Validate migrated state
+        const validation = validatePersistedState(migrated);
+        if (!validation.valid) {
+          console.warn('[Store] Migration validation errors:', validation.errors);
+        }
+
+        // Normalize journal entries
+        if (Array.isArray(migrated.journal)) {
+          migrated.journal = migrated.journal.map(normalizeJournalEntry);
+        }
+
+        return migrated;
       },
-      // Only persist critical user data (not live market data)
+      // Persist critical user data (not live market data)
       partialize: (state) => ({
         balance: state.balance,
         positions: state.positions,
         journal: state.journal,
         signals: state.signals,
         activeTradeSetup: state.activeTradeSetup,
-        riskOfficer: state.riskOfficer
-      })
+        riskOfficer: state.riskOfficer,
+        confluenceWeights: state.confluenceWeights,
+        dailyLossLimit: state.dailyLossLimit,
+        dailyPnL: state.dailyPnL,
+        lastResetDate: state.lastResetDate,
+        isCircuitBreakerTripped: state.isCircuitBreakerTripped,
+        executionSide: state.executionSide
+      }),
+      // Sync confluence weights on rehydrate
+      onRehydrateStorage: () => (state) => {
+        if (state?.confluenceWeights) {
+          setGlobalConfluenceWeights(state.confluenceWeights);
+        }
+      }
     }
   )
 );

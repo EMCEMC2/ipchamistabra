@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Brain, TrendingUp, TrendingDown, Minus, Activity } from 'lucide-react';
-import { useStore } from '../store/useStore';
+import { useChartWithVix } from '../store/selectors';
 import { ChartDataPoint } from '../types';
 import { LinearRegression, KMeans } from '../utils/ml';
 import { analyzeMarketRegime, calculateVolatility, calculateTrendStrength } from '../services/mlService';
@@ -115,7 +115,7 @@ const VolatilityChart: React.FC<{ data: number[] }> = ({ data }) => {
 };
 
 export const MLCortex: React.FC = () => {
-    const { chartData, vix } = useStore();
+    const { chartData, vix } = useChartWithVix();
     const safeChartData = chartData || [];
     const [volHistory, setVolHistory] = useState<number[]>([]);
     const [regimeHistory, setRegimeHistory] = useState<{ vol: number; trend: number; regime: string; color: string }[]>([]);

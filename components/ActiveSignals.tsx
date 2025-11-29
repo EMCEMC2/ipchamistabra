@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Activity, RefreshCw, Zap, ArrowUp, ArrowDown, Play, ChevronDown, ChevronUp } from 'lucide-react';
 import { TradeSignal } from '../types';
-import { useStore } from '../store/useStore';
+import { useSignalsData } from '../store/selectors';
 import { fetchSignals } from '../services/marketData';
 import { ConfidenceBreakdown } from './ConfidenceBreakdown';
 
@@ -10,7 +10,7 @@ interface ActiveSignalsProps {
 }
 
 export const ActiveSignals: React.FC<ActiveSignalsProps> = ({ onTrade }) => {
-  const { signals, isScanning } = useStore();
+  const { signals, isScanning } = useSignalsData();
   const safeSignals = signals || [];
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -99,12 +99,29 @@ export const ActiveSignals: React.FC<ActiveSignalsProps> = ({ onTrade }) => {
                         {signal.entryZone.split('-')[0]}
                         </td>
 
-                        {/* Confidence */}
+                        {/* Confidence with mini consensus */}
                         <td className="px-2 py-1 text-right tabular-nums">
-                        <span className={`${getConfColor(signal.confidence)} flex items-center justify-end gap-0.5`}>
-                            <Zap size={8} className="fill-current" />
-                            {signal.confidence}%
-                        </span>
+                        <div className="flex items-center justify-end gap-1">
+                            {/* Mini consensus dots */}
+                            {signal.consensus?.votes && (
+                                <div className="flex gap-px" title="Agent votes">
+                                    {signal.consensus.votes.slice(0, 5).map((v, idx) => (
+                                        <div
+                                            key={idx}
+                                            className={`w-1 h-3 rounded-sm ${
+                                                v.vote === 'BULLISH' ? 'bg-green-500' :
+                                                v.vote === 'BEARISH' ? 'bg-red-500' : 'bg-gray-600'
+                                            }`}
+                                            title={`${v.agentName}: ${v.vote}`}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                            <span className={`${getConfColor(signal.confidence)} flex items-center gap-0.5`}>
+                                <Zap size={8} className="fill-current" />
+                                {signal.confidence}%
+                            </span>
+                        </div>
                         </td>
 
                         {/* R:R */}
@@ -147,17 +164,37 @@ export const ActiveSignals: React.FC<ActiveSignalsProps> = ({ onTrade }) => {
                                             {signal.reasoning}
                                         </p>
                                         {/* Show Agent Consensus if available */}
-                                        {signal.consensus && (
+                                        {signal.consensus && signal.consensus.votes && (
                                             <div className="mt-2 pt-2 border-t border-white/5">
-                                                <div className="text-[9px] text-gray-500 uppercase tracking-wider mb-1">Agent Consensus</div>
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <span className="text-[9px] text-gray-500 uppercase tracking-wider">Agent Consensus</span>
+                                                    {(() => {
+                                                        const votes = signal.consensus.votes;
+                                                        const expectedDirection = signal.type === 'LONG' ? 'BULLISH' : 'BEARISH';
+                                                        const aligned = votes.filter(v => v.vote === expectedDirection).length;
+                                                        const ratio = votes.length > 0 ? Math.round((aligned / votes.length) * 100) : 0;
+                                                        return (
+                                                            <span className={`text-[9px] font-mono ${
+                                                                ratio >= 60 ? 'text-green-400' :
+                                                                ratio >= 40 ? 'text-yellow-400' : 'text-red-400'
+                                                            }`}>
+                                                                {aligned}/{votes.length} Aligned ({ratio}%)
+                                                            </span>
+                                                        );
+                                                    })()}
+                                                </div>
                                                 <div className="flex flex-wrap gap-1">
                                                     {signal.consensus.votes.map((vote, i) => (
-                                                        <span key={i} className={`text-[9px] px-1.5 py-0.5 rounded border ${
-                                                            vote.vote === 'BULLISH' ? 'border-green-500/30 text-green-400 bg-green-500/10' :
-                                                            vote.vote === 'BEARISH' ? 'border-red-500/30 text-red-400 bg-red-500/10' :
-                                                            'border-gray-500/30 text-gray-400 bg-gray-500/10'
-                                                        }`}>
-                                                            {vote.agentName}: {vote.vote}
+                                                        <span
+                                                            key={i}
+                                                            title={vote.reason}
+                                                            className={`text-[9px] px-1.5 py-0.5 rounded border cursor-help ${
+                                                                vote.vote === 'BULLISH' ? 'border-green-500/30 text-green-400 bg-green-500/10' :
+                                                                vote.vote === 'BEARISH' ? 'border-red-500/30 text-red-400 bg-red-500/10' :
+                                                                'border-gray-500/30 text-gray-400 bg-gray-500/10'
+                                                            }`}
+                                                        >
+                                                            {vote.agentName}: {vote.vote} ({vote.confidence}%)
                                                         </span>
                                                     ))}
                                                 </div>

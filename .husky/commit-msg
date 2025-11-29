@@ -1,0 +1,35 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Validate commit message format
+# Format: <type>(<scope>): <description>
+# Types: feat, fix, docs, style, refactor, test, chore, perf, ci, build, revert
+
+commit_msg=$(cat "$1")
+
+# Check for conventional commit format
+if ! echo "$commit_msg" | grep -qE "^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\(.+\))?: .{1,72}"; then
+  echo "ERROR: Invalid commit message format!"
+  echo ""
+  echo "Expected format: <type>(<scope>): <description>"
+  echo ""
+  echo "Types: feat, fix, docs, style, refactor, test, chore, perf, ci, build, revert"
+  echo ""
+  echo "Examples:"
+  echo "  feat(auth): add login functionality"
+  echo "  fix(api): handle null response"
+  echo "  docs: update README"
+  echo "  chore(deps): update dependencies"
+  echo ""
+  exit 1
+fi
+
+# Check description length (max 72 characters for first line)
+first_line=$(echo "$commit_msg" | head -1)
+if [ ${#first_line} -gt 100 ]; then
+  echo "ERROR: First line of commit message must be 100 characters or less"
+  echo "Current length: ${#first_line}"
+  exit 1
+fi
+
+exit 0

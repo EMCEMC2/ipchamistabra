@@ -4,11 +4,11 @@ import React, { useEffect, useState } from 'react';
 import { Globe, Zap, AlertTriangle, Activity, RefreshCw } from 'lucide-react';
 import { IntelItem } from '../types';
 import ReactMarkdown from 'react-markdown';
-import { useStore } from '../store/useStore';
+import { useAnalysisData } from '../store/selectors';
 import { btcNewsAgent } from '../services/btcNewsAgent';
 
 export const IntelDeck: React.FC = () => {
-    const { latestAnalysis, technicals } = useStore();
+    const { latestAnalysis, technicals } = useAnalysisData();
     const [liveNews, setLiveNews] = useState<IntelItem[]>([]);
     const [isRefreshing, setIsRefreshing] = useState(false);
 
