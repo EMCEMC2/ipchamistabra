@@ -2,7 +2,7 @@ import { ChatMessage, GroundingSource, TradeSignal, JournalEntry, IntelItem, Age
 import { z } from 'zod';
 import { validateSignal, calculateRiskReward, parsePrice, classifyMarketRegime } from '../utils/tradingCalculations';
 
-const BACKEND_URL = import.meta.env.VITE_TRADING_API_URL || 'http://localhost:3000';
+const BACKEND_URL = import.meta.env.VITE_TRADING_API_URL || '';
 
 let aiAvailabilityCache: { available: boolean; timestamp: number } | null = null;
 const CACHE_DURATION = 60000; // 1 minute

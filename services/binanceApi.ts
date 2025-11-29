@@ -1,6 +1,6 @@
 import { useStore } from '../store/useStore';
 
-const BACKEND_URL = import.meta.env.VITE_TRADING_API_URL || 'http://localhost:3000';
+const BACKEND_URL = import.meta.env.VITE_TRADING_API_URL || '';
 const TRADING_KEY = import.meta.env.VITE_TRADING_API_KEY || '';
 
 const CIRCUIT_BREAKER_THRESHOLD = 5;
