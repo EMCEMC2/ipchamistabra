@@ -37,12 +37,25 @@ const callAiProxy = async (model: string, contents: any, config?: any) => {
             body: JSON.stringify({ model, contents, config })
         });
 
+        const text = await response.text();
+
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.details || error.error || 'AI Proxy Request Failed');
+            let errorMessage = response.statusText;
+            try {
+                const errorJson = JSON.parse(text);
+                errorMessage = errorJson.details || errorJson.error || errorMessage;
+            } catch (e) {
+                // If not JSON, use the raw text (truncated if too long)
+                errorMessage = text.slice(0, 200) || `HTTP ${response.status}`;
+            }
+            throw new Error(`AI Proxy Failed (${response.status}): ${errorMessage}`);
         }
 
-        return await response.json();
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            throw new Error('Invalid JSON response from AI Proxy');
+        }
     } catch (error: any) {
         console.error('[Gemini Proxy] Error:', error);
         throw error;
