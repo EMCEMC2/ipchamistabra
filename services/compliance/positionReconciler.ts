@@ -91,7 +91,7 @@ export async function reconcilePositions(
 
       processedRemoteIds.add(`${remotePos.symbol}-${remotePos.side}`);
 
-      const quantityMatch = Math.abs(localPos.quantity - remotePos.quantity) < QUANTITY_TOLERANCE;
+      const quantityMatch = Math.abs(localPos.size - remotePos.quantity) < QUANTITY_TOLERANCE;
       const priceMatch = Math.abs(localPos.entryPrice - remotePos.entryPrice) / localPos.entryPrice < PRICE_TOLERANCE;
 
       if (quantityMatch && priceMatch) {
@@ -106,8 +106,8 @@ export async function reconcilePositions(
 
         if (!quantityMatch) {
           discrepancies.push({
-            field: 'quantity',
-            localValue: localPos.quantity,
+            field: 'size',
+            localValue: localPos.size,
             remoteValue: remotePos.quantity,
             severity: 'HIGH'
           });

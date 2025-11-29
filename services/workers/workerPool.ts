@@ -42,7 +42,7 @@ export class WorkerPool<T = unknown, R = unknown> {
   constructor(config: PoolConfig) {
     this.config = {
       minWorkers: config.minWorkers ?? 1,
-      maxWorkers: config.maxWorkers ?? navigator.hardwareConcurrency || 4,
+      maxWorkers: config.maxWorkers ?? (navigator.hardwareConcurrency || 4),
       taskTimeout: config.taskTimeout ?? 30000,
       idleTimeout: config.idleTimeout ?? 60000,
       workerScript: config.workerScript

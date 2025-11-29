@@ -71,7 +71,7 @@ function createHybridStorage(): PersistStorage<unknown> {
   }
 
   console.log('[Store] Using localStorage for persistence (IndexedDB unavailable)');
-  return createJSONStorage(() => localStorage);
+  return createJSONStorage(() => localStorage) as PersistStorage<unknown>;
 }
 
 // Normalize journal entries loaded from storage or new additions so UI doesn't break on missing fields.

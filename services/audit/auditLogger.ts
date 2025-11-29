@@ -30,6 +30,7 @@ export type AuditEventType =
 export interface AuditEvent {
   id: string;
   timestamp: number;
+  message: string;
   eventType: AuditEventType;
   actor: string;
   sessionId: string;
@@ -40,6 +41,7 @@ export interface AuditEvent {
     source: 'UI' | 'API' | 'SYSTEM' | 'SCHEDULED';
   };
   signature: string;
+  [key: string]: unknown;
 }
 
 interface AuditConfig {
@@ -137,6 +139,7 @@ export function logEvent(
   const event: Omit<AuditEvent, 'signature'> = {
     id: eventId,
     timestamp: Date.now(),
+    message: `${eventType} by ${actor}`,
     eventType,
     actor,
     sessionId,
@@ -148,7 +151,7 @@ export function logEvent(
   };
 
   const signature = createSignature(event);
-  const signedEvent: AuditEvent = { ...event, signature };
+  const signedEvent = { ...event, signature } as AuditEvent;
 
   auditBuffer.push(signedEvent);
 

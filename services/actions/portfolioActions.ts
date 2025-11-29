@@ -120,7 +120,7 @@ export function calculateOpenPnL(): number {
 export function calculateTotalExposure(): number {
   const { positions } = getPortfolioState();
   return positions.reduce((total, pos) => {
-    const positionValue = pos.entryPrice * pos.quantity;
+    const positionValue = pos.entryPrice * pos.size;
     return total + positionValue;
   }, 0);
 }

@@ -7,6 +7,7 @@
 import { useStore } from '../../store/useStore';
 import { ChartDataPoint, TradeSignal } from '../../types';
 import { EnhancedBTCMetrics } from '../macroDataService';
+import { FeedStatus } from '../feedRegistry';
 
 /**
  * Market price update action
@@ -102,7 +103,7 @@ export function updateMarketMetrics(metrics: {
  */
 export function updateFeedStatus(
   feedId: string,
-  updates: { status?: string; lastUpdate?: number; error?: string | null }
+  updates: { status?: FeedStatus; lastUpdate?: number; error?: string }
 ): void {
   useStore.getState().updateFeedStatus(feedId, updates);
 }

@@ -27,5 +27,26 @@
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "strict": true
-  }
+  },
+  "include": [
+    "*.ts",
+    "*.tsx",
+    "components/**/*",
+    "services/**/*",
+    "store/**/*",
+    "utils/**/*",
+    "hooks/**/*",
+    "tests/**/*",
+    "styles/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "server",
+    "src/__tests__",
+    "tests",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "vitest.config.ts"
+  ]
 }
