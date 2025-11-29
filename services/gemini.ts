@@ -29,7 +29,10 @@ export const isAiAvailable = async (): Promise<boolean> => {
 
 const callAiProxy = async (model: string, contents: any, config?: any) => {
     try {
-        const response = await fetch(`${BACKEND_URL}/api/ai/generate`, {
+        const url = `${BACKEND_URL}/api/ai/generate`;
+        console.log('[Gemini Proxy] Requesting:', url);
+        
+        const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

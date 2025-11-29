@@ -224,4 +224,5 @@ server.listen(config.port, () => {
     console.log(`Server running on port ${config.port}`);
     console.log(`WebSocket proxy available at ws://localhost:${config.port}/ws/orderflow`);
     console.log(`Environment: ${config.binance.apiKey ? 'Keys Loaded' : 'Keys Missing'}`);
+    console.log('AI Routes Registered: /api/ai');
 });
