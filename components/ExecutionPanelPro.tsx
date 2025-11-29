@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Target, Shield, AlertTriangle, ChevronDown, ChevronUp, Calculator } from 'lucide-react';
+import { Target, Shield, AlertTriangle, ChevronDown, ChevronUp, Calculator, Download } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { checkRiskVeto, TradeProposal } from '../services/riskOfficer';
+import { exportAuditLog } from '../services/auditService';
 
 export const ExecutionPanelPro: React.FC = () => {
   const { 
@@ -77,7 +78,7 @@ export const ExecutionPanelPro: React.FC = () => {
     const newPosition = {
       id: Date.now().toString(),
       pair: 'BTCUSDT',
-      type: isLong ? 'LONG' : 'SHORT' as const,
+      type: (isLong ? 'LONG' : 'SHORT') as 'LONG' | 'SHORT',
       entryPrice,
       size: positionSizeBTC,
       leverage,
@@ -220,6 +221,14 @@ export const ExecutionPanelPro: React.FC = () => {
                     <span>Raw Size:</span>
                     <span>{riskAmount.toFixed(2)} / {stopDistance.toFixed(0)} = {positionSizeBTC.toFixed(4)}</span>
                 </div>
+                
+                <button 
+                    onClick={exportAuditLog}
+                    className="w-full mt-2 flex items-center justify-center gap-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded py-1.5 transition-colors"
+                >
+                    <Download size={10} />
+                    <span>Export Full Audit Log (JSON)</span>
+                </button>
             </div>
         )}
 

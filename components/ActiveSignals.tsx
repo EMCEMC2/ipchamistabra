@@ -27,21 +27,6 @@ export const ActiveSignals: React.FC<ActiveSignalsProps> = ({ onTrade }) => {
     setExpandedId(expandedId === id ? null : id);
   };
 
-  // Mock breakdown generator (since backend doesn't provide it yet)
-  const getBreakdown = (signal: TradeSignal) => {
-    const isLong = signal.type === 'LONG';
-    return {
-        baseScore: 50,
-        adjustments: [
-            { label: 'Trend Alignment', value: 15, type: 'boost' as const },
-            { label: 'Vol. Expansion', value: 10, type: 'boost' as const },
-            { label: 'Resistance Proximity', value: -5, type: 'penalty' as const },
-            { label: 'Sentiment', value: isLong ? 5 : -5, type: isLong ? 'boost' as const : 'penalty' as const }
-        ],
-        finalScore: signal.confidence
-    };
-  };
-
   return (
     <div className="h-full flex flex-col bg-terminal-bg border border-terminal-border rounded-sm overflow-hidden font-sans">
       {/* Header */}
@@ -84,7 +69,11 @@ export const ActiveSignals: React.FC<ActiveSignalsProps> = ({ onTrade }) => {
           <tbody className="text-[10px] font-mono divide-y divide-terminal-border">
             {safeSignals.map((signal) => {
                 const isExpanded = expandedId === signal.id;
-                const breakdown = getBreakdown(signal);
+                // Use real breakdown if available, otherwise empty
+                const adjustments = signal.confidenceBreakdown || [];
+                // Calculate base score by reversing adjustments from final confidence
+                const totalAdjustment = adjustments.reduce((acc, adj) => acc + adj.value, 0);
+                const baseScore = signal.confidence - totalAdjustment;
                 
                 return (
                   <React.Fragment key={signal.id}>
@@ -146,13 +135,34 @@ export const ActiveSignals: React.FC<ActiveSignalsProps> = ({ onTrade }) => {
                                 <div className="flex gap-4">
                                     <div className="flex-1">
                                         <div className="text-[9px] text-gray-500 uppercase tracking-wider mb-1">Confidence Breakdown</div>
-                                        <ConfidenceBreakdown {...breakdown} />
+                                        <ConfidenceBreakdown 
+                                            baseScore={baseScore} 
+                                            adjustments={adjustments} 
+                                            finalScore={signal.confidence} 
+                                        />
                                     </div>
                                     <div className="flex-1 border-l border-white/5 pl-4">
                                         <div className="text-[9px] text-gray-500 uppercase tracking-wider mb-1">Reasoning</div>
                                         <p className="text-gray-400 italic leading-relaxed">
                                             {signal.reasoning}
                                         </p>
+                                        {/* Show Agent Consensus if available */}
+                                        {signal.consensus && (
+                                            <div className="mt-2 pt-2 border-t border-white/5">
+                                                <div className="text-[9px] text-gray-500 uppercase tracking-wider mb-1">Agent Consensus</div>
+                                                <div className="flex flex-wrap gap-1">
+                                                    {signal.consensus.votes.map((vote, i) => (
+                                                        <span key={i} className={`text-[9px] px-1.5 py-0.5 rounded border ${
+                                                            vote.vote === 'BULLISH' ? 'border-green-500/30 text-green-400 bg-green-500/10' :
+                                                            vote.vote === 'BEARISH' ? 'border-red-500/30 text-red-400 bg-red-500/10' :
+                                                            'border-gray-500/30 text-gray-400 bg-gray-500/10'
+                                                        }`}>
+                                                            {vote.agentName}: {vote.vote}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </td>

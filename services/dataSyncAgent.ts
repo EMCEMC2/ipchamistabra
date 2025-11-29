@@ -388,12 +388,16 @@ class DataSyncAgent {
 
   // ==================== CONSISTENCY CHECKS ====================
 
-  runConsistencyChecks(): void {
+  async runConsistencyChecks(): Promise<void> {
     if (!this.isRunning) return;
 
     const state = useStore.getState();
     const results: ConsistencyResult[] = [];
 
+    // Async checks
+    results.push(await this.checkTimeSync());
+
+    // Synchronous checks
     results.push(this.checkPriceChartSync(state.price, state.chartData));
 
     state.positions.forEach((pos: Position) => {
@@ -418,6 +422,43 @@ class DataSyncAgent {
     }
 
     this.emit({ type: 'CONSISTENCY_CHECKS_COMPLETE', results, timestamp: Date.now() });
+  }
+
+  private async checkTimeSync(): Promise<ConsistencyResult> {
+      try {
+          const start = Date.now();
+          const response = await fetch('https://api.binance.com/api/v3/time');
+          const data = await response.json();
+          const serverTime = data.serverTime;
+          const end = Date.now();
+          const rtt = end - start;
+          
+          // Adjust server time by half RTT to estimate "now"
+          const adjustedServerTime = serverTime + (rtt / 2);
+          const localTime = Date.now();
+          const skew = Math.abs(localTime - adjustedServerTime);
+
+          if (skew > 5000) { // 5 seconds threshold
+              return {
+                  checkId: 'TIME_SYNC',
+                  passed: false,
+                  details: `System clock skewed by ${Math.round(skew)}ms`,
+                  discrepancy: { expected: adjustedServerTime, actual: localTime, delta: skew }
+              };
+          }
+
+          return {
+              checkId: 'TIME_SYNC',
+              passed: true,
+              details: `Time sync OK (skew: ${Math.round(skew)}ms)`
+          };
+      } catch (e) {
+          return {
+              checkId: 'TIME_SYNC',
+              passed: true, // Pass on error to avoid noise if offline
+              details: 'Time sync check failed (network error)'
+          };
+      }
   }
 
   private checkPriceChartSync(currentPrice: number, chartData: ChartDataPoint[]): ConsistencyResult {

@@ -7,6 +7,8 @@ import { runAgentSimulation } from '../../services/gemini';
 import { analyzeMarketRegime } from '../../services/mlService';
 import { AgentRole } from '../../types';
 import clsx from 'clsx';
+import { generateConsensus } from '../../services/agentConsensus';
+import { TacticalSignalResult } from '../../services/tacticalSignals';
 
 export const AgentSwarm: React.FC = () => {
     const agents = useStore((state) => state.agents) || [];
@@ -21,6 +23,7 @@ export const AgentSwarm: React.FC = () => {
     const vix = useStore((state) => state.vix);
     const sentimentScore = useStore((state) => state.sentimentScore);
     const chartData = useStore((state) => state.chartData);
+    const technicals = useStore((state) => state.technicals);
 
     const marketMetrics = {
         price,
@@ -34,6 +37,29 @@ export const AgentSwarm: React.FC = () => {
         console.log("SwarmCore Mounted. Agents:", agents);
         logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [councilLogs, agents]);
+
+    // Generate Live Consensus
+    const liveConsensus = React.useMemo(() => {
+        // Construct a partial result based on current technicals to get a "Live" reading
+        // even if no specific trade signal is active.
+        const bullScore = technicals.trend === 'BULLISH' ? 7 : (technicals.rsi < 30 ? 6 : 3);
+        const bearScore = technicals.trend === 'BEARISH' ? 7 : (technicals.rsi > 70 ? 6 : 3);
+        
+        const liveResult: TacticalSignalResult = {
+            signal: null,
+            bullScore,
+            bearScore,
+            regime: technicals.atr > price * 0.02 ? 'HIGH_VOL' : 'NORMAL', // Approx regime check
+            reasoning: []
+        };
+        return generateConsensus(liveResult, useStore.getState());
+    }, [technicals, price, sentimentScore]); // Re-calc on key changes
+
+    // Calculate Net Sentiment
+    const bullVotes = liveConsensus.votes.filter(v => v.vote === 'BULLISH').length;
+    const bearVotes = liveConsensus.votes.filter(v => v.vote === 'BEARISH').length;
+    const totalVotes = liveConsensus.votes.length;
+    const sentimentPercent = ((bullVotes - bearVotes + totalVotes) / (2 * totalVotes)) * 100;
 
     const startSwarm = async () => {
         setIsScanning(true);
@@ -123,6 +149,26 @@ export const AgentSwarm: React.FC = () => {
                         <div className="flex items-center gap-2 text-[10px] font-mono text-terminal-muted uppercase">
                             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                             Neural Link Active
+                        </div>
+                    </div>
+                </div>
+
+                {/* LIVE CONSENSUS WIDGET */}
+                <div className="hidden md:flex items-center gap-4 bg-black/30 px-4 py-2 rounded-lg border border-white/5">
+                    <div className="flex flex-col items-end">
+                        <span className="text-[10px] text-gray-500 uppercase tracking-wider">Live Consensus</span>
+                        <div className="flex items-center gap-2">
+                            <span className={`font-bold font-mono ${sentimentPercent > 60 ? 'text-green-400' : sentimentPercent < 40 ? 'text-red-400' : 'text-gray-400'}`}>
+                                {sentimentPercent > 60 ? 'BULLISH' : sentimentPercent < 40 ? 'BEARISH' : 'NEUTRAL'}
+                            </span>
+                            <div className="flex gap-0.5">
+                                {liveConsensus.votes.map((v, i) => (
+                                    <div key={i} className={`w-1.5 h-4 rounded-sm ${
+                                        v.vote === 'BULLISH' ? 'bg-green-500' : 
+                                        v.vote === 'BEARISH' ? 'bg-red-500' : 'bg-gray-600'
+                                    }`} title={`${v.agentName}: ${v.vote}`} />
+                                ))}
+                            </div>
                         </div>
                     </div>
                 </div>

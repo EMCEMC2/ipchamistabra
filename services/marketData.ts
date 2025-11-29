@@ -11,6 +11,35 @@ import { fetchMacroData, fetchDerivativesMetrics } from './macroDataService';
 import { captureError, addBreadcrumb } from './errorMonitor';
 import { dataSyncAgent } from './dataSyncAgent';
 
+// Singleton Worker Instance
+let tradingWorker: Worker | null = null;
+const pendingRequests = new Map<string, { resolve: (value: any) => void, reject: (reason?: any) => void }>();
+
+const getWorker = () => {
+    if (!tradingWorker) {
+        tradingWorker = new Worker(new URL('./tradingWorker.ts', import.meta.url), { type: 'module' });
+        
+        tradingWorker.onmessage = (e) => {
+            const { type, payload, requestId } = e.data;
+            
+            if (requestId && pendingRequests.has(requestId)) {
+                const { resolve, reject } = pendingRequests.get(requestId)!;
+                if (type === 'SIGNALS_GENERATED') {
+                    resolve(payload);
+                } else if (type === 'ERROR') {
+                    reject(new Error(payload));
+                }
+                pendingRequests.delete(requestId);
+            }
+        };
+
+        tradingWorker.onerror = (e) => {
+            console.error('[Worker] Error:', e);
+        };
+    }
+    return tradingWorker;
+};
+
 export const fetchGlobalData = async () => {
     try {
         addBreadcrumb('Fetching global market data', 'marketData');
@@ -107,24 +136,35 @@ export const fetchSignals = async () => {
 
         // HYBRID APPROACH: Tactical v2 (rule-based) + AI validation + ORDER FLOW
         // Step 1: Get current order flow stats (REAL-TIME)
+        // Step 1: Get current order flow stats (REAL-TIME)
         const { aggrService } = await import('./aggrService');
         const orderFlowStats = aggrService.getStats();
 
-        // Step 2: Generate Tactical v2 signal WITH order flow integration
-        const { generateTacticalSignal } = await import('./tacticalSignals');
-        const tacticalResult = generateTacticalSignal(chartData, undefined, orderFlowStats);
+        // Step 2: Offload to Web Worker (Singleton)
+        const runWorkerTask = () => new Promise<{ tacticalResult: any; consensusData: any }>((resolve, reject) => {
+            const worker = getWorker();
+            const requestId = Math.random().toString(36).substr(2, 9);
+            
+            pendingRequests.set(requestId, { resolve, reject });
+
+            // Send snapshot of state needed for calculation
+            worker.postMessage({
+                type: 'GENERATE_SIGNALS',
+                payload: {
+                    chartData,
+                    orderFlowStats,
+                    state: JSON.parse(JSON.stringify(useStore.getState()))
+                },
+                requestId
+            });
+        });
+
+        const { tacticalResult, consensusData } = await runWorkerTask();
 
         if (import.meta.env.DEV) {
-            console.log('[Signal Gen] Tactical v2 (with Order Flow):', {
+            console.log('[Signal Gen] Worker Result:', {
                 signal: tacticalResult.signal ? tacticalResult.signal.type : 'NONE',
-                bullScore: tacticalResult.bullScore,
-                bearScore: tacticalResult.bearScore,
-                regime: tacticalResult.regime,
-                orderFlow: orderFlowStats ? {
-                    cvd: orderFlowStats.cvd.cumulativeDelta,
-                    pressure: orderFlowStats.pressure.dominantSide,
-                    liquidations: orderFlowStats.liquidationCount
-                } : 'N/A'
+                consensus: consensusData.votes.length
             });
         }
 
@@ -149,7 +189,20 @@ export const fetchSignals = async () => {
         const signals = rawSignals.map(s => ({
             ...s,
             id: Math.random().toString(36).substr(2, 9),
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            // Attach Consensus Data (Votes only, as breakdown is specific to Tactical)
+            consensus: {
+                votes: consensusData.votes,
+                totalScore: s.confidence
+            },
+            // Add synthetic breakdown for AI signals so UI renders the Glass Box
+            confidenceBreakdown: [
+                {
+                    label: 'AI Model Confidence',
+                    value: s.confidence,
+                    type: 'sentiment'
+                }
+            ]
         }));
 
         // If Tactical v2 generated a signal with high score, include it
@@ -157,7 +210,13 @@ export const fetchSignals = async () => {
             signals.unshift({
                 ...tacticalResult.signal,
                 id: `tactical-${Date.now()}`,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                // Attach Consensus Data
+                consensus: {
+                    votes: consensusData.votes,
+                    totalScore: tacticalResult.signal.confidence
+                },
+                confidenceBreakdown: consensusData.breakdown
             });
         }
 

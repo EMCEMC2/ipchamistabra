@@ -218,19 +218,47 @@ class DataProcessor {
   }
 
   private broadcastStats() {
+    this.pruneData(); // Optimize: Prune once per second instead of per tick
     const stats = this.calculateStats();
     if (stats) {
       self.postMessage({ type: 'STATS_UPDATE', payload: { stats } });
     }
   }
 
+  private pruneData() {
+      const now = Date.now();
+      const tradeCutoff = now - 60000;
+      const largeTradeCutoff = now - 600000;
+      const liqCutoff = now - 300000;
+
+      // Efficiently remove old trades
+      if (this.trades.length > 0 && this.trades[0].timestamp < tradeCutoff) {
+          let removeIndex = 0;
+          // Find split point (simple linear scan is fast enough since we only scan the tail)
+          while(removeIndex < this.trades.length && this.trades[removeIndex].timestamp < tradeCutoff) {
+              removeIndex++;
+          }
+          if (removeIndex > 0) {
+              this.trades = this.trades.slice(removeIndex);
+          }
+      }
+
+      // Prune Large Trades
+      if (this.largeTrades.length > 0 && this.largeTrades[0].timestamp < largeTradeCutoff) {
+          this.largeTrades = this.largeTrades.filter(t => t.timestamp > largeTradeCutoff);
+      }
+
+      // Prune Liquidations
+      if (this.liquidations.length > 0 && this.liquidations[0].timestamp < liqCutoff) {
+          this.liquidations = this.liquidations.filter(l => l.timestamp > liqCutoff);
+      }
+  }
+
   private calculateStats(): AggrStats | null {
     const now = Date.now();
-    const oneMinAgo = now - 60000;
-    const recentTrades = this.trades.filter(t => t.timestamp > oneMinAgo);
+    const recentTrades = this.trades; 
 
     if (recentTrades.length === 0) {
-        // Return empty stats if we are connected, so UI shows "Live" with 0 volume
         return {
             totalVolume: 0,
             buyVolume: 0,
@@ -253,27 +281,21 @@ class DataProcessor {
     const totalVolume = buyVolume + sellVolume;
     const netVolume = buyVolume - sellVolume;
 
-    // CVD: Use latest session values, but override delta with 1-min Net for analysis/UI consistency
     const latestCVD = this.cvdWindow.latest || { timestamp: Date.now(), buyVolume: 0, sellVolume: 0, delta: 0, cumulativeDelta: 0 };
     const cvd = {
         ...latestCVD,
-        delta: netVolume // Set delta to 1-minute Net Volume
+        delta: netVolume
     };
 
-    // Pressure
     const pressure = this.calculatePressure(recentTrades);
-
-    // Exchange Flow
     const exchanges = this.calculateExchangeFlow(recentTrades);
 
-    // Large Trades & Liquidations
     const fiveMinAgo = now - 300000;
     const tenMinAgo = now - 600000;
     
     const recentLiquidations = this.liquidations.filter(l => l.timestamp > fiveMinAgo);
     const liquidationVolume = recentLiquidations.reduce((sum, l) => sum + l.usdValue, 0);
     
-    // Use the dedicated largeTrades array, filtered for last 10 minutes
     const recentLargeTrades = this.largeTrades.filter(t => t.timestamp > tenMinAgo);
 
     return {
@@ -335,25 +357,22 @@ class DataProcessor {
     return flows.sort((a, b) => b.dominance - a.dominance);
   }
 
-  // --- WebSocket Connection Logic ---
-
   private connectBinance() {
     const connectTrades = (isFallback = false) => {
         const url = isFallback 
-            ? 'wss://stream.binance.com/ws' // Spot (Fallback)
-            : 'wss://fstream.binance.com/ws'; // Futures (Primary)
+            ? 'wss://stream.binance.com/ws'
+            : 'wss://fstream.binance.com/ws';
             
         this.log(`Connecting to Binance ${isFallback ? 'Spot (Fallback)' : 'Futures'}...`);
         const ws = new WebSocket(url);
         
         ws.onopen = () => {
             this.log(`Binance ${isFallback ? 'Spot' : 'Futures'} Connected`);
-            // Subscribe to aggTrade
             const msg = {
                 method: "SUBSCRIBE",
                 params: [
                     "btcusdt@aggTrade",
-                    "btcusdt@forceOrder" // Only works on Futures, ignored on Spot
+                    "btcusdt@forceOrder"
                 ],
                 id: 1
             };
@@ -363,24 +382,20 @@ class DataProcessor {
         ws.onmessage = (e) => {
             try {
                 const data = JSON.parse(e.data);
-                
-                // Handle ping/pong or subscription confirmation
                 if (data.id === 1) return;
 
-                // Handle AggTrade
                 if (data.e === 'aggTrade') {
                     const trade: AggrTrade = {
                         exchange: 'Binance',
                         timestamp: data.T,
                         price: parseFloat(data.p),
                         amount: parseFloat(data.q),
-                        side: data.m ? 'sell' : 'buy', // m=true means maker is buy, so taker is sell
+                        side: data.m ? 'sell' : 'buy',
                         isLiquidation: false,
                         usdValue: parseFloat(data.p) * parseFloat(data.q)
                     };
                     this.processTrade(trade);
                 }
-                // Handle Liquidation (Futures only)
                 else if (data.e === 'forceOrder') {
                     const o = data.o;
                     const liq: AggrLiquidation = {
@@ -400,7 +415,6 @@ class DataProcessor {
 
         ws.onclose = () => {
             this.log(`Binance ${isFallback ? 'Spot' : 'Futures'} Closed`);
-            // If Futures fails, try Fallback (Spot) next time
             const nextIsFallback = !isFallback ? true : true; 
             this.reconnectWithBackoff('binance-trades', () => connectTrades(nextIsFallback));
         };
@@ -409,7 +423,7 @@ class DataProcessor {
         this.wsConnections.set('binance-trades', ws);
     };
 
-    connectTrades(false); // Start with Futures
+    connectTrades(false);
   }
 
   private connectOKX() {
@@ -432,7 +446,7 @@ class DataProcessor {
                               amount: parseFloat(d.sz),
                               side: d.side === 'sell' ? 'sell' : 'buy',
                               isLiquidation: false,
-                              usdValue: parseFloat(d.px) * parseFloat(d.sz) // Note: OKX size might need conversion depending on contract
+                              usdValue: parseFloat(d.px) * parseFloat(d.sz)
                           };
                           this.processTrade(trade);
                       });
@@ -482,7 +496,6 @@ class DataProcessor {
                           amount: parseFloat(d.size),
                           side: d.side === 'Sell' ? 'long' : 'short',
                           usdValue: parseFloat(d.price) * parseFloat(d.size)
-                          // usdValue: parseFloat(d.price) * parseFloat(d.size)
                       };
                       this.processLiquidation(liq);
                   }
@@ -509,38 +522,21 @@ class DataProcessor {
   private processTrade(trade: AggrTrade) {
       this.trades.push(trade);
 
-      // CRITICAL FIX: Update CVD with individual trade delta (not aggregated)
       const tradeDelta = trade.side === 'buy' ? trade.usdValue : -trade.usdValue;
       this.cvdWindow.addTradeDelta(tradeDelta);
 
-      // Throttled log to confirm data flow
       if (this.trades.length % 100 === 0) {
         this.log(`Processed ${this.trades.length} trades. Latest: $${trade.price} | CVD: ${this.cvdWindow.latest?.cumulativeDelta.toFixed(2)}M`);
       }
 
-      const cutoff = Date.now() - 60000;
-      if (this.trades[0] && this.trades[0].timestamp < cutoff) {
-          // Optimization: remove old trades in chunks or use a pointer
-          this.trades = this.trades.filter(t => t.timestamp > cutoff);
-      }
-
       if (trade.usdValue > 500000) {
-          this.largeTrades.push(trade); // Add to dedicated array
+          this.largeTrades.push(trade);
           self.postMessage({ type: 'LARGE_TRADE_EVENT', payload: { trade } });
-      }
-      
-      // Clean up large trades (keep 10 mins)
-      const largeCutoff = Date.now() - 600000;
-      if (this.largeTrades.length > 0 && this.largeTrades[0].timestamp < largeCutoff) {
-           this.largeTrades = this.largeTrades.filter(t => t.timestamp > largeCutoff);
       }
   }
 
   private processLiquidation(liq: AggrLiquidation) {
       this.liquidations.push(liq);
-      const cutoff = Date.now() - 300000;
-      this.liquidations = this.liquidations.filter(l => l.timestamp > cutoff);
-      
       self.postMessage({ type: 'LIQUIDATION_EVENT', payload: { liquidation: liq } });
       this.detectCascade(liq);
   }

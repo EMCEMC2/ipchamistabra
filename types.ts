@@ -26,6 +26,19 @@ export interface MarketMetrics {
   volume: string;
 }
 
+export interface AgentVote {
+  agentName: string;
+  vote: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+  confidence: number;
+  reason: string;
+}
+
+export interface ConfidenceAdjustment {
+  label: string;
+  value: number;
+  type: 'boost' | 'penalty';
+}
+
 export interface TradeSignal {
   id: string;
   pair: string;
@@ -39,6 +52,12 @@ export interface TradeSignal {
   reasoning: string;
   status: 'SCANNING' | 'ACTIVE' | 'FILLED' | 'COMPLETED' | 'STOPPED' | 'CLOSED';
   timestamp: number;
+  // Stage 2: Transparent AI
+  consensus?: {
+    votes: AgentVote[];
+    totalScore: number;
+  };
+  confidenceBreakdown?: ConfidenceAdjustment[];
 }
 
 export const TradeSignalSchema = z.object({

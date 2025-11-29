@@ -106,7 +106,8 @@ export const analyzeMarketRegime = (
         volatility: effectiveVol,
         trendStrength,
         predictedTrend,
-        confidence: 0.85, // Placeholder for now
+        // Confidence based on data consistency (simplified)
+        confidence: Math.max(0.4, 1 - (effectiveVol * 0.05)), // Lower confidence in high volatility (scaled)
         clusterIdx
     };
 };

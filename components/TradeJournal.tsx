@@ -40,7 +40,7 @@ export const TradeJournal: React.FC = () => {
       result: Number(newEntry.pnl) > 0 ? 'WIN' : 'LOSS',
       entryTime: Date.now() - 3600000,
       exitTime: Date.now(),
-      pnlPercent: 0 // Placeholder
+      pnlPercent: newEntry.entryPrice ? ((newEntry.type === 'LONG' ? newEntry.exitPrice - newEntry.entryPrice : newEntry.entryPrice - newEntry.exitPrice) / newEntry.entryPrice) * 100 : 0
     };
 
     onAddEntry(entry);
