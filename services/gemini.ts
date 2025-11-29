@@ -1,66 +1,78 @@
 import { ChatMessage, GroundingSource, TradeSignal, JournalEntry, IntelItem, AgentRole, AgentTaskResult, IntelItemSchema, TradeSignalSchema } from "../types";
 import { z } from 'zod';
 import { validateSignal, calculateRiskReward, parsePrice, classifyMarketRegime } from '../utils/tradingCalculations';
+import { GoogleGenAI } from '@google/genai';
 
-const BACKEND_URL = import.meta.env.VITE_TRADING_API_URL || '';
+// Get API key from environment
+const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
 
-let aiAvailabilityCache: { available: boolean; timestamp: number } | null = null;
-const CACHE_DURATION = 60000; // 1 minute
+// Initialize Gemini client
+let genAI: GoogleGenAI | null = null;
 
-export const isAiAvailable = async (): Promise<boolean> => {
-    if (aiAvailabilityCache && Date.now() - aiAvailabilityCache.timestamp < CACHE_DURATION) {
-        return aiAvailabilityCache.available;
+const getGenAI = (): GoogleGenAI => {
+    if (!genAI) {
+        if (!API_KEY) {
+            throw new Error('Gemini API key not configured. Set VITE_GEMINI_API_KEY in environment.');
+        }
+        genAI = new GoogleGenAI({ apiKey: API_KEY });
     }
-
-    try {
-        const response = await fetch(`${BACKEND_URL}/api/keys/check`);
-        if (!response.ok) return false;
-        
-        const data = await response.json();
-        const available = !!data.geminiKeyConfigured;
-        
-        aiAvailabilityCache = { available, timestamp: Date.now() };
-        return available;
-    } catch (e) {
-        console.warn('Failed to check AI availability:', e);
-        return false;
-    }
+    return genAI;
 };
 
-const callAiProxy = async (model: string, contents: any, config?: any) => {
+export const isAiAvailable = async (): Promise<boolean> => {
+    return !!API_KEY;
+};
+
+// Direct Gemini API call (no proxy)
+const callGeminiDirect = async (model: string, contents: string, config?: any): Promise<{ text: string; candidates?: any[] }> => {
     try {
-        const url = `${BACKEND_URL}/api/ai/generate`;
-        console.log('[Gemini Proxy] Requesting:', url);
-        
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ model, contents, config })
+        const ai = getGenAI();
+        console.log('[Gemini Direct] Calling model:', model);
+
+        const generateConfig: any = {};
+
+        if (config?.responseMimeType) {
+            generateConfig.responseMimeType = config.responseMimeType;
+        }
+        if (config?.responseSchema) {
+            generateConfig.responseSchema = config.responseSchema;
+        }
+        if (config?.thinkingConfig) {
+            generateConfig.thinkingConfig = config.thinkingConfig;
+        }
+
+        const response = await ai.models.generateContent({
+            model,
+            contents,
+            config: {
+                ...generateConfig,
+                systemInstruction: config?.systemInstruction,
+                tools: config?.tools,
+            }
         });
 
-        const text = await response.text();
+        const text = response.text || '';
+        console.log('[Gemini Direct] Response received, length:', text.length);
 
-        if (!response.ok) {
-            let errorMessage = response.statusText;
-            try {
-                const errorJson = JSON.parse(text);
-                errorMessage = errorJson.details || errorJson.error || errorMessage;
-            } catch (e) {
-                // If not JSON, use the raw text (truncated if too long)
-                errorMessage = text.slice(0, 200) || `HTTP ${response.status}`;
-            }
-            throw new Error(`AI Proxy Failed (${response.status}): ${errorMessage}`);
-        }
-
-        try {
-            return JSON.parse(text);
-        } catch (e) {
-            throw new Error('Invalid JSON response from AI Proxy');
-        }
+        return {
+            text,
+            candidates: response.candidates
+        };
     } catch (error: any) {
-        console.error('[Gemini Proxy] Error:', error);
+        console.error('[Gemini Direct] Error:', error);
+
+        // Handle specific error types
+        const errorMsg = error.message || '';
+        if (errorMsg.includes('API_KEY_INVALID') || errorMsg.includes('403')) {
+            throw new Error('Invalid API key. Please check your VITE_GEMINI_API_KEY.');
+        }
+        if (errorMsg.includes('PERMISSION_DENIED')) {
+            throw new Error('API key does not have permission for this model.');
+        }
+        if (errorMsg.includes('RESOURCE_EXHAUSTED') || errorMsg.includes('429')) {
+            throw new Error('API rate limit exceeded. Please wait and try again.');
+        }
+
         throw error;
     }
 };
@@ -169,7 +181,7 @@ export const generateMarketAnalysis = async (query: string, activeSignals?: Trad
 
   // Attempt 1: Reasoning Model
   try {
-    const response = await callAiProxy(
+    const response = await callGeminiDirect(
       REASONING_MODEL_ID,
       contents,
       {
@@ -192,7 +204,7 @@ export const generateMarketAnalysis = async (query: string, activeSignals?: Trad
 
     // Attempt 2: Fast Model Fallback
     try {
-      const response = await callAiProxy(
+      const response = await callGeminiDirect(
         FAST_MODEL_ID,
         contents,
         {
@@ -251,7 +263,7 @@ export const generateTradeSetup = async (context: string): Promise<AiResponse> =
 
   // Attempt 1: Reasoning Model
   try {
-    const response = await callAiProxy(
+    const response = await callGeminiDirect(
       REASONING_MODEL_ID,
       prompt,
       {
@@ -269,7 +281,7 @@ export const generateTradeSetup = async (context: string): Promise<AiResponse> =
 
     // Attempt 2: Fast Model Fallback
     try {
-      const response = await callAiProxy(
+      const response = await callGeminiDirect(
         FAST_MODEL_ID,
         prompt,
         {
@@ -321,7 +333,7 @@ export const scanMarketForSignals = async (
     : '';
 
   try {
-    const response = await callAiProxy(
+    const response = await callGeminiDirect(
       FAST_MODEL_ID,
       `Analyze the provided market context and generate 1-3 algorithmic trading signals based on BitMind Tactical v2 logic.
       Context: ${context}${tacticalContext}
@@ -492,7 +504,7 @@ export const runAgentSimulation = async (role: AgentRole, context: any): Promise
     console.log(`[runAgentSimulation] Model: ${FAST_MODEL_ID}`);
     console.log(`[runAgentSimulation] Context:`, context);
 
-    const response = await callAiProxy(
+    const response = await callGeminiDirect(
       FAST_MODEL_ID,
       userContent,
       {
@@ -583,7 +595,7 @@ export const scanGlobalIntel = async (): Promise<IntelItem[]> => {
       Use real-time search to find ACTUAL current events. Do NOT fabricate news.
     `;
 
-    const response = await callAiProxy(
+    const response = await callGeminiDirect(
       FAST_MODEL_ID,
       prompt,
       {
@@ -669,7 +681,7 @@ export const analyzeTradeJournal = async (entry: JournalEntry): Promise<string> 
   `;
 
   try {
-    const response = await callAiProxy(
+    const response = await callGeminiDirect(
       FAST_MODEL_ID,
       prompt,
       {
