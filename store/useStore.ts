@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { ChartDataPoint, TradeSignal, Position, JournalEntry, AgentState, AgentRole, IntelItem } from '../types';
 import { EnhancedBTCMetrics } from '../services/macroDataService';
+import { FeedState, getInitialFeedState } from '../services/feedRegistry';
+import { RiskOfficerState, INITIAL_RISK_STATE } from '../services/riskOfficer';
 
 // Normalize journal entries loaded from storage or new additions so UI doesn't break on missing fields.
 const normalizeJournalEntry = (entry: any): JournalEntry => ({
@@ -74,6 +76,8 @@ interface MarketState {
   lastPriceUpdate: number;
   // Enhanced BTC Metrics
   enhancedMetrics: EnhancedBTCMetrics;
+  // NEW: Feed Status Registry
+  feeds: Record<string, FeedState>;
 }
 
 interface UserState {
@@ -86,6 +90,8 @@ interface UserState {
   dailyPnL: number; // Current day's P&L
   lastResetDate: string; // ISO date string for daily reset
   isCircuitBreakerTripped: boolean; // Trading halted if true
+  // NEW: Risk Officer State
+  riskOfficer: RiskOfficerState;
 }
 
 interface AgentSwarmState {
@@ -108,6 +114,9 @@ export interface AppState extends MarketState, UserState, AgentSwarmState {
   setActiveTradeSetup: (setup: Partial<Position> | null) => void;
   setExecutionSide: (side: 'LONG' | 'SHORT') => void;
   setEnhancedMetrics: (metrics: EnhancedBTCMetrics) => void;
+  
+  // NEW: Feed Actions
+  updateFeedStatus: (id: string, updates: Partial<FeedState>) => void;
 
   // Phase 2: Live Trading (Testnet)
   isLiveMode: boolean;
@@ -121,6 +130,9 @@ export interface AppState extends MarketState, UserState, AgentSwarmState {
   setDailyLossLimit: (limit: number) => void;
   resetDailyPnL: () => void;
   checkCircuitBreaker: () => boolean;
+  
+  // NEW: Risk Officer Actions
+  setRiskOfficerState: (state: Partial<RiskOfficerState>) => void;
 
   updateAgentStatus: (role: AgentRole, status: AgentState['status'], log?: string) => void;
   addCouncilLog: (agentName: string, message: string) => void;
@@ -128,7 +140,8 @@ export interface AppState extends MarketState, UserState, AgentSwarmState {
 
 export const useStore = create<AppState>()(
   persist(
-    (set) => ({
+
+    (set, get) => ({
       // Market State (NOT PERSISTED - always fresh from API)
       price: 0,
       priceChange: 0,
@@ -148,6 +161,7 @@ export const useStore = create<AppState>()(
       lastMacroUpdate: 0,
       lastPriceUpdate: 0,
       enhancedMetrics: defaultEnhancedMetrics,
+      feeds: getInitialFeedState(),
 
       // User State (PERSISTED - survives refresh)
       balance: 50000,
@@ -160,6 +174,7 @@ export const useStore = create<AppState>()(
       dailyPnL: 0,
       lastResetDate: new Date().toISOString().split('T')[0], // YYYY-MM-DD
       isCircuitBreakerTripped: false,
+      riskOfficer: INITIAL_RISK_STATE,
 
       // Phase 2: Live Trading (Testnet)
       isLiveMode: false,
@@ -188,6 +203,13 @@ export const useStore = create<AppState>()(
       setActiveTradeSetup: (setup) => set({ activeTradeSetup: setup }),
       setExecutionSide: (side) => set({ executionSide: side }),
       setEnhancedMetrics: (enhancedMetrics) => set({ enhancedMetrics }),
+      
+      updateFeedStatus: (id, updates) => set((state) => ({
+        feeds: {
+          ...state.feeds,
+          [id]: { ...state.feeds[id], ...updates }
+        }
+      })),
 
       setIsLiveMode: (isLiveMode) => set({ isLiveMode }),
 
@@ -220,23 +242,28 @@ export const useStore = create<AppState>()(
         isCircuitBreakerTripped: false
       }),
       checkCircuitBreaker: () => {
-        const state = useStore.getState();
+        const state = get();
         const today = new Date().toISOString().split('T')[0];
 
         // Reset if it's a new day
         if (state.lastResetDate !== today) {
-          useStore.getState().resetDailyPnL();
+          state.resetDailyPnL();
           return false;
         }
 
         // Check if circuit breaker should trip
         if (state.dailyPnL <= -state.dailyLossLimit && !state.isCircuitBreakerTripped) {
-          useStore.setState({ isCircuitBreakerTripped: true });
+          set({ isCircuitBreakerTripped: true });
           return true;
         }
 
         return state.isCircuitBreakerTripped;
       },
+
+      
+      setRiskOfficerState: (riskState) => set((state) => ({
+        riskOfficer: { ...state.riskOfficer, ...riskState }
+      })),
 
       updateAgentStatus: (role, status, log) => set((state) => ({
         agents: state.agents.map((a) =>
@@ -260,7 +287,9 @@ export const useStore = create<AppState>()(
             : [],
           positions: Array.isArray(persistedState.positions) ? persistedState.positions : [],
           signals: Array.isArray(persistedState.signals) ? persistedState.signals : [],
-          activeTradeSetup: persistedState.activeTradeSetup || null
+          activeTradeSetup: persistedState.activeTradeSetup || null,
+          // Ensure riskOfficer is initialized if missing (legacy state)
+          riskOfficer: persistedState.riskOfficer || INITIAL_RISK_STATE
         };
       },
       // Only persist critical user data (not live market data)
@@ -269,7 +298,8 @@ export const useStore = create<AppState>()(
         positions: state.positions,
         journal: state.journal,
         signals: state.signals,
-        activeTradeSetup: state.activeTradeSetup
+        activeTradeSetup: state.activeTradeSetup,
+        riskOfficer: state.riskOfficer
       })
     }
   )

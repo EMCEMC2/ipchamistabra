@@ -1,3 +1,13 @@
+import { BlockedBanner } from './components/BlockedBanner';
+
+// ... existing imports
+
+// ... inside App component return ...
+
+      {/* Elite Header with Glass Morphism */}
+      <header className="h-14 border-b border-white/10 flex items-center justify-between px-6 glass relative z-50 shrink-0">
+        {/* ... header content ... */}
+      </header>
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Terminal, Layout, Users, Brain, BookOpen, LineChart, Target, Globe } from 'lucide-react';
 import { ChartPanel } from './components/ChartPanel';
@@ -11,7 +21,6 @@ import { TradeJournal } from './components/TradeJournal';
 import { BacktestPanel } from './components/BacktestPanel';
 import { AggrOrderFlow } from './components/AggrOrderFlow';
 import { AiCommandCenter } from './components/AiCommandCenter';
-
 import { startMarketDataSync, fetchChartData, fetchSignals } from './services/marketData';
 import { calculateRSI, calculateATR, calculateADX, calculateEMA, calculateMACD } from './utils/technicalAnalysis';
 import { BinancePriceFeed } from './services/websocket';
@@ -301,6 +310,9 @@ function App() {
           </div>
         </div>
       </header>
+
+      {/* NEW: Blocked Status Banner */}
+      <BlockedBanner />
 
       {/* Main Content Grid - PROFESSIONAL TRADING TERMINAL LAYOUT */}
       <main className="flex-1 overflow-hidden p-2">
