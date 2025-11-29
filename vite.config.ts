@@ -43,7 +43,11 @@ export default defineConfig(({ mode }) => {
       },
       target: 'esnext',
       minify: 'esbuild',
-      sourcemap: false
+      sourcemap: false,
+      // Strip console.log and console.debug in production
+      esbuildOptions: {
+        drop: mode === 'production' ? ['console', 'debugger'] : []
+      }
     },
     optimizeDeps: {
       include: ['lucide-react', 'lightweight-charts'],

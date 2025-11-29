@@ -372,9 +372,12 @@ export const useStore = create<AppState>()(
           return { ...a, ...updates };
         })
       })),
-      addCouncilLog: (agentName, message) => set((state) => ({
-        councilLogs: [...state.councilLogs, { id: Date.now().toString(), agentName, message, timestamp: Date.now() }]
-      }))
+      addCouncilLog: (agentName, message) => set((state) => {
+        const newLog = { id: Date.now().toString(), agentName, message, timestamp: Date.now() };
+        const updatedLogs = [...state.councilLogs, newLog];
+        // Cap at 1000 entries to prevent unbounded memory growth
+        return { councilLogs: updatedLogs.slice(-1000) };
+      })
     }),
     {
       name: STORAGE_KEY,

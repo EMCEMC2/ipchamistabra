@@ -10,6 +10,7 @@ import {
 import { fetchMacroData, fetchDerivativesMetrics } from './macroDataService';
 import { captureError, addBreadcrumb } from './errorMonitor';
 import { dataSyncAgent } from './dataSyncAgent';
+import { aggrService } from './aggrService';
 
 // Singleton Worker Instance
 let tradingWorker: Worker | null = null;
@@ -164,7 +165,6 @@ export const fetchSignals = async () => {
 
         // HYBRID APPROACH: Tactical v2 (rule-based) + AI validation + ORDER FLOW
         // Step 1: Get current order flow stats (REAL-TIME)
-        const { aggrService } = await import('./aggrService');
         const orderFlowStats = aggrService.getStats();
 
         // Step 2: Offload to Web Worker (Singleton)
