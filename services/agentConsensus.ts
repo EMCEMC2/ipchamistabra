@@ -110,6 +110,16 @@ const getOrderFlowVote = (state: AppState): AgentVote => {
   const { derivatives } = state;
   const funding = parseFloat(derivatives.fundingRate);
 
+  // Guard against NaN from malformed funding rate strings
+  if (isNaN(funding)) {
+    return {
+      agentName: 'WATCHDOG',
+      vote: 'NEUTRAL',
+      confidence: 0,
+      reason: 'Funding data unavailable'
+    };
+  }
+
   let vote: 'BULLISH' | 'BEARISH' | 'NEUTRAL' = 'NEUTRAL';
   let reason = 'Funding is neutral';
 
@@ -124,7 +134,7 @@ const getOrderFlowVote = (state: AppState): AgentVote => {
   return {
     agentName: 'WATCHDOG',
     vote,
-    confidence: Math.abs(funding) * 1000, // Rough scaling
+    confidence: Math.min(Math.abs(funding) * 1000, 100), // Clamp to 0-100
     reason
   };
 };

@@ -56,12 +56,12 @@ export const AgentCard: React.FC<AgentCardProps> = ({ agent, isActive }) => {
                             )}>
                                 {agent.name}
                             </h3>
-                            <p className="text-[10px] text-terminal-muted uppercase tracking-widest mt-0.5">
+                            <p className="text-xs text-terminal-muted uppercase tracking-widest mt-0.5">
                                 {agent.role.replace('_', ' ')}
                             </p>
                         </div>
                         <div className={clsx(
-                            "px-2 py-0.5 rounded text-[9px] font-mono font-bold uppercase border",
+                            "px-2 py-0.5 rounded text-xs font-mono font-bold uppercase border",
                             agent.status === 'WORKING' ? "bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse" :
                                 agent.status === 'SUCCESS' ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" :
                                     agent.status === 'FAILURE' ? "bg-red-500/10 text-red-500 border-red-500/20" :

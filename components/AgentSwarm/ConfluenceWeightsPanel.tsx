@@ -18,8 +18,8 @@ const WeightSlider: React.FC<WeightSliderProps> = ({ label, agentName, value, ma
   const percentage = Math.round((value / max) * 100);
 
   return (
-    <div className="flex items-center gap-2 text-[10px]">
-      <span className="w-20 text-gray-400 truncate" title={label}>{agentName}</span>
+    <div className="flex items-center gap-2 text-xs">
+      <span className="w-20 text-terminal-muted truncate" title={label}>{agentName}</span>
       <div className="flex-1 relative h-1.5 bg-terminal-border rounded overflow-hidden">
         <div
           className="absolute inset-y-0 left-0 bg-terminal-accent/60 rounded transition-all"
@@ -74,7 +74,7 @@ export const ConfluenceWeightsPanel: React.FC = () => {
         onClick={() => setIsExpanded(!isExpanded)}
         className="w-full flex items-center justify-between px-3 py-2 hover:bg-white/5 transition-colors"
       >
-        <div className="flex items-center gap-2 text-[10px] text-gray-400 uppercase tracking-wider">
+        <div className="flex items-center gap-2 text-xs text-terminal-muted uppercase tracking-wider">
           <Settings2 size={12} />
           Confluence Weights
         </div>
@@ -95,12 +95,12 @@ export const ConfluenceWeightsPanel: React.FC = () => {
           ))}
 
           <div className="flex justify-between items-center pt-2 border-t border-white/5">
-            <span className="text-[9px] text-gray-500">
+            <span className="text-xs text-terminal-muted">
               Total max: {Object.values(weights).reduce((a, b) => a + b, 0)} pts
             </span>
             <button
               onClick={handleReset}
-              className="flex items-center gap-1 text-[9px] text-gray-400 hover:text-terminal-accent transition-colors"
+              className="flex items-center gap-1 text-xs text-terminal-muted hover:text-terminal-accent transition-colors"
             >
               <RotateCcw size={10} />
               Reset

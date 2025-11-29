@@ -58,11 +58,13 @@ export const AgentSwarm: React.FC = () => {
         return generateConsensus(liveResult, useStore.getState());
     }, [technicals, price, sentimentScore]); // Re-calc on key changes
 
-    // Calculate Net Sentiment
+    // Calculate Net Sentiment (guard against division by zero)
     const bullVotes = liveConsensus.votes.filter(v => v.vote === 'BULLISH').length;
     const bearVotes = liveConsensus.votes.filter(v => v.vote === 'BEARISH').length;
     const totalVotes = liveConsensus.votes.length;
-    const sentimentPercent = ((bullVotes - bearVotes + totalVotes) / (2 * totalVotes)) * 100;
+    const sentimentPercent = totalVotes > 0
+        ? ((bullVotes - bearVotes + totalVotes) / (2 * totalVotes)) * 100
+        : 50;
 
     const startSwarm = async () => {
         setIsScanning(true);
@@ -154,8 +156,8 @@ export const AgentSwarm: React.FC = () => {
                     </div>
                     <div>
                         <h1 className="text-xl font-mono font-bold text-terminal-text tracking-tight">SWARM COUNCIL</h1>
-                        <div className="flex items-center gap-2 text-[10px] font-mono text-terminal-muted uppercase">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <div className="flex items-center gap-2 text-xs font-mono text-terminal-muted uppercase">
+                            <span className="w-2 h-2 rounded-full bg-terminal-success animate-pulse"></span>
                             Neural Link Active
                         </div>
                     </div>
@@ -164,16 +166,16 @@ export const AgentSwarm: React.FC = () => {
                 {/* LIVE CONSENSUS WIDGET */}
                 <div className="hidden md:flex items-center gap-4 bg-black/30 px-4 py-2 rounded-lg border border-white/5">
                     <div className="flex flex-col items-end">
-                        <span className="text-[10px] text-gray-500 uppercase tracking-wider">Live Consensus</span>
+                        <span className="text-xs text-terminal-muted uppercase tracking-wider">Live Consensus</span>
                         <div className="flex items-center gap-2">
-                            <span className={`font-bold font-mono ${sentimentPercent > 60 ? 'text-green-400' : sentimentPercent < 40 ? 'text-red-400' : 'text-gray-400'}`}>
+                            <span className={`font-bold font-mono ${sentimentPercent > 60 ? 'text-terminal-success' : sentimentPercent < 40 ? 'text-terminal-danger' : 'text-terminal-muted'}`}>
                                 {sentimentPercent > 60 ? 'BULLISH' : sentimentPercent < 40 ? 'BEARISH' : 'NEUTRAL'}
                             </span>
                             <div className="flex gap-0.5">
                                 {liveConsensus.votes.map((v, i) => (
                                     <div key={i} className={`w-1.5 h-4 rounded-sm ${
-                                        v.vote === 'BULLISH' ? 'bg-green-500' :
-                                        v.vote === 'BEARISH' ? 'bg-red-500' : 'bg-gray-600'
+                                        v.vote === 'BULLISH' ? 'bg-terminal-success' :
+                                        v.vote === 'BEARISH' ? 'bg-terminal-danger' : 'bg-terminal-border'
                                     }`} title={`${v.agentName}: ${v.vote}`} />
                                 ))}
                             </div>
@@ -188,7 +190,7 @@ export const AgentSwarm: React.FC = () => {
 
                 <div className="flex items-center gap-4">
                     <div className="text-right hidden sm:block">
-                        <div className="text-[10px] text-terminal-muted uppercase tracking-widest">Active Agents</div>
+                        <div className="text-xs text-terminal-muted uppercase tracking-widest">Active Agents</div>
                         <div className="font-mono font-bold text-terminal-text text-lg">{agents.filter(a => a.status !== 'IDLE').length} / {agents.length}</div>
                     </div>
                     <button

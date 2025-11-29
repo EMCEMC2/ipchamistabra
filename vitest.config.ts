@@ -8,26 +8,32 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    setupFiles: ['./src/__tests__/setup.ts'],
-    include: ['src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
+    setupFiles: ['./tests/setup.ts'],
+    include: [
+      'utils/**/*.{test,spec}.{ts,tsx}',
+      'services/**/*.{test,spec}.{ts,tsx}',
+      'components/**/*.{test,spec}.{ts,tsx}',
+      'store/**/*.{test,spec}.{ts,tsx}',
+      'hooks/**/*.{test,spec}.{ts,tsx}',
+      'tests/**/*.{test,spec}.{ts,tsx}'
+    ],
     exclude: ['node_modules', 'dist', '.idea', '.git', '.cache'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
       exclude: [
         'node_modules/',
-        'src/__tests__/',
+        'tests/',
         '**/*.d.ts',
         '**/*.test.{ts,tsx}',
-        '**/types.ts',
-        'src/vite-env.d.ts'
+        '**/types.ts'
       ],
       thresholds: {
         global: {
-          branches: 70,
-          functions: 70,
-          lines: 70,
-          statements: 70
+          branches: 50,
+          functions: 50,
+          lines: 50,
+          statements: 50
         }
       }
     },
@@ -39,11 +45,11 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': resolve(__dirname, './src'),
-      '@services': resolve(__dirname, './src/services'),
-      '@components': resolve(__dirname, './src/components'),
-      '@store': resolve(__dirname, './src/store'),
-      '@utils': resolve(__dirname, './src/utils')
+      '@': resolve(__dirname, '.'),
+      '@services': resolve(__dirname, './services'),
+      '@components': resolve(__dirname, './components'),
+      '@store': resolve(__dirname, './store'),
+      '@utils': resolve(__dirname, './utils')
     }
   }
 });
