@@ -38,10 +38,6 @@ export class WorkerManager {
   }
 
   public connect(onStatsUpdate?: EventHandler<AggrStats>) {
-    if (this.isConnected) {
-      console.warn('[WorkerManager] Already connected, ignoring duplicate connect() call');
-      return;
-    }
     if (onStatsUpdate) this.onStatsUpdate = onStatsUpdate;
     this.sendMessage('CONNECT');
     this.isConnected = true;
@@ -85,15 +81,6 @@ export class WorkerManager {
       case 'CASCADE_EVENT':
         if (this.onCascade && payload.cascade) {
           this.onCascade(payload.cascade);
-        }
-        break;
-      case 'CONNECTION_FAILED':
-        if (payload?.exchange && typeof payload.maxAttempts === 'number') {
-          console.error(
-            `[WorkerManager] Connection permanently failed for ${payload.exchange} after ${payload.maxAttempts} attempts`
-          );
-        } else {
-          console.error('[WorkerManager] Received malformed CONNECTION_FAILED event:', payload);
         }
         break;
       case 'DEBUG_LOG':
