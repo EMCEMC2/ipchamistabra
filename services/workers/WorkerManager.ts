@@ -1,5 +1,5 @@
 import { AggrStats, AggrLiquidation, AggrTrade, CascadeEvent } from '../../types/aggrTypes';
-import { WorkerMessage, WorkerMessageType } from './types';
+import { WorkerMessage, WorkerMessageType, ConnectionStatusPayload, ExchangeConnectionStatus } from './types';
 
 type EventHandler<T> = (data: T) => void;
 
@@ -12,6 +12,14 @@ export class WorkerManager {
   private onLiquidation?: EventHandler<AggrLiquidation>;
   private onLargeTrade?: EventHandler<AggrTrade>;
   private onCascade?: EventHandler<CascadeEvent>;
+  private onConnectionStatus?: EventHandler<ConnectionStatusPayload>;
+
+  // Track exchange connection states
+  public exchangeStatus: ExchangeConnectionStatus = {
+    binance: 'disconnected',
+    okx: 'disconnected',
+    bybit: 'disconnected'
+  };
 
   constructor() {
     this.initWorker();
@@ -96,8 +104,18 @@ export class WorkerManager {
           console.error(
             `[WorkerManager] Connection permanently failed for ${payload.exchange} after ${payload.maxAttempts} attempts`
           );
+          this.exchangeStatus[payload.exchange as keyof ExchangeConnectionStatus] = 'failed';
         } else {
           console.error('[WorkerManager] Received malformed CONNECTION_FAILED event:', payload);
+        }
+        break;
+      case 'CONNECTION_STATUS':
+        if (payload?.exchange && payload?.status) {
+          this.exchangeStatus[payload.exchange as keyof ExchangeConnectionStatus] = payload.status;
+          console.log(`[WorkerManager] ${payload.exchange}: ${payload.status}`);
+          if (this.onConnectionStatus) {
+            this.onConnectionStatus(payload);
+          }
         }
         break;
       case 'DEBUG_LOG':
@@ -117,6 +135,18 @@ export class WorkerManager {
 
   public onCascadeEvent(handler: EventHandler<CascadeEvent>) {
     this.onCascade = handler;
+  }
+
+  public onConnectionStatusEvent(handler: EventHandler<ConnectionStatusPayload>) {
+    this.onConnectionStatus = handler;
+  }
+
+  public getExchangeStatus(): ExchangeConnectionStatus {
+    return { ...this.exchangeStatus };
+  }
+
+  public isAnyExchangeConnected(): boolean {
+    return Object.values(this.exchangeStatus).some(s => s === 'connected');
   }
 }
 

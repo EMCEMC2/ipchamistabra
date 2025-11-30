@@ -213,12 +213,24 @@ class DataProcessor {
   private funding: FundingData | null = null;
   private lastOI: number = 0;
 
+  // Connection status tracking
+  private connectionStatus: { [key: string]: 'connecting' | 'connected' | 'disconnected' | 'failed' } = {
+    binance: 'disconnected',
+    okx: 'disconnected',
+    bybit: 'disconnected'
+  };
+
   constructor() {
     this.log('DataProcessor initialized');
   }
 
   private log(message: string) {
     self.postMessage({ type: 'DEBUG_LOG', payload: { message } });
+  }
+
+  private emitConnectionStatus(exchange: string, status: 'connecting' | 'connected' | 'disconnected' | 'failed') {
+    this.connectionStatus[exchange] = status;
+    self.postMessage({ type: 'CONNECTION_STATUS', payload: { exchange, status } });
   }
 
   public connect() {
@@ -468,19 +480,21 @@ class DataProcessor {
 
   private connectBinance() {
     const connectTrades = (isFallback = false) => {
-        const url = isFallback 
+        const url = isFallback
             ? 'wss://stream.binance.com/ws'
             : 'wss://fstream.binance.com/ws';
-            
+
         this.log(`Connecting to Binance ${isFallback ? 'Spot (Fallback)' : 'Futures'}...`);
+        this.emitConnectionStatus('binance', 'connecting');
         const ws = new WebSocket(url);
-        
+
         ws.onopen = () => {
             this.log(`Binance ${isFallback ? 'Spot' : 'Futures'} Connected`);
+            this.emitConnectionStatus('binance', 'connected');
             const msg = {
                 method: "SUBSCRIBE",
                 params: [
-                    "btcusdt@trade",  // Changed from aggTrade to trade for individual orders
+                    "btcusdt@trade",
                     "btcusdt@forceOrder"
                 ],
                 id: 1
@@ -524,11 +538,15 @@ class DataProcessor {
 
         ws.onclose = () => {
             this.log(`Binance ${isFallback ? 'Spot' : 'Futures'} Closed`);
+            this.emitConnectionStatus('binance', 'disconnected');
             const nextIsFallback = isFallback;
             this.reconnectWithBackoff('binance-trades', () => connectTrades(nextIsFallback));
         };
 
-        ws.onerror = (e) => this.log(`Binance ${isFallback ? 'Spot' : 'Futures'} Error`);
+        ws.onerror = (e) => {
+            this.log(`Binance ${isFallback ? 'Spot' : 'Futures'} Error`);
+            this.emitConnectionStatus('binance', 'failed');
+        };
         this.wsConnections.set('binance-trades', ws);
     };
 
@@ -538,9 +556,11 @@ class DataProcessor {
   private connectOKX() {
       const connect = () => {
           this.log('Connecting to OKX...');
+          this.emitConnectionStatus('okx', 'connecting');
           const ws = new WebSocket('wss://ws.okx.com:8443/ws/v5/public');
           ws.onopen = () => {
               this.log('OKX Connected');
+              this.emitConnectionStatus('okx', 'connected');
               ws.send(JSON.stringify({ op: 'subscribe', args: [{ channel: 'trades', instId: 'BTC-USDT-SWAP' }] }));
           };
           ws.onmessage = (e) => {
@@ -564,7 +584,12 @@ class DataProcessor {
           };
           ws.onclose = () => {
               this.log('OKX Closed');
+              this.emitConnectionStatus('okx', 'disconnected');
               this.reconnectWithBackoff('okx', connect);
+          };
+          ws.onerror = () => {
+              this.log('OKX Error');
+              this.emitConnectionStatus('okx', 'failed');
           };
           this.wsConnections.set('okx', ws);
       };
@@ -574,9 +599,11 @@ class DataProcessor {
   private connectBybit() {
       const connect = () => {
           this.log('Connecting to Bybit...');
+          this.emitConnectionStatus('bybit', 'connecting');
           const ws = new WebSocket('wss://stream.bybit.com/v5/public/linear');
           ws.onopen = () => {
               this.log('Bybit Connected');
+              this.emitConnectionStatus('bybit', 'connected');
               ws.send(JSON.stringify({ op: 'subscribe', args: ['publicTrade.BTCUSDT', 'liquidation.BTCUSDT'] }));
           };
           ws.onmessage = (e) => {
@@ -612,7 +639,12 @@ class DataProcessor {
           };
           ws.onclose = () => {
               this.log('Bybit Closed');
+              this.emitConnectionStatus('bybit', 'disconnected');
               this.reconnectWithBackoff('bybit', connect);
+          };
+          ws.onerror = () => {
+              this.log('Bybit Error');
+              this.emitConnectionStatus('bybit', 'failed');
           };
           this.wsConnections.set('bybit', ws);
       };

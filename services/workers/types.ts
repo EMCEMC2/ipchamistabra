@@ -9,6 +9,7 @@ export type WorkerMessageType =
   | 'LARGE_TRADE_EVENT'
   | 'CASCADE_EVENT'
   | 'CONNECTION_FAILED'
+  | 'CONNECTION_STATUS'
   | 'DEBUG_LOG';
 
 export interface WorkerMessage {
@@ -42,4 +43,15 @@ export interface CascadeEventPayload {
 export interface ConnectionFailedPayload {
   exchange: string;
   maxAttempts: number;
+}
+
+export interface ConnectionStatusPayload {
+  exchange: string;
+  status: 'connecting' | 'connected' | 'disconnected' | 'failed';
+}
+
+export interface ExchangeConnectionStatus {
+  binance: 'connecting' | 'connected' | 'disconnected' | 'failed';
+  okx: 'connecting' | 'connected' | 'disconnected' | 'failed';
+  bybit: 'connecting' | 'connected' | 'disconnected' | 'failed';
 }
