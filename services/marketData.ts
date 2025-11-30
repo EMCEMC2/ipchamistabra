@@ -16,6 +16,10 @@ import { aggrService } from './aggrService';
 let tradingWorker: Worker | null = null;
 const pendingRequests = new Map<string, { resolve: (value: any) => void, reject: (reason?: any) => void }>();
 
+// CRITICAL: lastSignalBar state is now managed by the Zustand store
+// This ensures the worker is stateless and signal generation is deterministic
+// See useStore.ts: lastSignalBar, setLastSignalBar
+
 const getWorker = () => {
     if (!tradingWorker) {
         tradingWorker = new Worker(new URL('./tradingWorker.ts', import.meta.url), { type: 'module' });
@@ -168,25 +172,56 @@ export const fetchSignals = async () => {
         const orderFlowStats = aggrService.getStats();
 
         // Step 2: Offload to Web Worker (Singleton)
-        const runWorkerTask = () => new Promise<{ tacticalResult: any; consensusData: any }>((resolve, reject) => {
+        // CRITICAL: Worker is stateless - we pass lastSignalBar IN and receive it OUT
+        const WORKER_TIMEOUT_MS = 30000; // 30 second timeout
+
+        const runWorkerTask = () => new Promise<{ tacticalResult: any; consensusData: any; lastSignalBar: number }>((resolve, reject) => {
             const worker = getWorker();
             const requestId = Math.random().toString(36).substr(2, 9);
-            
-            pendingRequests.set(requestId, { resolve, reject });
+
+            // Timeout mechanism to prevent hung requests
+            const timeoutId = setTimeout(() => {
+                if (pendingRequests.has(requestId)) {
+                    pendingRequests.delete(requestId);
+                    console.error(`[Worker] Request ${requestId} timed out after ${WORKER_TIMEOUT_MS}ms`);
+                    reject(new Error('Worker request timeout'));
+                }
+            }, WORKER_TIMEOUT_MS);
+
+            // Wrap resolve/reject to clear timeout
+            pendingRequests.set(requestId, {
+                resolve: (value) => {
+                    clearTimeout(timeoutId);
+                    resolve(value);
+                },
+                reject: (reason) => {
+                    clearTimeout(timeoutId);
+                    reject(reason);
+                }
+            });
 
             // Send snapshot of state needed for calculation
+            // Pass lastSignalBar from store IN - worker will return updated value OUT
+            const currentState = useStore.getState();
             worker.postMessage({
                 type: 'GENERATE_SIGNALS',
                 payload: {
                     chartData,
                     orderFlowStats,
-                    state: JSON.parse(JSON.stringify(useStore.getState()))
+                    state: JSON.parse(JSON.stringify(currentState)),
+                    lastSignalBar: currentState.lastSignalBar // Pass state IN from store
                 },
                 requestId
             });
         });
 
-        const { tacticalResult, consensusData } = await runWorkerTask();
+        const { tacticalResult, consensusData, lastSignalBar: newLastSignalBar } = await runWorkerTask();
+
+        // CRITICAL: Persist the returned state to Zustand store
+        // This keeps the worker stateless while maintaining signal generation continuity
+        if (typeof newLastSignalBar === 'number' && Number.isFinite(newLastSignalBar)) {
+            useStore.getState().setLastSignalBar(newLastSignalBar);
+        }
 
         if (import.meta.env.DEV) {
             console.log('[Signal Gen] Worker Result:', {

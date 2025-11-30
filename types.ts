@@ -51,8 +51,12 @@ export interface TradeSignal {
   confidence: number; // 0-100
   regime: 'LOW_VOL' | 'NORMAL' | 'HIGH_VOL' | 'TRENDING'; // New Field: Aligns with Pine Script
   reasoning: string;
-  status: 'SCANNING' | 'ACTIVE' | 'FILLED' | 'COMPLETED' | 'STOPPED' | 'CLOSED';
+  status: 'SCANNING' | 'ACTIVE' | 'FILLED' | 'COMPLETED' | 'STOPPED' | 'CLOSED' | 'INVALIDATED' | 'EXPIRED';
   timestamp: number;
+  // Signal origin and approval status (AI Safety Gate)
+  source: 'tactical' | 'ai' | 'hybrid'; // Where signal originated
+  approvalStatus: 'active' | 'pending_review'; // Human approval status
+  approvedAt?: number; // Timestamp of human approval
   // Stage 2: Transparent AI
   consensus?: {
     votes: AgentVote[];
@@ -73,7 +77,11 @@ export const TradeSignalSchema = z.object({
   regime: z.enum(['LOW_VOL', 'NORMAL', 'HIGH_VOL', 'TRENDING']),
   reasoning: z.string(),
   timestamp: z.number().optional(),
-  status: z.enum(['SCANNING', 'ACTIVE', 'FILLED', 'COMPLETED', 'STOPPED', 'CLOSED'])
+  status: z.enum(['SCANNING', 'ACTIVE', 'FILLED', 'COMPLETED', 'STOPPED', 'CLOSED', 'INVALIDATED', 'EXPIRED']),
+  // AI Safety Gate fields
+  source: z.enum(['tactical', 'ai', 'hybrid']).optional(),
+  approvalStatus: z.enum(['active', 'pending_review']).optional(),
+  approvedAt: z.number().optional()
 });
 
 export interface GroundingSource {

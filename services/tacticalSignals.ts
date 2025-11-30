@@ -142,7 +142,10 @@ export function generateTacticalSignal(
   const emaSlow_High = calculateEMA(closes, 39);
 
   const ema200 = calculateEMA(closes, 200);
-  const rsi = calculateRSI(closes, 14);
+  const rsiRaw = calculateRSI(closes, 14);
+  // RSI array is shorter than closes by `period` elements
+  // Pad with NaN at the start so rsi[i] aligns with closes[i]
+  const rsi = new Array(14).fill(NaN).concat(rsiRaw);
 
   // Regime detection
   const tr = calculateTR(chartData);
@@ -195,22 +198,23 @@ export function generateTacticalSignal(
     reasoning.push(`Fast EMA < Slow EMA (aligned bearish) +1.5 bear`);
   }
 
-  // 3. RSI (0.5-1.0 points)
-  if (rsi[i] > 55) {
+  // 3. RSI (0.5-1.0 points) - with NaN safety
+  const rsiVal = Number.isFinite(rsi[i]) ? rsi[i] : 50; // Default to neutral if NaN
+  if (rsiVal > 55) {
     bullScore += 0.5;
-    reasoning.push(`RSI ${rsi[i].toFixed(1)} > 55 +0.5 bull`);
+    reasoning.push(`RSI ${rsiVal.toFixed(1)} > 55 +0.5 bull`);
   }
-  if (rsi[i] < 45) {
+  if (rsiVal < 45) {
     bearScore += 0.5;
-    reasoning.push(`RSI ${rsi[i].toFixed(1)} < 45 +0.5 bear`);
+    reasoning.push(`RSI ${rsiVal.toFixed(1)} < 45 +0.5 bear`);
   }
-  if (rsi[i] > 65) {
+  if (rsiVal > 65) {
     bullScore += 0.5;
-    reasoning.push(`RSI ${rsi[i].toFixed(1)} > 65 +0.5 bull (strong)`);
+    reasoning.push(`RSI ${rsiVal.toFixed(1)} > 65 +0.5 bull (strong)`);
   }
-  if (rsi[i] < 35) {
+  if (rsiVal < 35) {
     bearScore += 0.5;
-    reasoning.push(`RSI ${rsi[i].toFixed(1)} < 35 +0.5 bear (strong)`);
+    reasoning.push(`RSI ${rsiVal.toFixed(1)} < 35 +0.5 bear (strong)`);
   }
 
   // 4. Crossover (2.5 points) - strongest signal
@@ -237,53 +241,63 @@ export function generateTacticalSignal(
 
   // ORDER FLOW INTEGRATION (NEW)
   if (config.useOrderFlow && orderFlowStats) {
-    try {
-      const flowSignal = generateTradingSignal(orderFlowStats);
-      const cvdAnalysis = analyzeCVD(orderFlowStats);
+    // Check if order flow is banned/rate-limited before using stale data
+    if (orderFlowStats.banned?.isBanned) {
+      const remainingMin = orderFlowStats.banned.remainingMinutes ?? 0;
+      reasoning.push(`[ORDER FLOW] Data unavailable (rate limit, ~${remainingMin}min remaining). Proceeding without flow analysis.`);
+    } else if (orderFlowStats.lastUpdate && (Date.now() - orderFlowStats.lastUpdate) > 30000) {
+      // Staleness check: Skip order flow if data is older than 30 seconds
+      const staleSecs = Math.floor((Date.now() - orderFlowStats.lastUpdate) / 1000);
+      reasoning.push(`[ORDER FLOW] Data stale (${staleSecs}s old, threshold: 30s). Proceeding without flow analysis.`);
+    } else {
+      try {
+        const flowSignal = generateTradingSignal(orderFlowStats);
+        const cvdAnalysis = analyzeCVD(orderFlowStats);
 
-      // Add order flow confluence to scores
-      if (flowSignal.type === 'LONG' && flowSignal.confidence > 30) {
-        const flowBoost = (flowSignal.confidence / 100) * config.orderFlowWeight * 6.0; // Max 1.8 pts
-        bullScore += flowBoost;
-        reasoning.push(`Order Flow LONG: +${flowBoost.toFixed(2)} (CVD: ${cvdAnalysis.trend}, Pressure: ${orderFlowStats.pressure.dominantSide})`);
-      } else if (flowSignal.type === 'SHORT' && flowSignal.confidence > 30) {
-        const flowBoost = (flowSignal.confidence / 100) * config.orderFlowWeight * 6.0;
-        bearScore += flowBoost;
-        reasoning.push(`Order Flow SHORT: +${flowBoost.toFixed(2)} (CVD: ${cvdAnalysis.trend}, Pressure: ${orderFlowStats.pressure.dominantSide})`);
-      }
-
-      // CRITICAL: Liquidation cascade override
-      if (orderFlowStats.liquidationVolume > 50000000) {
-        const longLiqs = orderFlowStats.recentLiquidations.filter(l => l.side === 'long').length;
-        const shortLiqs = orderFlowStats.recentLiquidations.filter(l => l.side === 'short').length;
-
-        if (longLiqs > shortLiqs * 2 && longLiqs > 5) {
-          // Massive long liquidations → bearish override
-          bearScore += 3.0;
-          reasoning.push(`⚠️ LIQUIDATION CASCADE: ${longLiqs} long liqs ($${(orderFlowStats.liquidationVolume / 1000000).toFixed(1)}M) → BEARISH`);
-        } else if (shortLiqs > longLiqs * 2 && shortLiqs > 5) {
-          // Massive short liquidations → bullish override
-          bullScore += 3.0;
-          reasoning.push(`⚠️ SHORT SQUEEZE: ${shortLiqs} short liqs ($${(orderFlowStats.liquidationVolume / 1000000).toFixed(1)}M) → BULLISH`);
+        // Add order flow confluence to scores
+        if (flowSignal.type === 'LONG' && flowSignal.confidence > 30) {
+          const flowBoost = (flowSignal.confidence / 100) * config.orderFlowWeight * 6.0; // Max 1.8 pts
+          bullScore += flowBoost;
+          reasoning.push(`Order Flow LONG: +${flowBoost.toFixed(2)} (CVD: ${cvdAnalysis.trend}, Pressure: ${orderFlowStats.pressure.dominantSide})`);
+        } else if (flowSignal.type === 'SHORT' && flowSignal.confidence > 30) {
+          const flowBoost = (flowSignal.confidence / 100) * config.orderFlowWeight * 6.0;
+          bearScore += flowBoost;
+          reasoning.push(`Order Flow SHORT: +${flowBoost.toFixed(2)} (CVD: ${cvdAnalysis.trend}, Pressure: ${orderFlowStats.pressure.dominantSide})`);
         }
-      }
 
-      // Extreme pressure override
-      if (orderFlowStats.pressure.strength === 'extreme') {
-        if (orderFlowStats.pressure.dominantSide === 'buy') {
-          bullScore += 1.5;
-          reasoning.push(`⚡ EXTREME BUY PRESSURE: ${orderFlowStats.pressure.buyPressure.toFixed(1)}% → +1.5 bull`);
-        } else if (orderFlowStats.pressure.dominantSide === 'sell') {
-          bearScore += 1.5;
-          reasoning.push(`⚡ EXTREME SELL PRESSURE: ${orderFlowStats.pressure.sellPressure.toFixed(1)}% → +1.5 bear`);
+        // CRITICAL: Liquidation cascade override
+        if (orderFlowStats.liquidationVolume > 50000000) {
+          const longLiqs = orderFlowStats.recentLiquidations.filter(l => l.side === 'long').length;
+          const shortLiqs = orderFlowStats.recentLiquidations.filter(l => l.side === 'short').length;
+
+          if (longLiqs > shortLiqs * 2 && longLiqs > 5) {
+            // Massive long liquidations -> bearish override
+            bearScore += 3.0;
+            reasoning.push(`LIQUIDATION CASCADE: ${longLiqs} long liqs ($${(orderFlowStats.liquidationVolume / 1000000).toFixed(1)}M) -> BEARISH`);
+          } else if (shortLiqs > longLiqs * 2 && shortLiqs > 5) {
+            // Massive short liquidations -> bullish override
+            bullScore += 3.0;
+            reasoning.push(`SHORT SQUEEZE: ${shortLiqs} short liqs ($${(orderFlowStats.liquidationVolume / 1000000).toFixed(1)}M) -> BULLISH`);
+          }
         }
-      }
 
-      // Update reasoning with final scores after order flow
-      reasoning.push(`Final Scores (with Order Flow): Bull ${bullScore.toFixed(1)} | Bear ${bearScore.toFixed(1)}`);
-    } catch (error) {
-      console.error('[Tactical v2] Order flow integration error:', error);
-      reasoning.push('⚠️ Order flow data unavailable');
+        // Extreme pressure override
+        if (orderFlowStats.pressure.strength === 'extreme') {
+          if (orderFlowStats.pressure.dominantSide === 'buy') {
+            bullScore += 1.5;
+            reasoning.push(`EXTREME BUY PRESSURE: ${orderFlowStats.pressure.buyPressure.toFixed(1)}% -> +1.5 bull`);
+          } else if (orderFlowStats.pressure.dominantSide === 'sell') {
+            bearScore += 1.5;
+            reasoning.push(`EXTREME SELL PRESSURE: ${orderFlowStats.pressure.sellPressure.toFixed(1)}% -> +1.5 bear`);
+          }
+        }
+
+        // Update reasoning with final scores after order flow
+        reasoning.push(`Final Scores (with Order Flow): Bull ${bullScore.toFixed(1)} | Bear ${bearScore.toFixed(1)}`);
+      } catch (error) {
+        console.error('[Tactical v2] Order flow integration error:', error);
+        reasoning.push('[ORDER FLOW] Integration error - proceeding without flow analysis');
+      }
     }
   }
 
@@ -322,7 +336,9 @@ export function generateTacticalSignal(
       regime: regime,
       reasoning: `Tactical v2: ${reasoning.join(' | ')}`,
       status: 'ACTIVE',
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      source: 'tactical', // Rule-based system - trusted
+      approvalStatus: 'active' // No human approval needed for tactical signals
     };
 
     return {
@@ -366,7 +382,9 @@ export function generateTacticalSignal(
       regime: regime,
       reasoning: `Tactical v2: ${reasoning.join(' | ')}`,
       status: 'ACTIVE',
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      source: 'tactical', // Rule-based system - trusted
+      approvalStatus: 'active' // No human approval needed for tactical signals
     };
 
     return {

@@ -203,7 +203,10 @@ export function analyzeExchangeFlow(stats: AggrStats): IntelItem | null {
   const dominant = stats.exchanges[0];
   if (!dominant || dominant.dominance < 40) return null; // Need >40% dominance
 
-  const netFlowPercent = (dominant.netFlow / (dominant.buyVolume + dominant.sellVolume)) * 100;
+  // Guard against divide-by-zero
+  const totalVol = dominant.buyVolume + dominant.sellVolume;
+  if (totalVol === 0) return null;
+  const netFlowPercent = (dominant.netFlow / totalVol) * 100;
 
   if (Math.abs(netFlowPercent) < 20) return null; // Need >20% imbalance
 
@@ -293,14 +296,19 @@ export function generateTradingSignal(stats: AggrStats): TradingSignal {
   // Exchange Flow (10% weight)
   if (stats.exchanges && stats.exchanges.length > 0) {
     const topExchange = stats.exchanges[0];
-    const netFlowPercent = (topExchange.netFlow / (topExchange.buyVolume + topExchange.sellVolume)) * 100;
+    const topExchangeTotalVol = topExchange.buyVolume + topExchange.sellVolume;
 
-    if (netFlowPercent > 15) {
-      score += 10;
-      reasoning.push(`${topExchange.exchange}: +${netFlowPercent.toFixed(1)}% net buying`);
-    } else if (netFlowPercent < -15) {
-      score -= 10;
-      reasoning.push(`${topExchange.exchange}: ${netFlowPercent.toFixed(1)}% net selling`);
+    // Guard against divide-by-zero
+    if (topExchangeTotalVol > 0) {
+      const netFlowPercent = (topExchange.netFlow / topExchangeTotalVol) * 100;
+
+      if (netFlowPercent > 15) {
+        score += 10;
+        reasoning.push(`${topExchange.exchange}: +${netFlowPercent.toFixed(1)}% net buying`);
+      } else if (netFlowPercent < -15) {
+        score -= 10;
+        reasoning.push(`${topExchange.exchange}: ${netFlowPercent.toFixed(1)}% net selling`);
+      }
     }
   }
 

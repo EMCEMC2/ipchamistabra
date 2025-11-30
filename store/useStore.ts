@@ -131,6 +131,7 @@ interface MarketState {
   };
   chartData: ChartDataPoint[];
   signals: TradeSignal[];
+  lastSignalBar: number; // Tracks last bar where signal was generated (for cooldown)
   isScanning: boolean;
   timeframe: string;
   technicals: {
@@ -178,6 +179,7 @@ export interface AppState extends MarketState, UserState, AgentSwarmState {
   setPriceChange: (change: number) => void;
   setChartData: (data: ChartDataPoint[]) => void;
   setSignals: (signals: TradeSignal[]) => void;
+  setLastSignalBar: (bar: number) => void;
   setIsScanning: (isScanning: boolean) => void;
   setTimeframe: (timeframe: string) => void;
   setTechnicals: (technicals: AppState['technicals']) => void;
@@ -207,6 +209,12 @@ export interface AppState extends MarketState, UserState, AgentSwarmState {
 
   // Confluence Weights Actions
   setConfluenceWeights: (weights: Partial<ConfluenceWeights>) => void;
+
+  // AI Signal Approval Action
+  approveSignal: (signalId: string) => void;
+
+  // Signal Auto-Invalidation Action
+  invalidateStaleSignals: () => void;
 
   updateAgentStatus: (role: AgentRole, status: AgentState['status'], log?: string) => void;
   addCouncilLog: (agentName: string, message: string) => void;
@@ -242,6 +250,7 @@ export const useStore = create<AppState>()(
       positions: [],
       journal: [],
       signals: [],
+      lastSignalBar: -999, // Initialize signal bar tracking
       activeTradeSetup: null,
       executionSide: 'LONG', // Default side
       dailyLossLimit: 2500, // Default: 5% of starting balance (50000 * 0.05)
@@ -271,6 +280,7 @@ export const useStore = create<AppState>()(
       setPriceChange: (priceChange) => set({ priceChange }),
       setChartData: (data) => set({ chartData: data }),
       setSignals: (signals) => set({ signals }),
+      setLastSignalBar: (lastSignalBar) => set({ lastSignalBar }),
       setIsScanning: (isScanning) => set({ isScanning }),
       setTimeframe: (timeframe) => set({ timeframe }),
       setTechnicals: (technicals) => set({ technicals }),
@@ -373,6 +383,90 @@ export const useStore = create<AppState>()(
         // Sync with global confluence engine
         setGlobalConfluenceWeights(newWeights);
         return { confluenceWeights: newWeights };
+      }),
+
+      // AI Signal Approval Action - changes pending_review to active
+      approveSignal: (signalId) => set((state) => {
+        const updatedSignals = state.signals.map((signal) => {
+          if (signal.id === signalId && signal.approvalStatus === 'pending_review') {
+            if (import.meta.env.DEV) {
+              console.log('[Store] Signal approved by human:', signalId);
+            }
+            return {
+              ...signal,
+              approvalStatus: 'active' as const,
+              approvedAt: Date.now()
+            };
+          }
+          return signal;
+        });
+        return { signals: updatedSignals };
+      }),
+
+      // Auto-invalidate signals when price moves past stop loss or signals expire
+      invalidateStaleSignals: () => set((state) => {
+        const currentPrice = state.price;
+        const now = Date.now();
+        const ONE_HOUR = 60 * 60 * 1000;
+        const GRACE_PERIOD_MS = 5000; // 5 second grace period for new signals
+
+        const updatedSignals = state.signals.map((signal) => {
+          // Skip already invalidated/expired signals
+          if (signal.status === 'INVALIDATED' || signal.status === 'EXPIRED' ||
+              signal.status === 'FILLED' || signal.status === 'COMPLETED' ||
+              signal.status === 'STOPPED' || signal.status === 'CLOSED') {
+            return signal;
+          }
+
+          // RACE CONDITION FIX: Skip signals that are less than 5 seconds old
+          // This prevents new signals from being immediately invalidated
+          const signalAge = now - signal.timestamp;
+          if (signalAge < GRACE_PERIOD_MS) {
+            return signal;
+          }
+
+          // Parse invalidation (stop loss) price
+          const stopPrice = parseFloat(signal.invalidation);
+          if (isNaN(stopPrice) || currentPrice <= 0) {
+            return signal;
+          }
+
+          // Check if price has hit stop loss (invalidation level)
+          const isLong = signal.type === 'LONG';
+          const hitStop = isLong
+            ? currentPrice <= stopPrice  // LONG: Price fell below stop
+            : currentPrice >= stopPrice; // SHORT: Price rose above stop
+
+          if (hitStop) {
+            if (import.meta.env.DEV) {
+              console.log('[Store] Signal INVALIDATED - price hit stop:', signal.id, {
+                type: signal.type,
+                currentPrice,
+                stopPrice
+              });
+            }
+            return {
+              ...signal,
+              status: 'INVALIDATED' as const
+            };
+          }
+
+          // Check if signal is expired (older than 1 hour)
+          const ageMs = now - signal.timestamp;
+          if (ageMs > ONE_HOUR) {
+            if (import.meta.env.DEV) {
+              console.log('[Store] Signal EXPIRED - older than 1 hour:', signal.id);
+            }
+            return {
+              ...signal,
+              status: 'EXPIRED' as const
+            };
+          }
+
+          return signal;
+        });
+
+        return { signals: updatedSignals };
       }),
 
       updateAgentStatus: (role, status, log) => set((state) => ({

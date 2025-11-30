@@ -63,6 +63,14 @@ export const ChartPanel: React.FC = () => {
     { label: '1D', value: '1d' },
   ];
 
+  // Regime display helper
+  const getRegimeInfo = (regime: number | null) => {
+    if (regime === null) return { label: 'N/A', color: 'text-gray-500', bg: 'bg-gray-500/10', border: 'border-gray-500/30' };
+    if (regime === 0) return { label: 'LOW VOL', color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/30' };
+    if (regime === 2) return { label: 'HIGH VOL', color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/30' };
+    return { label: 'NORMAL', color: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/30' };
+  };
+
   // --- CHART INITIALIZATION ---
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -166,9 +174,9 @@ export const ChartPanel: React.FC = () => {
 
   // --- TACTICAL ENGINE & DATA UPDATE ---
   // 2. Run Tactical Engine (Memoized)
-  const { adaptiveFastData, adaptiveSlowData, ema200Data, markers, clusterLines } = useMemo(() => {
+  const { adaptiveFastData, adaptiveSlowData, ema200Data, markers, clusterLines, currentRegime } = useMemo(() => {
       if (!showTactical || safeData.length === 0) {
-        return { adaptiveFastData: [], adaptiveSlowData: [], ema200Data: [], markers: [], clusterLines: [] };
+        return { adaptiveFastData: [], adaptiveSlowData: [], ema200Data: [], markers: [], clusterLines: [], currentRegime: null };
       }
 
       const closes = safeData.map(d => d.close);
@@ -183,7 +191,7 @@ export const ChartPanel: React.FC = () => {
       const emaSlow_High = calculateEMA(closes, 39);
 
       const ema200Arr = calculateEMA(closes, 200);
-      const rsiArr = calculateRSI(closes, 14);
+      // RSI removed - signal scoring now in tacticalSignals.ts (single source of truth)
 
       // 2b. Calculate Regime
       const tr = calculateTR(safeData);
@@ -195,6 +203,7 @@ export const ChartPanel: React.FC = () => {
       const adaptiveSlow: any[] = [];
       const ema200: any[] = [];
       const newMarkers: SeriesMarker<Time>[] = [];
+      let latestRegime: number | null = null;
 
       // 2d. Support/Resistance Clustering
       const lookback = 100;
@@ -227,20 +236,17 @@ export const ChartPanel: React.FC = () => {
       if (nearestSupp) newClusterLines.push(nearestSupp);
       if (nearestRes) newClusterLines.push(nearestRes);
 
-      // 2e. Iterate for Indicators & Signals
-      let lastSignalTime = -999;
-
+      // 2e. Iterate for Indicators (EMAs for visualization)
+      // Note: Signal generation logic removed - now uses signals from store (single source of truth)
       for (let i = 0; i < safeData.length; i++) {
-        const normATR = atrStd[i] && atrStd[i] > 0 ? (atr[i] - atrSMA[i]) / atrStd[i] : 0;
+        // Explicit NaN handling for regime calculation
+        // atrStd returns NaN for first (period-1) values, so we guard explicitly
+        const isValidATR = Number.isFinite(atrStd[i]) && atrStd[i] > 0 &&
+                           Number.isFinite(atr[i]) && Number.isFinite(atrSMA[i]);
+        const normATR = isValidATR ? (atr[i] - atrSMA[i]) / atrStd[i] : 0;
         const regime = normATR < -0.5 ? 0 : normATR > 1.0 ? 2 : 1;
 
-        let minScore = 4.0;
-        let cooldown = 5;
-
-        if (regime === 0) { minScore = 5.5; cooldown = 12; }
-        else if (regime === 2) { minScore = 4.0; cooldown = 5; }
-        else { minScore = 4.5; cooldown = 8; }
-
+        // Select regime-adaptive EMA values for visualization
         const valFast = regime === 0 ? emaFast_Low[i] : regime === 2 ? emaFast_High[i] : emaFast_Norm[i];
         const valSlow = regime === 0 ? emaSlow_Low[i] : regime === 2 ? emaSlow_High[i] : emaSlow_Norm[i];
 
@@ -248,32 +254,47 @@ export const ChartPanel: React.FC = () => {
         adaptiveSlow.push({ time: safeData[i].time as Time, value: valSlow });
         ema200.push({ time: safeData[i].time as Time, value: ema200Arr[i] });
 
-        if (i > 200) {
-          let bullScore = 0;
-          let bearScore = 0;
+        // Track latest regime for UI display
+        latestRegime = regime;
 
-          if (closes[i] > ema200Arr[i]) bullScore += 1.0; else bearScore += 1.0;
-          if (valFast > valSlow) bullScore += 1.5; else bearScore += 1.5;
+        // NOTE: Signal generation removed from ChartPanel to avoid duplicate logic
+        // Markers are now generated from store signals below
+      }
 
-          const rsiVal = rsiArr[i];
-          if (rsiVal > 55) bullScore += 0.5;
-          if (rsiVal < 45) bearScore += 0.5;
-          if (rsiVal > 65) bullScore += 0.5;
-          if (rsiVal < 35) bearScore += 0.5;
+      // Convert store signals to chart markers (single source of truth)
+      // Timeframe-adaptive tolerance for signal marker placement
+      const toleranceMap: Record<string, number> = {
+        '1m': 120,     // 2 minutes (2 candles)
+        '5m': 600,     // 10 minutes (2 candles)
+        '15m': 1800,   // 30 minutes (2 candles)
+        '1h': 7200,    // 2 hours (2 candles)
+        '4h': 28800,   // 8 hours (2 candles)
+        '1d': 172800   // 2 days (2 candles)
+      };
+      const tolerance = toleranceMap[timeframe] || 3600; // Default 1 hour
 
-          const prevFast = regime === 0 ? emaFast_Low[i - 1] : regime === 2 ? emaFast_High[i - 1] : emaFast_Norm[i - 1];
-          const prevSlow = regime === 0 ? emaSlow_Low[i - 1] : regime === 2 ? emaSlow_High[i - 1] : emaSlow_Norm[i - 1];
+      if (signals && signals.length > 0) {
+        for (const signal of signals) {
+          // Skip invalidated/expired signals
+          if (signal.status === 'INVALIDATED' || signal.status === 'EXPIRED') continue;
 
-          if (prevFast <= prevSlow && valFast > valSlow) bullScore += 2.5;
-          if (prevFast >= prevSlow && valFast < valSlow) bearScore += 2.5;
+          // Find the closest candle to the signal timestamp with timeframe-adaptive tolerance
+          const signalTime = Math.floor(signal.timestamp / 1000);
+          const closestCandle = safeData.find(d => Math.abs((d.time as number) - signalTime) < tolerance);
 
-          const barsSinceLast = i - lastSignalTime;
-          if (bullScore >= minScore && bearScore < 2 && barsSinceLast > cooldown) {
-            newMarkers.push({ time: safeData[i].time as Time, position: 'belowBar', color: '#10b981', shape: 'arrowUp', text: 'BUY' });
-            lastSignalTime = i;
-          } else if (bearScore >= minScore && bullScore < 2 && barsSinceLast > cooldown) {
-            newMarkers.push({ time: safeData[i].time as Time, position: 'aboveBar', color: '#ef4444', shape: 'arrowDown', text: 'SELL' });
-            lastSignalTime = i;
+          if (closestCandle) {
+            const markerColor = signal.type === 'LONG' ? '#10b981' : '#ef4444';
+            const position = signal.type === 'LONG' ? 'belowBar' : 'aboveBar';
+            const shape = signal.type === 'LONG' ? 'arrowUp' : 'arrowDown';
+            const text = signal.type === 'LONG' ? 'BUY' : 'SELL';
+
+            newMarkers.push({
+              time: closestCandle.time as Time,
+              position,
+              color: markerColor,
+              shape,
+              text
+            });
           }
         }
       }
@@ -283,9 +304,10 @@ export const ChartPanel: React.FC = () => {
         adaptiveSlowData: adaptiveSlow,
         ema200Data: ema200,
         markers: newMarkers,
-        clusterLines: newClusterLines
+        clusterLines: newClusterLines,
+        currentRegime: latestRegime
       };
-    }, [safeData, showTactical]);
+    }, [safeData, showTactical, signals, timeframe]);
 
     // 3. Update Series (Effect)
     useEffect(() => {
@@ -488,6 +510,17 @@ export const ChartPanel: React.FC = () => {
               </button>
             ))}
           </div>
+
+          {/* Regime Indicator */}
+          {showTactical && (
+            <div
+              className={`flex items-center gap-1 px-2 py-0.5 rounded-sm border text-[10px] font-medium uppercase ${getRegimeInfo(currentRegime).bg} ${getRegimeInfo(currentRegime).border} ${getRegimeInfo(currentRegime).color}`}
+              title="Current volatility regime based on ATR z-score"
+            >
+              <Activity size={10} />
+              {getRegimeInfo(currentRegime).label}
+            </div>
+          )}
         </div>
 
         <div className="flex gap-2 items-center">
