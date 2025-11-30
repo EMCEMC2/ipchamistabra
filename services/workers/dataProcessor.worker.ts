@@ -791,12 +791,22 @@ class DataProcessor {
   }
 }
 
+// Immediately log that worker script loaded
+console.log('[DataProcessor Worker] Script loaded at', new Date().toISOString());
+self.postMessage({ type: 'DEBUG_LOG', payload: { message: 'Worker script loaded successfully!' } });
+
 const processor = new DataProcessor();
+
+// Send hello message immediately
+self.postMessage({ type: 'DEBUG_LOG', payload: { message: 'DataProcessor instance created, ready to receive CONNECT' } });
 
 self.onmessage = (e: MessageEvent) => {
   const { type } = e.data;
+  self.postMessage({ type: 'DEBUG_LOG', payload: { message: `Received message: ${type}` } });
+
   switch (type) {
     case 'CONNECT':
+      self.postMessage({ type: 'DEBUG_LOG', payload: { message: 'Starting connections to exchanges...' } });
       processor.connect();
       break;
     case 'DISCONNECT':
