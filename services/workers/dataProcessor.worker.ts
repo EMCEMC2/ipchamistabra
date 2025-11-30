@@ -204,9 +204,6 @@ class DataProcessor {
   private reconnectTimeouts: Map<string, NodeJS.Timeout> = new Map();
   private maxReconnectAttempts: number = 10;
 
-  // Keep-alive intervals for exchanges that require ping
-  private keepAliveIntervals: Map<string, NodeJS.Timeout> = new Map();
-
   private updateInterval: NodeJS.Timeout | null = null;
   private enhancedDataInterval: NodeJS.Timeout | null = null;
 
@@ -216,41 +213,12 @@ class DataProcessor {
   private funding: FundingData | null = null;
   private lastOI: number = 0;
 
-  // Connection status tracking
-  private connectionStatus: { [key: string]: 'connecting' | 'connected' | 'disconnected' | 'failed' } = {
-    binance: 'disconnected',
-    okx: 'disconnected',
-    bybit: 'disconnected'
-  };
-
   constructor() {
     this.log('DataProcessor initialized');
   }
 
   private log(message: string) {
     self.postMessage({ type: 'DEBUG_LOG', payload: { message } });
-  }
-
-  private emitConnectionStatus(exchange: string, status: 'connecting' | 'connected' | 'disconnected' | 'failed') {
-    this.connectionStatus[exchange] = status;
-    self.postMessage({ type: 'CONNECTION_STATUS', payload: { exchange, status } });
-  }
-
-  private startKeepAlive(key: string, ws: WebSocket, payload: object, intervalMs: number = 20000) {
-    this.stopKeepAlive(key);
-    this.keepAliveIntervals.set(key, setInterval(() => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(payload));
-      }
-    }, intervalMs));
-  }
-
-  private stopKeepAlive(key: string) {
-    const interval = this.keepAliveIntervals.get(key);
-    if (interval) {
-      clearInterval(interval);
-      this.keepAliveIntervals.delete(key);
-    }
   }
 
   public connect() {
@@ -277,11 +245,6 @@ class DataProcessor {
     }
     this.reconnectTimeouts.clear();
     this.reconnectAttempts.clear();
-
-    // Clear keep-alive intervals
-    for (const [key] of this.keepAliveIntervals) {
-      this.stopKeepAlive(key);
-    }
 
     // Close WS
     for (const [_, ws] of this.wsConnections) {
@@ -505,21 +468,19 @@ class DataProcessor {
 
   private connectBinance() {
     const connectTrades = (isFallback = false) => {
-        const url = isFallback
+        const url = isFallback 
             ? 'wss://stream.binance.com/ws'
             : 'wss://fstream.binance.com/ws';
-
+            
         this.log(`Connecting to Binance ${isFallback ? 'Spot (Fallback)' : 'Futures'}...`);
-        this.emitConnectionStatus('binance', 'connecting');
         const ws = new WebSocket(url);
-
+        
         ws.onopen = () => {
             this.log(`Binance ${isFallback ? 'Spot' : 'Futures'} Connected`);
-            this.emitConnectionStatus('binance', 'connected');
             const msg = {
                 method: "SUBSCRIBE",
                 params: [
-                    "btcusdt@trade",
+                    "btcusdt@trade",  // Changed from aggTrade to trade for individual orders
                     "btcusdt@forceOrder"
                 ],
                 id: 1
@@ -530,26 +491,9 @@ class DataProcessor {
         ws.onmessage = (e) => {
             try {
                 const data = JSON.parse(e.data);
+                if (data.id === 1) return;
 
-                // Log first 30 messages to debug
-                if (this.trades.length < 30) {
-                    this.log(`Binance RAW [${this.trades.length}]: e=${data.e}, T=${data.T}, p=${data.p}, id=${data.id}, result=${data.result}`);
-                }
-
-                // Skip subscription confirmation and ping/pong
-                if (data.id || data.result !== undefined) {
-                    this.log(`Binance SKIP: id=${data.id}, result=${data.result}`);
-                    return;
-                }
-
-                // Trade detection: @trade has e='trade', @aggTrade has e='aggTrade'
-                // Both have T (timestamp), p (price), q (quantity), m (maker side)
-                const isTrade = (data.e === 'trade' || data.e === 'aggTrade') && data.T && data.p && data.q;
-                if (this.trades.length < 30) {
-                    this.log(`Binance CHECK: isTrade=${isTrade}, e=${data.e}`);
-                }
-
-                if (isTrade) {
+                if (data.e === 'trade') {
                     const trade: AggrTrade = {
                         exchange: 'Binance',
                         timestamp: data.T,
@@ -561,12 +505,11 @@ class DataProcessor {
                     };
                     this.processTrade(trade);
                 }
-                // Liquidation detection
-                else if (data.e === 'forceOrder' && data.o) {
+                else if (data.e === 'forceOrder') {
                     const o = data.o;
                     const liq: AggrLiquidation = {
                         exchange: 'Binance',
-                        timestamp: data.o.T || data.E,
+                        timestamp: data.E,
                         price: parseFloat(o.p),
                         amount: parseFloat(o.q),
                         side: o.S === 'SELL' ? 'long' : 'short',
@@ -581,15 +524,11 @@ class DataProcessor {
 
         ws.onclose = () => {
             this.log(`Binance ${isFallback ? 'Spot' : 'Futures'} Closed`);
-            this.emitConnectionStatus('binance', 'disconnected');
             const nextIsFallback = isFallback;
             this.reconnectWithBackoff('binance-trades', () => connectTrades(nextIsFallback));
         };
 
-        ws.onerror = (e) => {
-            this.log(`Binance ${isFallback ? 'Spot' : 'Futures'} Error`);
-            this.emitConnectionStatus('binance', 'failed');
-        };
+        ws.onerror = (e) => this.log(`Binance ${isFallback ? 'Spot' : 'Futures'} Error`);
         this.wsConnections.set('binance-trades', ws);
     };
 
@@ -599,22 +538,15 @@ class DataProcessor {
   private connectOKX() {
       const connect = () => {
           this.log('Connecting to OKX...');
-          this.emitConnectionStatus('okx', 'connecting');
           const ws = new WebSocket('wss://ws.okx.com:8443/ws/v5/public');
           ws.onopen = () => {
               this.log('OKX Connected');
-              this.emitConnectionStatus('okx', 'connected');
               ws.send(JSON.stringify({ op: 'subscribe', args: [{ channel: 'trades', instId: 'BTC-USDT-SWAP' }] }));
           };
           ws.onmessage = (e) => {
               try {
                   const data = JSON.parse(e.data);
-                  // Log first few messages for debugging
-                  if (this.trades.length < 10) {
-                      this.log(`OKX msg: ${JSON.stringify(data).substring(0, 200)}`);
-                  }
-
-                  if (data.data && Array.isArray(data.data)) {
+                  if (data.data) {
                       data.data.forEach((d: any) => {
                           const trade: AggrTrade = {
                               exchange: 'OKX',
@@ -628,18 +560,11 @@ class DataProcessor {
                           this.processTrade(trade);
                       });
                   }
-              } catch (err) {
-                  this.log(`OKX Parse Error: ${err}`);
-              }
+              } catch (err) {}
           };
           ws.onclose = () => {
               this.log('OKX Closed');
-              this.emitConnectionStatus('okx', 'disconnected');
               this.reconnectWithBackoff('okx', connect);
-          };
-          ws.onerror = () => {
-              this.log('OKX Error');
-              this.emitConnectionStatus('okx', 'failed');
           };
           this.wsConnections.set('okx', ws);
       };
@@ -649,25 +574,15 @@ class DataProcessor {
   private connectBybit() {
       const connect = () => {
           this.log('Connecting to Bybit...');
-          this.emitConnectionStatus('bybit', 'connecting');
           const ws = new WebSocket('wss://stream.bybit.com/v5/public/linear');
           ws.onopen = () => {
               this.log('Bybit Connected');
-              this.emitConnectionStatus('bybit', 'connected');
-              ws.send(JSON.stringify({ op: 'subscribe', args: ['publicTrade.BTCUSDT', 'allLiquidation.BTCUSDT'] }));
-
-              // Bybit requires keep-alive ping every 20 seconds
-              this.startKeepAlive('bybit', ws, { op: 'ping' }, 20000);
+              ws.send(JSON.stringify({ op: 'subscribe', args: ['publicTrade.BTCUSDT', 'liquidation.BTCUSDT'] }));
           };
           ws.onmessage = (e) => {
               try {
                   const data = JSON.parse(e.data);
-                  // Log first few messages for debugging
-                  if (this.trades.length < 15) {
-                      this.log(`Bybit msg: ${JSON.stringify(data).substring(0, 200)}`);
-                  }
-
-                  if (data.topic === 'publicTrade.BTCUSDT' && data.data && Array.isArray(data.data)) {
+                  if (data.topic === 'publicTrade.BTCUSDT' && data.data) {
                       data.data.forEach((d: any) => {
                           const trade: AggrTrade = {
                               exchange: 'Bybit',
@@ -681,7 +596,7 @@ class DataProcessor {
                           this.processTrade(trade);
                       });
                   }
-                  if (data.topic === 'allLiquidation.BTCUSDT' && data.data) {
+                  if (data.topic === 'liquidation.BTCUSDT' && data.data) {
                       const d = data.data;
                       const liq: AggrLiquidation = {
                           exchange: 'Bybit',
@@ -697,14 +612,7 @@ class DataProcessor {
           };
           ws.onclose = () => {
               this.log('Bybit Closed');
-              this.stopKeepAlive('bybit');
-              this.emitConnectionStatus('bybit', 'disconnected');
               this.reconnectWithBackoff('bybit', connect);
-          };
-          ws.onerror = () => {
-              this.log('Bybit Error');
-              this.stopKeepAlive('bybit');
-              this.emitConnectionStatus('bybit', 'failed');
           };
           this.wsConnections.set('bybit', ws);
       };
@@ -791,22 +699,12 @@ class DataProcessor {
   }
 }
 
-// Immediately log that worker script loaded
-console.log('[DataProcessor Worker] Script loaded at', new Date().toISOString());
-self.postMessage({ type: 'DEBUG_LOG', payload: { message: 'Worker script loaded successfully!' } });
-
 const processor = new DataProcessor();
-
-// Send hello message immediately
-self.postMessage({ type: 'DEBUG_LOG', payload: { message: 'DataProcessor instance created, ready to receive CONNECT' } });
 
 self.onmessage = (e: MessageEvent) => {
   const { type } = e.data;
-  self.postMessage({ type: 'DEBUG_LOG', payload: { message: `Received message: ${type}` } });
-
   switch (type) {
     case 'CONNECT':
-      self.postMessage({ type: 'DEBUG_LOG', payload: { message: 'Starting connections to exchanges...' } });
       processor.connect();
       break;
     case 'DISCONNECT':
