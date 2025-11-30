@@ -530,17 +530,26 @@ class DataProcessor {
         ws.onmessage = (e) => {
             try {
                 const data = JSON.parse(e.data);
-                // Skip subscription confirmation and ping/pong
-                if (data.id || data.result !== undefined) return;
 
-                // Log first few messages for debugging
-                if (this.trades.length < 5) {
-                    this.log(`Binance msg: ${JSON.stringify(data).substring(0, 200)}`);
+                // Log first 30 messages to debug
+                if (this.trades.length < 30) {
+                    this.log(`Binance RAW [${this.trades.length}]: e=${data.e}, T=${data.T}, p=${data.p}, id=${data.id}, result=${data.result}`);
+                }
+
+                // Skip subscription confirmation and ping/pong
+                if (data.id || data.result !== undefined) {
+                    this.log(`Binance SKIP: id=${data.id}, result=${data.result}`);
+                    return;
                 }
 
                 // Trade detection: @trade has e='trade', @aggTrade has e='aggTrade'
                 // Both have T (timestamp), p (price), q (quantity), m (maker side)
-                if ((data.e === 'trade' || data.e === 'aggTrade') && data.T && data.p && data.q) {
+                const isTrade = (data.e === 'trade' || data.e === 'aggTrade') && data.T && data.p && data.q;
+                if (this.trades.length < 30) {
+                    this.log(`Binance CHECK: isTrade=${isTrade}, e=${data.e}`);
+                }
+
+                if (isTrade) {
                     const trade: AggrTrade = {
                         exchange: 'Binance',
                         timestamp: data.T,
