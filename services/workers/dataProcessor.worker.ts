@@ -530,12 +530,17 @@ class DataProcessor {
         ws.onmessage = (e) => {
             try {
                 const data = JSON.parse(e.data);
-                // Skip subscription confirmation
-                if (data.id === 1 || data.result === null) return;
+                // Skip subscription confirmation and ping/pong
+                if (data.id || data.result !== undefined) return;
 
-                // Trade detection: check for timestamp T and ensure it's a MARKET order (not json.e)
-                // Based on aggr-master: json.T && (!json.X || json.X === 'MARKET')
-                if (data.T && data.p && data.q && (!data.X || data.X === 'MARKET')) {
+                // Log first few messages for debugging
+                if (this.trades.length < 5) {
+                    this.log(`Binance msg: ${JSON.stringify(data).substring(0, 200)}`);
+                }
+
+                // Trade detection: @trade has e='trade', @aggTrade has e='aggTrade'
+                // Both have T (timestamp), p (price), q (quantity), m (maker side)
+                if ((data.e === 'trade' || data.e === 'aggTrade') && data.T && data.p && data.q) {
                     const trade: AggrTrade = {
                         exchange: 'Binance',
                         timestamp: data.T,
@@ -595,7 +600,12 @@ class DataProcessor {
           ws.onmessage = (e) => {
               try {
                   const data = JSON.parse(e.data);
-                  if (data.data) {
+                  // Log first few messages for debugging
+                  if (this.trades.length < 10) {
+                      this.log(`OKX msg: ${JSON.stringify(data).substring(0, 200)}`);
+                  }
+
+                  if (data.data && Array.isArray(data.data)) {
                       data.data.forEach((d: any) => {
                           const trade: AggrTrade = {
                               exchange: 'OKX',
@@ -609,7 +619,9 @@ class DataProcessor {
                           this.processTrade(trade);
                       });
                   }
-              } catch (err) {}
+              } catch (err) {
+                  this.log(`OKX Parse Error: ${err}`);
+              }
           };
           ws.onclose = () => {
               this.log('OKX Closed');
@@ -641,7 +653,12 @@ class DataProcessor {
           ws.onmessage = (e) => {
               try {
                   const data = JSON.parse(e.data);
-                  if (data.topic === 'publicTrade.BTCUSDT' && data.data) {
+                  // Log first few messages for debugging
+                  if (this.trades.length < 15) {
+                      this.log(`Bybit msg: ${JSON.stringify(data).substring(0, 200)}`);
+                  }
+
+                  if (data.topic === 'publicTrade.BTCUSDT' && data.data && Array.isArray(data.data)) {
                       data.data.forEach((d: any) => {
                           const trade: AggrTrade = {
                               exchange: 'Bybit',
