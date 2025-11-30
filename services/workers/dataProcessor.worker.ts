@@ -204,6 +204,9 @@ class DataProcessor {
   private reconnectTimeouts: Map<string, NodeJS.Timeout> = new Map();
   private maxReconnectAttempts: number = 10;
 
+  // Keep-alive intervals for exchanges that require ping
+  private keepAliveIntervals: Map<string, NodeJS.Timeout> = new Map();
+
   private updateInterval: NodeJS.Timeout | null = null;
   private enhancedDataInterval: NodeJS.Timeout | null = null;
 
@@ -233,6 +236,23 @@ class DataProcessor {
     self.postMessage({ type: 'CONNECTION_STATUS', payload: { exchange, status } });
   }
 
+  private startKeepAlive(key: string, ws: WebSocket, payload: object, intervalMs: number = 20000) {
+    this.stopKeepAlive(key);
+    this.keepAliveIntervals.set(key, setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(payload));
+      }
+    }, intervalMs));
+  }
+
+  private stopKeepAlive(key: string) {
+    const interval = this.keepAliveIntervals.get(key);
+    if (interval) {
+      clearInterval(interval);
+      this.keepAliveIntervals.delete(key);
+    }
+  }
+
   public connect() {
     this.log('Starting connections...');
     this.connectBinance();
@@ -257,6 +277,11 @@ class DataProcessor {
     }
     this.reconnectTimeouts.clear();
     this.reconnectAttempts.clear();
+
+    // Clear keep-alive intervals
+    for (const [key] of this.keepAliveIntervals) {
+      this.stopKeepAlive(key);
+    }
 
     // Close WS
     for (const [_, ws] of this.wsConnections) {
@@ -605,6 +630,9 @@ class DataProcessor {
               this.log('Bybit Connected');
               this.emitConnectionStatus('bybit', 'connected');
               ws.send(JSON.stringify({ op: 'subscribe', args: ['publicTrade.BTCUSDT', 'liquidation.BTCUSDT'] }));
+
+              // Bybit requires keep-alive ping every 20 seconds
+              this.startKeepAlive('bybit', ws, { op: 'ping' }, 20000);
           };
           ws.onmessage = (e) => {
               try {
@@ -639,11 +667,13 @@ class DataProcessor {
           };
           ws.onclose = () => {
               this.log('Bybit Closed');
+              this.stopKeepAlive('bybit');
               this.emitConnectionStatus('bybit', 'disconnected');
               this.reconnectWithBackoff('bybit', connect);
           };
           ws.onerror = () => {
               this.log('Bybit Error');
+              this.stopKeepAlive('bybit');
               this.emitConnectionStatus('bybit', 'failed');
           };
           this.wsConnections.set('bybit', ws);
