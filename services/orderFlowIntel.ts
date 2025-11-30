@@ -36,6 +36,8 @@ class OrderFlowIntelService {
   private pollInterval: NodeJS.Timeout | null = null;
   private oiPollInterval: NodeJS.Timeout | null = null;
   private isConnected: boolean = false;
+  private isBanned: boolean = false;
+  private banExpiryTime: number = 0;
 
   // Liquidation history cache (persists across polls for 10 mins)
   private liquidationHistory: AggrLiquidation[] = [];
@@ -59,11 +61,11 @@ class OrderFlowIntelService {
     // Initial fetch
     await this.fetchAllData();
 
-    // Poll aggregated trades every 2 seconds
-    this.pollInterval = setInterval(() => this.fetchTradeData(), 2000);
+    // Poll aggregated trades every 10 seconds (was 2s - caused IP ban)
+    this.pollInterval = setInterval(() => this.fetchTradeData(), 10000);
 
-    // Poll OI/LS ratio/funding every 30 seconds
-    this.oiPollInterval = setInterval(() => this.fetchEnhancedData(), 30000);
+    // Poll OI/LS ratio/funding every 60 seconds (was 30s)
+    this.oiPollInterval = setInterval(() => this.fetchEnhancedData(), 60000);
   }
 
   disconnect(): void {
@@ -92,6 +94,21 @@ class OrderFlowIntelService {
 
   private async fetchTradeData(): Promise<void> {
     try {
+      // Check if we're still banned
+      if (this.isBanned && Date.now() < this.banExpiryTime) {
+        const remainingMinutes = Math.ceil((this.banExpiryTime - Date.now()) / 60000);
+        console.log(`[OrderFlowIntel] Still banned. ${remainingMinutes} minutes remaining.`);
+        this.broadcastEmptyStats();
+        return;
+      }
+
+      // Reset ban status if time has passed
+      if (this.isBanned && Date.now() >= this.banExpiryTime) {
+        console.log('[OrderFlowIntel] Ban expired. Resuming data fetch...');
+        this.isBanned = false;
+        this.banExpiryTime = 0;
+      }
+
       const endTime = Date.now();
       const startTime = endTime - 60000; // 1 minute of trades
 
@@ -102,6 +119,34 @@ class OrderFlowIntelService {
 
       const trades = await tradesRes.json();
       const liquidations = await liqsRes.json();
+
+      // Check for API ban
+      if (trades.code === -1003) {
+        // Validate timestamp extraction from error message
+        const timestampMatch = trades.msg.match(/\d{13}/);
+
+        if (!timestampMatch) {
+          console.error('[OrderFlowIntel] Unable to parse ban expiry time from message:', trades.msg);
+          const defaultBanEnd = Date.now() + 3600000; // 1 hour default
+          const banUntil = new Date(defaultBanEnd);
+          this.isBanned = true;
+          this.banExpiryTime = defaultBanEnd;
+          const remainingMinutes = Math.ceil((defaultBanEnd - Date.now()) / 60000);
+          console.error(`[OrderFlowIntel] IP BANNED until ${banUntil.toLocaleString()} (default 1 hour). ${remainingMinutes} minutes remaining.`);
+          this.broadcastEmptyStats(defaultBanEnd);
+          return;
+        }
+
+        const banUntilMs = parseInt(timestampMatch[0]);
+        const banUntil = new Date(banUntilMs);
+        this.isBanned = true;
+        this.banExpiryTime = banUntilMs;
+        const remainingMinutes = Math.ceil((banUntilMs - Date.now()) / 60000);
+        console.error(`[OrderFlowIntel] IP BANNED until ${banUntil.toLocaleString()}. ${remainingMinutes} minutes remaining.`);
+        // Broadcast stats with ban information to notify UI
+        this.broadcastEmptyStats(banUntilMs);
+        return;
+      }
 
       if (Array.isArray(trades)) {
         const stats = this.processTradeData(trades, Array.isArray(liquidations) ? liquidations : []);
@@ -114,7 +159,7 @@ class OrderFlowIntelService {
     }
   }
 
-  private broadcastEmptyStats(): void {
+  private broadcastEmptyStats(bannedUntil?: number): void {
     const emptyStats: AggrStats = {
       totalVolume: 0,
       buyVolume: 0,
@@ -126,7 +171,12 @@ class OrderFlowIntelService {
       pressure: { buyPressure: 50, sellPressure: 50, netPressure: 0, dominantSide: 'neutral', strength: 'weak' },
       exchanges: [],
       recentLiquidations: [],
-      recentLargeTrades: []
+      recentLargeTrades: [],
+      banned: bannedUntil ? {
+        isBanned: true,
+        expiryTime: bannedUntil,
+        remainingMinutes: Math.ceil((bannedUntil - Date.now()) / 60000)
+      } : undefined
     };
     this.lastStats = emptyStats;
     this.broadcastStats(emptyStats);
@@ -148,18 +198,30 @@ class OrderFlowIntelService {
 
       // Process Open Interest
       if (oi && oi.openInterest) {
-        const newOI: OpenInterestData = {
-          openInterest: parseFloat(oi.openInterest),
-          openInterestUsd: parseFloat(oi.openInterest) * (this.lastStats?.cvd?.buyVolume || 0) / 1000000 || 0,
-          change1h: this.calculateOIChange(parseFloat(oi.openInterest)),
-          timestamp: Date.now()
-        };
+        const currentOI = parseFloat(oi.openInterest);
 
-        // Get current price for USD calculation
-        if (this.lastStats) {
-          this.lastStats.openInterest = newOI;
+        // Guard against NaN from malformed API response
+        if (isNaN(currentOI) || currentOI < 0) {
+          console.warn('[OrderFlowIntel] Invalid OI data, skipping update:', oi.openInterest);
+        } else {
+          // Get current BTC price from recent trades/liquidations
+          const btcPrice = this.lastStats?.recentLargeTrades?.[0]?.price
+            || this.lastStats?.recentLiquidations?.[0]?.price
+            || 95000; // Fallback to approximate price if no trades yet
+
+          const newOI: OpenInterestData = {
+            openInterest: currentOI,
+            openInterestUsd: currentOI * btcPrice,
+            change1h: this.calculateOIChange(currentOI),
+            timestamp: Date.now()
+          };
+
+          // Get current price for USD calculation
+          if (this.lastStats) {
+            this.lastStats.openInterest = newOI;
+          }
+          this.lastOpenInterest = newOI;
         }
-        this.lastOpenInterest = newOI;
       }
 
       // Process Long/Short Ratio
@@ -185,15 +247,20 @@ class OrderFlowIntelService {
         const fr = funding[0];
         const rate = parseFloat(fr.fundingRate);
 
-        const fundingData: FundingData = {
-          rate: rate,
-          predictedRate: rate, // API doesn't provide predicted
-          nextFundingTime: parseInt(fr.fundingTime),
-          annualizedRate: rate * 3 * 365 * 100 // 3 fundings per day
-        };
+        // Guard against NaN from malformed API response
+        if (isNaN(rate)) {
+          console.warn('[OrderFlowIntel] Invalid funding rate, skipping update:', fr.fundingRate);
+        } else {
+          const fundingData: FundingData = {
+            rate: rate,
+            predictedRate: rate, // API doesn't provide predicted
+            nextFundingTime: parseInt(fr.fundingTime),
+            annualizedRate: rate * 3 * 365 * 100 // 3 fundings per day
+          };
 
-        if (this.lastStats) {
-          this.lastStats.funding = fundingData;
+          if (this.lastStats) {
+            this.lastStats.funding = fundingData;
+          }
         }
       }
 

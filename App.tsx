@@ -1,26 +1,26 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Terminal, Layout, Users, Brain, BookOpen, LineChart, Target, Globe } from 'lucide-react';
+import { Terminal, Layout, Users, Brain, BookOpen, LineChart } from 'lucide-react';
 import { ChartPanel } from './components/ChartPanel';
+import { AiTacticalBot } from './components/AiTacticalBot';
 import { IntelDeck } from './components/IntelDeck';
 import { MLCortex } from './components/MLCortex';
 import { AgentSwarm } from './components/AgentSwarm/SwarmCore';
 import { ActiveSignals } from './components/ActiveSignals';
-import { ExecutionPanelPro } from './components/ExecutionPanelPro';
 import { PositionsPanel } from './components/PositionsPanel';
 import { TradeJournal } from './components/TradeJournal';
 import { BacktestPanel } from './components/BacktestPanel';
 import { AggrOrderFlow } from './components/AggrOrderFlow';
 import { AiCommandCenter } from './components/AiCommandCenter';
-import { startMarketDataSync, fetchChartData, fetchSignals } from './services/marketData';
+import { startMarketDataSync, fetchChartData } from './services/marketData';
 import { calculateRSI, calculateATR, calculateADX, calculateEMA, calculateMACD } from './utils/technicalAnalysis';
 import { BinancePriceFeed } from './services/websocket';
 import { useStore } from './store/useStore';
-import { ChartDataPoint, TradeSignal } from './types';
+import { TradeSignal } from './types';
 import { BlockedBanner } from './components/BlockedBanner';
-import { ErrorBoundary } from './components/ErrorBoundary';
 import { usePositionMonitor } from './hooks/usePositionMonitor';
 import { aggrService } from './services/aggrService';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { captureError } from './services/errorMonitor';
 
 type ViewMode = 'TERMINAL' | 'SWARM' | 'CORTEX' | 'JOURNAL' | 'BACKTEST' | 'LIVEFEED';
 
@@ -93,8 +93,24 @@ function App() {
   // WebSocket Connection
   useEffect(() => {
     const ws = binanceWS.current;
-    ws.connect();
-    return () => ws.disconnect();
+
+    try {
+      ws.connect();
+    } catch (error) {
+      console.error('[App] Binance WS connection failed:', error);
+      captureError(error as Error, 'WebSocket Connection Failed', {
+        component: 'App',
+        websocket: 'BinancePriceFeed'
+      });
+    }
+
+    return () => {
+      try {
+        ws.disconnect();
+      } catch (error) {
+        console.error('[App] Binance WS disconnect error:', error);
+      }
+    };
   }, []);
 
   // Aggr Order Flow Connection (Real-time liquidations, CVD, market pressure)
@@ -235,7 +251,6 @@ function App() {
           {/* Navigation Tabs - Premium Edition */}
           <div className="flex items-center gap-2 border-l border-white/10 pl-8 h-10">
             <NavButton id="TERMINAL" label="TERMINAL" icon={Layout} />
-            <NavButton id="LIVEFEED" label="LIVE FEED" icon={Globe} />
             <NavButton id="SWARM" label="SWARM" icon={Users} />
             <NavButton id="CORTEX" label="ML CORTEX" icon={Brain} />
             <NavButton id="BACKTEST" label="BACKTEST" icon={LineChart} />
@@ -274,37 +289,37 @@ function App() {
       {/* Main Content Grid - PROFESSIONAL TRADING TERMINAL LAYOUT */}
       <main className="flex-1 overflow-hidden p-2">
         <div className="grid grid-cols-12 gap-2 h-full fade-in">
-          {/* LEFT SIDEBAR: Signals & Order Flow (3 cols - WIDENED) */}
+          {/* LEFT SIDEBAR: AI Command + Order Flow (3 cols) */}
           <div className="col-span-3 flex flex-col gap-2 h-full overflow-hidden">
             {activeView === 'TERMINAL' && (
               <>
-                {/* Order Flow (Top 65%) */}
-                <div className="h-[65%] flex flex-col">
+                {/* AI Command Center (Top 30%) */}
+                <div className="h-[30%] min-h-[180px]">
+                  <AiCommandCenter />
+                </div>
+
+                {/* Order Flow (Bottom 70% - LARGEST) */}
+                <div className="h-[70%] flex flex-col">
                   <div className="flex-1 min-h-0">
                     <AggrOrderFlow />
                   </div>
-                </div>
-
-                {/* Active Signals (Bottom 35%) */}
-                <div className="h-[35%] flex flex-col min-h-0">
-                  <ActiveSignals onTrade={handleSignalExecute} />
                 </div>
               </>
             )}
           </div>
 
-          {/* CENTER: Chart Dominant + News/Positions (6 cols - BALANCED) */}
+          {/* CENTER: Chart + Active Signals (6 cols) */}
           <div className="col-span-6 flex flex-col gap-2 h-full overflow-hidden">
             {activeView === 'TERMINAL' && (
               <>
-                {/* Chart (78% height - DOMINANT VIEW) */}
-                <div className="h-[78%] min-h-[450px]">
+                {/* Chart (75% height - DOMINANT VIEW) */}
+                <div className="h-[75%] min-h-[450px]">
                   <ChartPanel />
                 </div>
 
-                {/* Bottom Tabs: Intel vs Positions (22% height) */}
-                <div className="h-[22%] flex flex-col min-h-0">
-                  <PositionsPanel />
+                {/* Active Signals (25% height) */}
+                <div className="h-[25%] flex flex-col min-h-0">
+                  <ActiveSignals onTrade={handleSignalExecute} />
                 </div>
               </>
             )}
@@ -316,26 +331,27 @@ function App() {
             {activeView === 'SWARM' && <AgentSwarm />}
             {activeView === 'CORTEX' && <MLCortex />}
             {activeView === 'BACKTEST' && <BacktestPanel />}
-            {activeView === 'JOURNAL' && <TradeJournal />}
+            {activeView === 'JOURNAL' && (
+              <div className="h-full grid grid-cols-12 gap-4">
+                {/* Trade Journal (Left 7 cols) */}
+                <div className="col-span-7 h-full">
+                  <TradeJournal />
+                </div>
+                {/* Open Positions (Right 5 cols) */}
+                <div className="col-span-5 h-full">
+                  <PositionsPanel />
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* RIGHT SIDEBAR: Order Entry & Management (3 cols) */}
+          {/* RIGHT SIDEBAR: AI TACTICAL BOT (3 cols) */}
           <div className="col-span-3 flex flex-col gap-2 h-full overflow-hidden">
-            {/* Market Metrics Panel (Top 40%) */}
-            <div className="h-[40%] min-h-[200px]">
-              <AiCommandCenter />
-            </div>
-
-            {/* Order Entry (Bottom 60%) */}
-            <div className="flex-1 min-h-0 flex flex-col">
-              <div className="flex items-center gap-1.5 mb-1.5 px-1">
-                <Target size={12} className="text-gray-400" />
-                <span className="text-[11px] font-bold tracking-wide text-gray-200">ORDER ENTRY</span>
+            {activeView === 'TERMINAL' && (
+              <div className="h-full">
+                <AiTacticalBot />
               </div>
-              <div className="flex-1 min-h-0">
-                <ExecutionPanelPro />
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </main>

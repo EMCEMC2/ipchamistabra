@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { AggrStats } from './types/aggrTypes';
 
 export const ChartDataPointSchema = z.object({
   time: z.number(),
@@ -202,4 +203,58 @@ export interface AgentTaskResult {
   success: boolean;
   message: string;
   data?: any;
+}
+
+// --- AI TACTICAL BOT TYPES ---
+
+/**
+ * Represents a single message in the tactical chat conversation.
+ * Supports user queries, AI assistant responses, and system messages.
+ * Assistant messages may include grounded sources and contextual market data.
+ */
+export interface TacticalChatMessage {
+  /** Unique identifier for the message */
+  id: string;
+  /** The sender of the message */
+  role: 'user' | 'assistant' | 'system';
+  /** Message text content, supports markdown for assistant responses */
+  content: string;
+  /** Unix timestamp in milliseconds when message was created */
+  timestamp: number;
+  /** Optional metadata providing additional context for the message */
+  metadata?: {
+    /** Citations and sources from Gemini API grounding */
+    sources?: GroundingSource[];
+    /** IDs of trade signals referenced in this message */
+    relatedSignals?: string[];
+    /** Market context snapshot at time of message */
+    marketContext?: {
+      price: number;
+      sentiment: number;
+      regime: string;
+    };
+  };
+}
+
+/**
+ * Represents a query to the AI tactical intelligence system.
+ * Contains the user's question along with relevant contextual data
+ * to enable grounded, context-aware responses.
+ */
+export interface IntelligenceQuery {
+  /** The user's question or request */
+  query: string;
+  /** Contextual data to inform the AI response */
+  context: {
+    /** Currently active trade signals */
+    activeSignals?: TradeSignal[];
+    /** Recent intelligence items and news */
+    recentNews?: IntelItem[];
+    /** Current market metrics and indicators */
+    marketMetrics?: MarketMetrics;
+    /** Order flow statistics and data */
+    orderFlowStats?: AggrStats | null;
+    /** Current agent swarm consensus opinion */
+    swarmConsensus?: string;
+  };
 }

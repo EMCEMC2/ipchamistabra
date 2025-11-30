@@ -44,6 +44,28 @@ interface ExchangeFlow {
   dominance: number;
 }
 
+interface OpenInterestData {
+  openInterest: number;
+  openInterestUsd: number;
+  change1h: number;
+  timestamp: number;
+}
+
+interface LongShortRatio {
+  longRatio: number;
+  shortRatio: number;
+  longShortRatio: number;
+  topTraderRatio: number;
+  timestamp: number;
+}
+
+interface FundingData {
+  rate: number;
+  predictedRate: number;
+  nextFundingTime: number;
+  annualizedRate: number;
+}
+
 interface AggrStats {
   totalVolume: number;
   buyVolume: number;
@@ -56,6 +78,9 @@ interface AggrStats {
   exchanges: ExchangeFlow[];
   recentLiquidations: AggrLiquidation[];
   recentLargeTrades: AggrTrade[];
+  openInterest?: OpenInterestData;
+  longShortRatio?: LongShortRatio;
+  funding?: FundingData;
 }
 
 interface CascadeEvent {
@@ -168,7 +193,7 @@ class DataProcessor {
   private largeTrades: AggrTrade[] = []; // Dedicated array for whales
   private liquidations: AggrLiquidation[] = [];
   private cvdWindow: RollingWindow = new RollingWindow(60);
-  
+
   // Cascade detection
   private cascadeStartTime: number = 0;
   private cascadeVolume: number = 0;
@@ -180,6 +205,13 @@ class DataProcessor {
   private maxReconnectAttempts: number = 10;
 
   private updateInterval: NodeJS.Timeout | null = null;
+  private enhancedDataInterval: NodeJS.Timeout | null = null;
+
+  // Enhanced metrics cache
+  private openInterest: OpenInterestData | null = null;
+  private longShortRatio: LongShortRatio | null = null;
+  private funding: FundingData | null = null;
+  private lastOI: number = 0;
 
   constructor() {
     this.log('DataProcessor initialized');
@@ -197,6 +229,12 @@ class DataProcessor {
 
     if (this.updateInterval) clearInterval(this.updateInterval);
     this.updateInterval = setInterval(() => this.broadcastStats(), 1000);
+
+    // Fetch enhanced metrics immediately
+    this.fetchEnhancedMetrics();
+    // Then poll every 30 seconds
+    if (this.enhancedDataInterval) clearInterval(this.enhancedDataInterval);
+    this.enhancedDataInterval = setInterval(() => this.fetchEnhancedMetrics(), 30000);
   }
 
   public disconnect() {
@@ -215,6 +253,7 @@ class DataProcessor {
     this.wsConnections.clear();
 
     if (this.updateInterval) clearInterval(this.updateInterval);
+    if (this.enhancedDataInterval) clearInterval(this.enhancedDataInterval);
   }
 
   private broadcastStats() {
@@ -270,7 +309,10 @@ class DataProcessor {
             pressure: { buyPressure: 50, sellPressure: 50, netPressure: 0, dominantSide: 'neutral', strength: 'weak' },
             exchanges: [],
             recentLiquidations: [],
-            recentLargeTrades: []
+            recentLargeTrades: [],
+            openInterest: this.openInterest || undefined,
+            longShortRatio: this.longShortRatio || undefined,
+            funding: this.funding || undefined
         };
     }
 
@@ -309,7 +351,10 @@ class DataProcessor {
       pressure,
       exchanges,
       recentLiquidations: recentLiquidations.slice(-10),
-      recentLargeTrades: recentLargeTrades.slice(-10)
+      recentLargeTrades: recentLargeTrades.slice(-10),
+      openInterest: this.openInterest || undefined,
+      longShortRatio: this.longShortRatio || undefined,
+      funding: this.funding || undefined
     };
   }
 
@@ -357,6 +402,70 @@ class DataProcessor {
     return flows.sort((a, b) => b.dominance - a.dominance);
   }
 
+  private async fetchEnhancedMetrics() {
+    try {
+      const BINANCE_FUTURES = 'https://fapi.binance.com';
+
+      // Fetch all metrics in parallel
+      const [oiRes, lsRes, topRes, fundingRes] = await Promise.all([
+        fetch(`${BINANCE_FUTURES}/fapi/v1/openInterest?symbol=BTCUSDT`),
+        fetch(`${BINANCE_FUTURES}/futures/data/globalLongShortAccountRatio?symbol=BTCUSDT&period=5m&limit=1`),
+        fetch(`${BINANCE_FUTURES}/futures/data/topLongShortPositionRatio?symbol=BTCUSDT&period=5m&limit=1`),
+        fetch(`${BINANCE_FUTURES}/fapi/v1/fundingRate?symbol=BTCUSDT&limit=1`)
+      ]);
+
+      // Parse Open Interest
+      const oi = await oiRes.json();
+      if (oi && oi.openInterest) {
+        const currentOI = parseFloat(oi.openInterest);
+        const change1h = this.lastOI > 0 ? ((currentOI - this.lastOI) / this.lastOI) * 100 : 0;
+
+        this.openInterest = {
+          openInterest: currentOI,
+          openInterestUsd: currentOI * 95000, // Approximate with current price
+          change1h,
+          timestamp: Date.now()
+        };
+
+        this.lastOI = currentOI;
+      }
+
+      // Parse Long/Short Ratio
+      const ls = await lsRes.json();
+      const top = await topRes.json();
+      if (Array.isArray(ls) && ls.length > 0) {
+        const lsData = ls[0];
+        const topData = Array.isArray(top) && top.length > 0 ? top[0] : null;
+
+        this.longShortRatio = {
+          longRatio: parseFloat(lsData.longAccount) * 100,
+          shortRatio: parseFloat(lsData.shortAccount) * 100,
+          longShortRatio: parseFloat(lsData.longShortRatio),
+          topTraderRatio: topData ? parseFloat(topData.longShortRatio) : 1,
+          timestamp: parseInt(lsData.timestamp)
+        };
+      }
+
+      // Parse Funding Rate
+      const funding = await fundingRes.json();
+      if (Array.isArray(funding) && funding.length > 0) {
+        const fr = funding[0];
+        const rate = parseFloat(fr.fundingRate);
+
+        this.funding = {
+          rate,
+          predictedRate: rate,
+          nextFundingTime: parseInt(fr.fundingTime),
+          annualizedRate: rate * 3 * 365 * 100
+        };
+      }
+
+      this.log('Enhanced metrics fetched successfully');
+    } catch (error) {
+      this.log(`Enhanced metrics fetch failed: ${error}`);
+    }
+  }
+
   private connectBinance() {
     const connectTrades = (isFallback = false) => {
         const url = isFallback 
@@ -371,7 +480,7 @@ class DataProcessor {
             const msg = {
                 method: "SUBSCRIBE",
                 params: [
-                    "btcusdt@aggTrade",
+                    "btcusdt@trade",  // Changed from aggTrade to trade for individual orders
                     "btcusdt@forceOrder"
                 ],
                 id: 1
@@ -384,7 +493,7 @@ class DataProcessor {
                 const data = JSON.parse(e.data);
                 if (data.id === 1) return;
 
-                if (data.e === 'aggTrade') {
+                if (data.e === 'trade') {
                     const trade: AggrTrade = {
                         exchange: 'Binance',
                         timestamp: data.T,
@@ -415,7 +524,7 @@ class DataProcessor {
 
         ws.onclose = () => {
             this.log(`Binance ${isFallback ? 'Spot' : 'Futures'} Closed`);
-            const nextIsFallback = !isFallback ? true : true; 
+            const nextIsFallback = isFallback;
             this.reconnectWithBackoff('binance-trades', () => connectTrades(nextIsFallback));
         };
 
@@ -513,7 +622,20 @@ class DataProcessor {
   private reconnectWithBackoff(key: string, connectFn: () => void) {
       const attempts = (this.reconnectAttempts.get(key) || 0) + 1;
       this.reconnectAttempts.set(key, attempts);
-      if (attempts > this.maxReconnectAttempts) return;
+
+      if (attempts > this.maxReconnectAttempts) {
+          // Emit failure event to main thread
+          self.postMessage({
+              type: 'CONNECTION_FAILED',
+              payload: {
+                  exchange: key,
+                  maxAttempts: this.maxReconnectAttempts
+              }
+          });
+          this.log(`${key} reconnection failed after ${this.maxReconnectAttempts} attempts`);
+          return;
+      }
+
       const delay = Math.min(1000 * Math.pow(2, attempts - 1), 30000);
       const timeout = setTimeout(connectFn, delay);
       this.reconnectTimeouts.set(key, timeout);
@@ -529,7 +651,11 @@ class DataProcessor {
         this.log(`Processed ${this.trades.length} trades. Latest: $${trade.price} | CVD: ${this.cvdWindow.latest?.cumulativeDelta.toFixed(2)}M`);
       }
 
-      if (trade.usdValue > 500000) {
+      // WHALE THRESHOLD: Unified $50K threshold for all exchanges to match aggr.trade
+      // This captures medium-to-large trades from Binance, OKX, and Bybit
+      const threshold = 50000;
+
+      if (trade.usdValue > threshold) {
           this.largeTrades.push(trade);
           self.postMessage({ type: 'LARGE_TRADE_EVENT', payload: { trade } });
       }

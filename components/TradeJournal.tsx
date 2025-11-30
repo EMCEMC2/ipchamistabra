@@ -1,10 +1,8 @@
 
 import React, { useState } from 'react';
-import { BookOpen, Plus, Save, Tag, Brain, Calendar, MessageSquare, TrendingUp } from 'lucide-react';
+import { BookOpen, Plus, Save, Tag, Brain, Calendar } from 'lucide-react';
 import { JournalEntry } from '../types';
 import { useJournalWithActions } from '../store/selectors';
-import { analyzeTradeJournal } from '../services/gemini';
-import ReactMarkdown from 'react-markdown';
 
 export const TradeJournal: React.FC = () => {
   const { journal: entries, addJournalEntry: onAddEntry } = useJournalWithActions();
@@ -16,11 +14,6 @@ export const TradeJournal: React.FC = () => {
     result: 'WIN',
     tags: []
   });
-
-  // AI Analysis State
-  const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
-  const [aiFeedback, setAiFeedback] = useState<string>("");
-  const [loadingFeedback, setLoadingFeedback] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,24 +41,10 @@ export const TradeJournal: React.FC = () => {
     setNewEntry({ pair: 'BTCUSDT', type: 'LONG', result: 'WIN', tags: [] });
   };
 
-  const handleAnalyze = async (entry: JournalEntry) => {
-      setSelectedEntry(entry);
-      if (entry.aiFeedback) {
-          setAiFeedback(entry.aiFeedback);
-          return;
-      }
-      
-      setLoadingFeedback(true);
-      setAiFeedback("");
-      const feedback = await analyzeTradeJournal(entry);
-      setAiFeedback(feedback);
-      setLoadingFeedback(false);
-  };
-
   return (
-    <div className="h-full grid grid-cols-12 gap-4">
+    <div className="h-full flex flex-col">
       {/* Journal List Section */}
-      <div className="col-span-7 bg-terminal-card border border-terminal-border rounded-lg p-4 h-full flex flex-col">
+      <div className="bg-terminal-card border border-terminal-border rounded-lg p-4 h-full flex flex-col">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2 text-terminal-accent">
             <BookOpen size={18} />
@@ -211,12 +190,6 @@ export const TradeJournal: React.FC = () => {
                     </span>
                   )}
                 </div>
-                <button 
-                    onClick={() => handleAnalyze(entry)}
-                    className="text-[10px] bg-terminal-border hover:bg-terminal-accent hover:text-terminal-bg px-2 py-1 rounded transition-colors"
-                >
-                    ANALYZE
-                </button>
               </div>
             </div>
           ))}
@@ -228,54 +201,6 @@ export const TradeJournal: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
-
-      {/* AI Feedback Panel */}
-      <div className="col-span-5 bg-terminal-card border border-terminal-border rounded-lg p-4 flex flex-col">
-          <div className="flex items-center gap-2 text-terminal-accent mb-4 shrink-0">
-              <MessageSquare size={18} />
-              <h3 className="font-mono font-bold text-sm">AI EXECUTION CRITIQUE</h3>
-          </div>
-          
-          <div className="flex-1 bg-terminal-bg border border-terminal-border rounded-lg p-4 overflow-y-auto scrollbar-hide">
-              {!selectedEntry && (
-                  <div className="h-full flex flex-col items-center justify-center text-terminal-muted text-xs font-mono text-center opacity-60 gap-3">
-                      <TrendingUp size={32} className="opacity-20"/>
-                      <span>Select a trade from the log to generate <br/>Post-Trade Analysis.</span>
-                  </div>
-              )}
-              
-              {loadingFeedback && (
-                  <div className="h-full flex items-center justify-center text-terminal-accent text-xs font-mono animate-pulse">
-                      ANALYZING PRICE ACTION AND EXECUTION TIMING...
-                  </div>
-              )}
-
-              {selectedEntry && !loadingFeedback && aiFeedback && (
-                  <div className="animate-in fade-in duration-300">
-                      <div className="mb-3 pb-3 border-b border-terminal-border/50 flex justify-between items-start">
-                          <div>
-                              <div className="text-xs text-terminal-muted font-mono uppercase">Trade ID</div>
-                              <div className="text-xs font-mono text-terminal-text">{selectedEntry.id.slice(0,12)}...</div>
-                          </div>
-                          <div className="text-right">
-                              <div className="text-xs text-terminal-muted font-mono uppercase">Outcome</div>
-                              <div className={`text-sm font-mono font-bold ${selectedEntry.pnl >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                                  {selectedEntry.pnl >= 0 ? 'WIN' : 'LOSS'}
-                              </div>
-                          </div>
-                      </div>
-                      
-                      <div className="mb-4 bg-terminal-card border border-terminal-border rounded p-2 text-xs font-mono text-terminal-muted italic">
-                          "{selectedEntry.notes}"
-                      </div>
-
-                      <div className="prose prose-invert prose-sm font-mono text-xs leading-relaxed">
-                          <ReactMarkdown>{aiFeedback}</ReactMarkdown>
-                      </div>
-                  </div>
-              )}
-          </div>
       </div>
     </div>
   );

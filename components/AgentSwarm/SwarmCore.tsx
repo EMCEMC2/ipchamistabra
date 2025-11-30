@@ -59,12 +59,15 @@ export const AgentSwarm: React.FC = () => {
     }, [technicals, price, sentimentScore]); // Re-calc on key changes
 
     // Calculate Net Sentiment (guard against division by zero)
+    // Count votes by type - only BULLISH/BEARISH contribute to sentiment calculation
     const bullVotes = liveConsensus.votes.filter(v => v.vote === 'BULLISH').length;
     const bearVotes = liveConsensus.votes.filter(v => v.vote === 'BEARISH').length;
-    const totalVotes = liveConsensus.votes.length;
-    const sentimentPercent = totalVotes > 0
-        ? ((bullVotes - bearVotes + totalVotes) / (2 * totalVotes)) * 100
-        : 50;
+
+    // Use only directional votes (exclude NEUTRAL) for sentiment calculation
+    const directionalVotes = bullVotes + bearVotes;
+    const sentimentPercent = directionalVotes > 0
+        ? ((bullVotes - bearVotes + directionalVotes) / (2 * directionalVotes)) * 100
+        : 50; // Default to neutral (50%) when no directional votes
 
     const startSwarm = async () => {
         setIsScanning(true);

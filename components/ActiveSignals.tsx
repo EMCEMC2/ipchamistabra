@@ -11,7 +11,8 @@ interface ActiveSignalsProps {
 
 export const ActiveSignals: React.FC<ActiveSignalsProps> = ({ onTrade }) => {
   const { signals, isScanning } = useSignalsData();
-  const safeSignals = signals || [];
+  // FILTER: Only show signals with Risk:Reward >= 1:3 (best trade setups)
+  const safeSignals = (signals || []).filter(signal => signal.riskRewardRatio && signal.riskRewardRatio >= 3);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // Helper for Confidence Color
@@ -126,7 +127,7 @@ export const ActiveSignals: React.FC<ActiveSignalsProps> = ({ onTrade }) => {
 
                         {/* R:R */}
                         <td className="px-2 py-1 text-right text-blue-400 tabular-nums">
-                        {signal.riskRewardRatio ? signal.riskRewardRatio.toFixed(1) : '-'}
+                        1:{signal.riskRewardRatio ? signal.riskRewardRatio.toFixed(1) : '-'}
                         </td>
 
                         {/* Action / Expand */}
@@ -212,8 +213,16 @@ export const ActiveSignals: React.FC<ActiveSignalsProps> = ({ onTrade }) => {
             {/* Empty State */}
             {safeSignals.length === 0 && !isScanning && (
                <tr>
-                  <td colSpan={6} className="px-2 py-8 text-center text-gray-600 italic">
-                     No active signals. Click SCAN.
+                  <td colSpan={6} className="px-2 py-8 text-center">
+                     <div className="flex flex-col items-center gap-2">
+                        <Activity size={20} className="text-gray-600 opacity-50" />
+                        <div className="text-gray-400 text-sm font-medium">
+                           Waiting for better opportunity to enter the market
+                        </div>
+                        <div className="text-gray-600 text-xs">
+                           Only 1:3+ R:R setups shown • Click SCAN to refresh
+                        </div>
+                     </div>
                   </td>
                </tr>
             )}

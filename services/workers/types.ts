@@ -1,6 +1,6 @@
 import { AggrStats, AggrLiquidation, AggrTrade, CascadeEvent } from '../../types/aggrTypes';
 
-export type WorkerMessageType = 
+export type WorkerMessageType =
   | 'INIT'
   | 'CONNECT'
   | 'DISCONNECT'
@@ -8,6 +8,7 @@ export type WorkerMessageType =
   | 'LIQUIDATION_EVENT'
   | 'LARGE_TRADE_EVENT'
   | 'CASCADE_EVENT'
+  | 'CONNECTION_FAILED'
   | 'DEBUG_LOG';
 
 export interface WorkerMessage {
@@ -36,4 +37,9 @@ export interface LargeTradeEventPayload {
 
 export interface CascadeEventPayload {
   cascade: CascadeEvent;
+}
+
+export interface ConnectionFailedPayload {
+  exchange: string;
+  maxAttempts: number;
 }

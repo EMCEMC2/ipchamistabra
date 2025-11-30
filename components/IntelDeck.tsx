@@ -8,16 +8,13 @@ import { useAnalysisData } from '../store/selectors';
 import { btcNewsAgent } from '../services/btcNewsAgent';
 
 export const IntelDeck: React.FC = () => {
-    const { latestAnalysis, technicals } = useAnalysisData();
+    const { latestAnalysis } = useAnalysisData();
     const [liveNews, setLiveNews] = useState<IntelItem[]>([]);
     const [isRefreshing, setIsRefreshing] = useState(false);
 
     // Start BTC News Agent on mount
     useEffect(() => {
-        console.log('[IntelDeck] Starting BTC News Agent');
-
         const handleNewsUpdate = (news: IntelItem[]) => {
-            console.log('[IntelDeck] Received news update:', news.length, 'items');
             setLiveNews(news);
         };
 
@@ -39,11 +36,11 @@ export const IntelDeck: React.FC = () => {
     const items: IntelItem[] = liveNews;
 
     return (
-        <div className="h-full flex flex-col gap-3 overflow-hidden">
-            {/* Top Section: AI & Technicals (Fixed Height) */}
-            <div className="shrink-0 grid grid-cols-2 gap-3 h-[140px]">
+        <div className="h-full flex flex-col gap-2 overflow-hidden">
+            {/* Top Section: AI Analysis (75% height) */}
+            <div className="h-[75%] min-h-0">
                 {/* AI Analysis */}
-                <div className="card-premium p-3 flex flex-col relative overflow-hidden">
+                <div className="card-premium p-3 flex flex-col relative overflow-hidden h-full">
                     <div className="flex items-center gap-2 text-yellow-400 mb-2 shrink-0">
                         <Zap size={14} />
                         <span className="font-sans font-semibold text-xs tracking-wide">AI TACTICAL</span>
@@ -61,50 +58,11 @@ export const IntelDeck: React.FC = () => {
                         )}
                     </div>
                 </div>
-
-                {/* Technicals Compact */}
-                <div className="card-premium p-3 flex flex-col justify-between">
-                    <div className="flex items-center gap-2 text-blue-400 mb-1">
-                        <Activity size={14} />
-                        <span className="font-sans font-semibold text-xs tracking-wide">TECHNICALS</span>
-                    </div>
-                    
-                    {technicals ? (
-                        <div className="space-y-2">
-                            <div className="flex justify-between items-center">
-                                <span className="text-[10px] text-gray-500">RSI (14)</span>
-                                <span className={`font-mono font-bold text-sm ${technicals.rsi > 70 ? 'text-red-400' : technicals.rsi < 30 ? 'text-green-400' : 'text-gray-300'}`}>
-                                    {technicals.rsi.toFixed(1)}
-                                </span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-[10px] text-gray-500">MACD</span>
-                                <span className={`font-mono font-bold text-sm ${technicals.macd.histogram > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                    {technicals.macd.histogram.toFixed(2)}
-                                </span>
-                            </div>
-                            <div className="flex justify-between items-center pt-1 border-t border-white/5">
-                                <span className="text-[10px] text-gray-500">TREND</span>
-                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                                    technicals.trend === 'BULLISH' ? 'bg-green-500/10 text-green-400' :
-                                    technicals.trend === 'BEARISH' ? 'bg-red-500/10 text-red-400' :
-                                    'bg-gray-500/10 text-gray-400'
-                                }`}>
-                                    {technicals.trend.toUpperCase()}
-                                </span>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="flex-1 flex items-center justify-center text-gray-500 text-[10px]">
-                            No Data
-                        </div>
-                    )}
-                </div>
             </div>
 
-            {/* Bottom Section: Intelligence Feed (Scrollable) */}
-            <div className="flex-1 min-h-0 card-premium flex flex-col">
-                <div className="flex items-center justify-between p-3 border-b border-white/5 shrink-0">
+            {/* Bottom Section: Intelligence Feed (25% height) */}
+            <div className="h-[25%] min-h-0 card-premium flex flex-col">
+                <div className="flex items-center justify-between p-2 border-b border-white/5 shrink-0">
                     <div className="flex items-center gap-2 text-green-400">
                         <Globe size={14} />
                         <span className="font-sans font-semibold text-xs tracking-wide">LIVE BTC NEWS</span>
@@ -122,13 +80,13 @@ export const IntelDeck: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-2 space-y-1.5 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto p-1.5 space-y-1 custom-scrollbar">
                     {items.length > 0 ? (
                         items.map(item => (
-                            <div key={item.id} className="group p-2 rounded hover:bg-white/5 transition-colors border border-transparent hover:border-white/5">
-                                <div className="flex justify-between items-start mb-1">
-                                    <div className="flex items-center gap-1.5">
-                                        <span className={`text-[8px] font-bold px-1 rounded ${
+                            <div key={item.id} className="group p-1.5 rounded hover:bg-white/5 transition-colors border border-transparent hover:border-white/5">
+                                <div className="flex justify-between items-start mb-0.5">
+                                    <div className="flex items-center gap-1">
+                                        <span className={`text-[7px] font-bold px-1 rounded ${
                                             item.category === 'MACRO' ? 'bg-blue-500/20 text-blue-300' :
                                             item.category === 'ONCHAIN' ? 'bg-green-500/20 text-green-300' :
                                             item.category === 'WHALE' ? 'bg-purple-500/20 text-purple-300' :
@@ -136,34 +94,34 @@ export const IntelDeck: React.FC = () => {
                                         }`}>
                                             {item.category}
                                         </span>
-                                        <span className={`text-[8px] font-bold px-1 rounded ${
+                                        <span className={`text-[7px] font-bold px-1 rounded ${
                                             item.btcSentiment === 'BULLISH' ? 'bg-green-500/20 text-green-400' :
                                             item.btcSentiment === 'BEARISH' ? 'bg-red-500/20 text-red-400' :
                                             'bg-gray-500/20 text-gray-400'
                                         }`}>
                                             {item.btcSentiment}
                                         </span>
-                                        <span className="text-[9px] text-gray-500">{new Date(item.timestamp).toLocaleTimeString('en-IL', {hour: '2-digit', minute:'2-digit', timeZone: 'Asia/Jerusalem'})}</span>
+                                        <span className="text-[8px] text-gray-500">{new Date(item.timestamp).toLocaleTimeString('en-IL', {hour: '2-digit', minute:'2-digit', timeZone: 'Asia/Jerusalem'})}</span>
                                     </div>
                                     {item.severity === 'HIGH' && (
-                                        <AlertTriangle size={10} className="text-red-400" />
+                                        <AlertTriangle size={9} className="text-red-400" />
                                     )}
                                 </div>
-                                <h4 className="text-[11px] font-medium text-gray-200 leading-snug mb-1 group-hover:text-white transition-colors">
+                                <h4 className="text-[10px] font-medium text-gray-200 leading-tight mb-0.5 group-hover:text-white transition-colors line-clamp-1">
                                     {item.title}
                                 </h4>
-                                <p className="text-[10px] text-gray-500 leading-relaxed line-clamp-2 group-hover:text-gray-400">
+                                <p className="text-[9px] text-gray-500 leading-tight line-clamp-1 group-hover:text-gray-400">
                                     {item.summary}
                                 </p>
-                                <div className="mt-1 text-[8px] text-gray-600">
+                                <div className="mt-0.5 text-[7px] text-gray-600">
                                     {item.source}
                                 </div>
                             </div>
                         ))
                     ) : (
                         <div className="flex flex-col items-center justify-center h-full text-gray-500 opacity-60">
-                            <Activity size={20} className="animate-pulse mb-2" />
-                            <span className="text-xs">Loading live BTC news...</span>
+                            <Activity size={16} className="animate-pulse mb-1" />
+                            <span className="text-[10px]">Loading live BTC news...</span>
                         </div>
                     )}
                 </div>

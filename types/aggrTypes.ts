@@ -89,6 +89,13 @@ export interface AggrStats {
   openInterest?: OpenInterestData;
   longShortRatio?: LongShortRatio;
   funding?: FundingData;
+
+  // IP Ban Status (Binance API Rate Limiting)
+  banned?: {
+    isBanned: boolean;
+    expiryTime: number;
+    remainingMinutes: number;
+  };
 }
 
 export interface CascadeEvent {

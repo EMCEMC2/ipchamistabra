@@ -44,9 +44,10 @@ export default defineConfig(({ mode }) => {
       target: 'esnext',
       minify: 'esbuild',
       sourcemap: false,
-      // Strip console.log and console.debug in production
+      // Strip console.log and console.debug in production, preserve error/warn
       esbuildOptions: {
-        drop: mode === 'production' ? ['console', 'debugger'] : []
+        pure: mode === 'production' ? ['console.log', 'console.debug'] : [],
+        drop: mode === 'production' ? ['debugger'] : []
       }
     },
     optimizeDeps: {

@@ -13,7 +13,17 @@
       "WebFetch(domain:www.macroaxis.com)",
       "WebFetch(domain:tapesurf.com)",
       "WebFetch(domain:www.whalemap.io)",
-      "WebFetch(domain:bitinfocharts.com)"
+      "WebFetch(domain:bitinfocharts.com)",
+      "Bash(node:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nfix: Critical bugs and UI standardization from agent analysis\n\n- Fix division by zero in SwarmCore sentiment calculation (defaults to 50%)\n- Fix parseFloat NaN vulnerability in agentConsensus funding rate parsing\n- Update vitest config to find tests in root directories (utils/, services/)\n- Create tests/setup.ts with browser API mocks\n- Standardize typography: text-[9px]/text-[10px] to text-xs\n- Unify colors to semantic terminal-* classes (terminal-success, terminal-danger, terminal-muted)\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git push:*)",
+      "Bash(npm run typecheck:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(npm test)",
+      "Bash(npm ls:*)",
+      "Bash(npx tsc:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []
