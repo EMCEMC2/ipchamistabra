@@ -14,29 +14,28 @@ import {
   TradingSignal
 } from '../services/aggrIntelligence';
 
+// Initial empty stats to show UI immediately
+const INITIAL_STATS: AggrStats = {
+  totalVolume: 0,
+  buyVolume: 0,
+  sellVolume: 0,
+  largeTradeCount: 0,
+  liquidationCount: 0,
+  liquidationVolume: 0,
+  cvd: { timestamp: Date.now(), buyVolume: 0, sellVolume: 0, delta: 0, cumulativeDelta: 0 },
+  pressure: { buyPressure: 50, sellPressure: 50, netPressure: 0, dominantSide: 'neutral', strength: 'weak' },
+  exchanges: [],
+  recentLiquidations: [],
+  recentLargeTrades: []
+};
+
 export const AggrOrderFlow: React.FC = () => {
-  const [stats, setStats] = useState<AggrStats | null>(null);
+  const [stats, setStats] = useState<AggrStats>(INITIAL_STATS);
   const [signal, setSignal] = useState<TradingSignal | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
     console.log('[AggrOrderFlow] Component mounted, connecting to aggrService...');
-
-    // Set initial empty stats to show UI immediately (instead of loading state)
-    const initialStats: AggrStats = {
-      totalVolume: 0,
-      buyVolume: 0,
-      sellVolume: 0,
-      largeTradeCount: 0,
-      liquidationCount: 0,
-      liquidationVolume: 0,
-      cvd: { timestamp: Date.now(), buyVolume: 0, sellVolume: 0, delta: 0, cumulativeDelta: 0 },
-      pressure: { buyPressure: 50, sellPressure: 50, netPressure: 0, dominantSide: 'neutral', strength: 'weak' },
-      exchanges: [],
-      recentLiquidations: [],
-      recentLargeTrades: []
-    };
-    setStats(initialStats);
 
     // Connect to WebSocket-based service via Worker
     aggrService.connect((updatedStats) => {
@@ -55,18 +54,6 @@ export const AggrOrderFlow: React.FC = () => {
       setIsConnected(false);
     };
   }, []);
-
-  if (!stats) {
-    return (
-      <div className="h-full flex items-center justify-center text-terminal-muted">
-        <div className="text-center">
-          <Activity className="mx-auto mb-2 animate-pulse" size={32} />
-          <div className="text-sm font-mono">Connecting to Aggr.trade...</div>
-          <div className="text-[10px] text-gray-600 mt-2">Initializing Worker...</div>
-        </div>
-      </div>
-    );
-  }
 
   const cvdAnalysis = analyzeCVD(stats);
   const pressure = stats.pressure;
