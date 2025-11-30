@@ -99,11 +99,17 @@ class GifsService {
     }
 
     const slug = slugify(keyword)
+    const apiKey = import.meta.env.VITE_GIPHY_API_KEY
+
+    if (!apiKey) {
+      console.warn('[GifsService] VITE_GIPHY_API_KEY not configured - gif fetching disabled')
+      return
+    }
 
     return fetch(
       'https://api.giphy.com/v1/gifs/search?q=' +
         keyword +
-        '&rating=r&limit=100&api_key=b5Y5CZcpj9spa0xEfskQxGGnhChYt3hi'
+        '&rating=r&limit=100&api_key=' + apiKey
     )
       .then(res => res.json())
       .then(async res => {

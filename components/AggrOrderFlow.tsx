@@ -66,12 +66,28 @@ export const AggrOrderFlow: React.FC = () => {
           </h3>
         </div>
         <div className="flex items-center gap-2 px-2 py-1 rounded border border-terminal-border bg-terminal-bg/50 backdrop-blur-sm">
-          <div className={`status-indicator ${isConnected ? 'status-live' : 'status-error'}`} />
-          <span className={`text-[10px] font-mono font-bold ${isConnected ? 'text-terminal-success' : 'text-terminal-danger'}`}>
-            {isConnected ? 'LIVE FEED' : 'OFFLINE'}
+          <div className={`status-indicator ${
+            stats?.banned?.isBanned ? 'status-warning' :
+            isConnected ? 'status-live' : 'status-error'
+          }`} />
+          <span className={`text-[10px] font-mono font-bold ${
+            stats?.banned?.isBanned ? 'text-terminal-warning' :
+            isConnected ? 'text-terminal-success' : 'text-terminal-danger'
+          }`}>
+            {stats?.banned?.isBanned
+              ? `RATE LIMITED (${stats.banned.remainingMinutes}m)`
+              : isConnected ? 'LIVE FEED' : 'OFFLINE'}
           </span>
         </div>
       </div>
+
+      {/* API Rate Limit Banner */}
+      {stats?.banned?.isBanned && (
+        <div className="px-2 py-1.5 bg-yellow-500/10 border border-yellow-500/30 rounded text-[10px] text-yellow-400 flex items-center gap-2">
+          <AlertTriangle size={12} />
+          <span>Binance API rate limited. Using cached data. Resuming in {stats.banned.remainingMinutes} min.</span>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1">
         {/* Top Row: CVD & Signal */}

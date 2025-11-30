@@ -29,8 +29,12 @@ export const binanceWS = {
             };
 
             ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                handleMessage(data);
+                try {
+                    const data = JSON.parse(event.data);
+                    handleMessage(data);
+                } catch (parseError) {
+                    console.error('[Binance WS] Failed to parse message:', parseError);
+                }
             };
 
             ws.onerror = (err) => {

@@ -110,7 +110,10 @@ export function usePositionMonitor() {
       if (intervalRef.current) {
         console.log('[Position Monitor] Stopping...');
         clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
+      // Clear mutex on cleanup
+      closingPositionsRef.current.clear();
     };
   }, []); // Run once on mount
 

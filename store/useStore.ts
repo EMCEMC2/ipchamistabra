@@ -320,9 +320,13 @@ export const useStore = create<AppState>()(
         const state = get();
         const today = new Date().toISOString().split('T')[0];
 
-        // Reset if it's a new day
+        // Reset if it's a new day - use set() directly instead of calling action from getter
         if (state.lastResetDate !== today) {
-          state.resetDailyPnL();
+          set({
+            dailyPnL: 0,
+            lastResetDate: today,
+            isCircuitBreakerTripped: false
+          });
           return false;
         }
 

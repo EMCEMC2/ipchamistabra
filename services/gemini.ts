@@ -23,8 +23,22 @@ export const isAiAvailable = (): boolean => {
     return !!API_KEY;
 };
 
-// Direct Gemini API call (no proxy)
+// Timeout duration for Gemini API calls (30 seconds)
+const GEMINI_TIMEOUT_MS = 30000;
+
+// Helper to create a timeout promise
+const createTimeout = (ms: number): Promise<never> => {
+    return new Promise((_, reject) => {
+        setTimeout(() => {
+            reject(new Error(`Gemini API request timed out after ${ms / 1000}s. Check your network connection or try again.`));
+        }, ms);
+    });
+};
+
+// Direct Gemini API call (no proxy) with timeout
 const callGeminiDirect = async (model: string, contents: string, config?: any): Promise<{ text: string; candidates?: any[] }> => {
+    const startTime = performance.now();
+
     try {
         const ai = getGenAI();
         console.log('[Gemini Direct] Calling model:', model);
@@ -41,25 +55,36 @@ const callGeminiDirect = async (model: string, contents: string, config?: any): 
             generateConfig.thinkingConfig = config.thinkingConfig;
         }
 
-        const response = await ai.models.generateContent({
-            model,
-            contents,
-            config: {
-                ...generateConfig,
-                systemInstruction: config?.systemInstruction,
-                tools: config?.tools,
-            }
-        });
+        // Race between API call and timeout
+        const response = await Promise.race([
+            ai.models.generateContent({
+                model,
+                contents,
+                config: {
+                    ...generateConfig,
+                    systemInstruction: config?.systemInstruction,
+                    tools: config?.tools,
+                }
+            }),
+            createTimeout(GEMINI_TIMEOUT_MS)
+        ]);
 
         const text = response.text || '';
-        console.log('[Gemini Direct] Response received, length:', text.length);
+        const duration = performance.now() - startTime;
+        console.log(`[Gemini Direct] Response received in ${(duration / 1000).toFixed(1)}s, length: ${text.length}`);
 
         return {
             text,
             candidates: response.candidates
         };
     } catch (error: any) {
-        console.error('[Gemini Direct] Error:', error);
+        const duration = performance.now() - startTime;
+        console.error(`[Gemini Direct] Error after ${(duration / 1000).toFixed(1)}s:`, error.message);
+
+        // Handle timeout specifically
+        if (error.message?.includes('timed out')) {
+            throw error; // Re-throw timeout error as-is (already actionable)
+        }
 
         // Handle specific error types
         const errorMsg = error.message || '';

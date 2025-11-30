@@ -300,7 +300,16 @@ export const fetchAiAnalysis = async () => {
     }
 };
 
+// Track active sync to prevent multiple concurrent syncs
+let activeSyncCleanup: (() => void) | null = null;
+
 export const startMarketDataSync = () => {
+    // Prevent multiple concurrent syncs - clean up existing if any
+    if (activeSyncCleanup) {
+        console.warn('[MarketData] Sync already running - cleaning up previous instance');
+        activeSyncCleanup();
+    }
+
     // Start the DataSyncAgent
     dataSyncAgent.start();
 
@@ -309,7 +318,7 @@ export const startMarketDataSync = () => {
     fetchChartData();
 
     // Delayed AI analysis (wait for initial data to load)
-    setTimeout(() => {
+    const aiInitTimeout = setTimeout(() => {
         fetchAiAnalysis();
     }, 5000);
 
@@ -333,7 +342,6 @@ export const startMarketDataSync = () => {
     const aiAnalysisInterval = setInterval(fetchAiAnalysis, 120000); // 2 min for AI analysis
 
     // Subscribe to timeframe changes to adjust polling
-    // Subscribe to timeframe changes to adjust polling
     let lastTimeframe = useStore.getState().timeframe;
     const unsubscribe = useStore.subscribe((state) => {
         const newTimeframe = state.timeframe;
@@ -347,11 +355,17 @@ export const startMarketDataSync = () => {
         }
     });
 
-    return () => {
+    // Cleanup function
+    const cleanup = () => {
+        clearTimeout(aiInitTimeout);
         clearInterval(globalInterval);
         clearInterval(chartInterval);
         clearInterval(aiAnalysisInterval);
         unsubscribe();
         dataSyncAgent.stop();
+        activeSyncCleanup = null;
     };
+
+    activeSyncCleanup = cleanup;
+    return cleanup;
 };

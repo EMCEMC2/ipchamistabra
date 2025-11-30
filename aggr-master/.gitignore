@@ -6,6 +6,7 @@ stats.html
 dev-dist
 
 # local env files
+.env
 .env.local
 .env.*.local
 

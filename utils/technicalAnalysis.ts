@@ -24,7 +24,12 @@ export const calculateRSI = (data: number[], period: number = 14): number[] => {
     let avgGain = gains / period;
     let avgLoss = losses / period;
 
-    rsiArray.push(100 - (100 / (1 + avgGain / avgLoss)));
+    // Guard against division by zero: if avgLoss is 0, RSI is 100 (max bullish)
+    if (avgLoss === 0) {
+        rsiArray.push(avgGain === 0 ? 50 : 100);
+    } else {
+        rsiArray.push(100 - (100 / (1 + avgGain / avgLoss)));
+    }
 
     // Smoothed averages
     for (let i = period + 1; i < data.length; i++) {
@@ -35,7 +40,12 @@ export const calculateRSI = (data: number[], period: number = 14): number[] => {
         avgGain = (avgGain * (period - 1) + gain) / period;
         avgLoss = (avgLoss * (period - 1) + loss) / period;
 
-        rsiArray.push(100 - (100 / (1 + avgGain / avgLoss)));
+        // Guard against division by zero in smoothed calculation
+        if (avgLoss === 0) {
+            rsiArray.push(avgGain === 0 ? 50 : 100);
+        } else {
+            rsiArray.push(100 - (100 / (1 + avgGain / avgLoss)));
+        }
     }
 
     return rsiArray; // Note: Array length is data.length - period

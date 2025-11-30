@@ -50,6 +50,28 @@ function formatUSD(value: number | undefined | null): string {
 }
 
 /**
+ * Sanitize user input before sending to AI.
+ * Strips HTML tags, escapes special characters, enforces length limit.
+ */
+function sanitizeUserInput(input: string, maxLength: number = 2000): string {
+  if (!input || typeof input !== 'string') {
+    return '';
+  }
+
+  return input
+    // Strip HTML tags
+    .replace(/<[^>]*>/g, '')
+    // Escape potential prompt injection patterns
+    .replace(/\{\{[^}]*\}\}/g, '') // Remove template-like patterns
+    .replace(/\[\[.*?\]\]/g, '')   // Remove wiki-style brackets
+    // Normalize whitespace
+    .replace(/\s+/g, ' ')
+    .trim()
+    // Enforce max length
+    .slice(0, maxLength);
+}
+
+/**
  * Format timestamp to Israel timezone.
  */
 function formatTimeIsrael(timestamp: number): string {
@@ -109,7 +131,7 @@ function getFundingSentiment(rate: number): string {
 class TacticalAI {
   private conversationHistory: TacticalChatMessage[] = [];
   private readonly MAX_HISTORY: number = 10;
-  private readonly CACHE_TTL: number = 60000; // 1 minute
+  private readonly CACHE_TTL: number = 15000; // 15 seconds - crypto markets are volatile
   private queryCache: Map<string, { response: TacticalChatMessage; timestamp: number }> = new Map();
 
   constructor() {
@@ -385,17 +407,28 @@ RESPONSE GUIDELINES:
    */
   async processQuery(query: IntelligenceQuery): Promise<TacticalChatMessage> {
     try {
-      // Check cache first
-      const cached = this.checkCache(query.query);
+      // Sanitize user input before processing
+      const sanitizedQuery: IntelligenceQuery = {
+        ...query,
+        query: sanitizeUserInput(query.query)
+      };
+
+      // Check cache first (using sanitized query)
+      const cached = this.checkCache(sanitizedQuery.query);
       if (cached) {
         return cached;
       }
 
-      // Get active signals from query context
-      const activeSignals = query.context.activeSignals || [];
+      // Reject empty queries after sanitization
+      if (!sanitizedQuery.query.trim()) {
+        return this.createSystemMessage('Please enter a valid question.');
+      }
 
-      // Build prompt with full context
-      const prompt = this.buildAIPrompt(query);
+      // Get active signals from query context
+      const activeSignals = sanitizedQuery.context.activeSignals || [];
+
+      // Build prompt with full context (using sanitized query)
+      const prompt = this.buildAIPrompt(sanitizedQuery);
 
       // Call Gemini AI
       const aiResponse: AiResponse = await generateMarketAnalysis(prompt, activeSignals);

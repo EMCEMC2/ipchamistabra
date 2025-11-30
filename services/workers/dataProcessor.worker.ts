@@ -82,9 +82,22 @@ class RollingWindow {
   private buyVolume: number = 0;
   private sellVolume: number = 0;
 
+  // Overflow protection: max safe integer threshold (half of Number.MAX_SAFE_INTEGER)
+  private static readonly OVERFLOW_THRESHOLD = 4_500_000_000_000_000;
+
   constructor(maxSize: number = 60, resetHour: number = 0) {
     this.maxSize = maxSize;
     this.resetHour = resetHour;
+  }
+
+  // Check for potential overflow and normalize if needed
+  private checkOverflow(): void {
+    if (Math.abs(this.cumulativeSum) > RollingWindow.OVERFLOW_THRESHOLD) {
+      console.warn('[CVD] Normalizing accumulator to prevent overflow');
+      // Reset to session delta only
+      this.sessionStartCVD = 0;
+      this.cumulativeSum = this.cumulativeSum - this.sessionStartCVD;
+    }
   }
 
   // NEW METHOD: Add individual trade delta (CORRECT CVD calculation)
@@ -102,6 +115,9 @@ class RollingWindow {
 
     // Accumulate individual trade delta
     this.cumulativeSum += tradeDelta;
+
+    // Check for overflow and normalize if needed
+    this.checkOverflow();
 
     // Track buy/sell volumes for display
     if (tradeDelta > 0) {
