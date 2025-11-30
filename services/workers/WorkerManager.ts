@@ -1,5 +1,5 @@
 import { AggrStats, AggrLiquidation, AggrTrade, CascadeEvent } from '../../types/aggrTypes';
-import { WorkerMessage, WorkerMessageType, ConnectionStatusPayload, ExchangeConnectionStatus } from './types';
+import { WorkerMessage, WorkerMessageType } from './types';
 
 type EventHandler<T> = (data: T) => void;
 
@@ -12,14 +12,6 @@ export class WorkerManager {
   private onLiquidation?: EventHandler<AggrLiquidation>;
   private onLargeTrade?: EventHandler<AggrTrade>;
   private onCascade?: EventHandler<CascadeEvent>;
-  private onConnectionStatus?: EventHandler<ConnectionStatusPayload>;
-
-  // Track exchange connection states
-  public exchangeStatus: ExchangeConnectionStatus = {
-    binance: 'disconnected',
-    okx: 'disconnected',
-    bybit: 'disconnected'
-  };
 
   constructor() {
     this.initWorker();
@@ -46,17 +38,13 @@ export class WorkerManager {
   }
 
   public connect(onStatsUpdate?: EventHandler<AggrStats>) {
-    // Always update the callback even if already connected
-    if (onStatsUpdate) this.onStatsUpdate = onStatsUpdate;
-
     if (this.isConnected) {
-      console.log('[WorkerManager] Already connected, updated callback');
+      console.warn('[WorkerManager] Already connected, ignoring duplicate connect() call');
       return;
     }
-
+    if (onStatsUpdate) this.onStatsUpdate = onStatsUpdate;
     this.sendMessage('CONNECT');
     this.isConnected = true;
-    console.log('[WorkerManager] Connected to worker');
   }
 
   public disconnect() {
@@ -104,18 +92,8 @@ export class WorkerManager {
           console.error(
             `[WorkerManager] Connection permanently failed for ${payload.exchange} after ${payload.maxAttempts} attempts`
           );
-          this.exchangeStatus[payload.exchange as keyof ExchangeConnectionStatus] = 'failed';
         } else {
           console.error('[WorkerManager] Received malformed CONNECTION_FAILED event:', payload);
-        }
-        break;
-      case 'CONNECTION_STATUS':
-        if (payload?.exchange && payload?.status) {
-          this.exchangeStatus[payload.exchange as keyof ExchangeConnectionStatus] = payload.status;
-          console.log(`[WorkerManager] ${payload.exchange}: ${payload.status}`);
-          if (this.onConnectionStatus) {
-            this.onConnectionStatus(payload);
-          }
         }
         break;
       case 'DEBUG_LOG':
@@ -135,18 +113,6 @@ export class WorkerManager {
 
   public onCascadeEvent(handler: EventHandler<CascadeEvent>) {
     this.onCascade = handler;
-  }
-
-  public onConnectionStatusEvent(handler: EventHandler<ConnectionStatusPayload>) {
-    this.onConnectionStatus = handler;
-  }
-
-  public getExchangeStatus(): ExchangeConnectionStatus {
-    return { ...this.exchangeStatus };
-  }
-
-  public isAnyExchangeConnected(): boolean {
-    return Object.values(this.exchangeStatus).some(s => s === 'connected');
   }
 }
 

@@ -8,58 +8,25 @@ import React, { useEffect, useState } from 'react';
 import { Activity, TrendingUp, TrendingDown, AlertTriangle, DollarSign, Zap, BarChart3, Users, Percent } from 'lucide-react';
 import { AggrStats } from '../types/aggrTypes';
 import { aggrService } from '../services/aggrService';
-import { workerManager } from '../services/workers/WorkerManager';
-import { ExchangeConnectionStatus } from '../services/workers/types';
 import {
   analyzeCVD,
   generateTradingSignal,
   TradingSignal
 } from '../services/aggrIntelligence';
 
-// Initial empty stats to show UI immediately
-const INITIAL_STATS: AggrStats = {
-  totalVolume: 0,
-  buyVolume: 0,
-  sellVolume: 0,
-  largeTradeCount: 0,
-  liquidationCount: 0,
-  liquidationVolume: 0,
-  cvd: { timestamp: Date.now(), buyVolume: 0, sellVolume: 0, delta: 0, cumulativeDelta: 0 },
-  pressure: { buyPressure: 50, sellPressure: 50, netPressure: 0, dominantSide: 'neutral', strength: 'weak' },
-  exchanges: [],
-  recentLiquidations: [],
-  recentLargeTrades: []
-};
-
 export const AggrOrderFlow: React.FC = () => {
-  const [stats, setStats] = useState<AggrStats>(INITIAL_STATS);
+  const [stats, setStats] = useState<AggrStats | null>(null);
   const [signal, setSignal] = useState<TradingSignal | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [exchangeStatus, setExchangeStatus] = useState<ExchangeConnectionStatus>({
-    binance: 'disconnected',
-    okx: 'disconnected',
-    bybit: 'disconnected'
-  });
 
   useEffect(() => {
     console.log('[AggrOrderFlow] Component mounted, connecting to aggrService...');
 
-    // Listen for connection status updates
-    workerManager.onConnectionStatusEvent((status) => {
-      setExchangeStatus(workerManager.getExchangeStatus());
-      // Set connected if any exchange is connected
-      if (status.status === 'connected') {
-        setIsConnected(true);
-      }
-    });
-
     // Connect to WebSocket-based service via Worker
     aggrService.connect((updatedStats) => {
+      console.log('[AggrOrderFlow] Received stats update:', updatedStats);
       setStats(updatedStats);
-      // Also check if any exchange is connected
-      if (workerManager.isAnyExchangeConnected()) {
-        setIsConnected(true);
-      }
+      setIsConnected(true);
 
       // Generate trading signal from stats
       const newSignal = generateTradingSignal(updatedStats);
@@ -73,6 +40,18 @@ export const AggrOrderFlow: React.FC = () => {
     };
   }, []);
 
+  if (!stats) {
+    return (
+      <div className="h-full flex items-center justify-center text-terminal-muted">
+        <div className="text-center">
+          <Activity className="mx-auto mb-2 animate-pulse" size={32} />
+          <div className="text-sm font-mono">Connecting to Aggr.trade...</div>
+          <div className="text-[10px] text-gray-600 mt-2">Initializing Worker...</div>
+        </div>
+      </div>
+    );
+  }
+
   const cvdAnalysis = analyzeCVD(stats);
   const pressure = stats.pressure;
 
@@ -85,33 +64,6 @@ export const AggrOrderFlow: React.FC = () => {
           <h3 className="font-display font-semibold text-sm text-terminal-text tracking-wide text-glow-info">
             Order Flow
           </h3>
-          {/* Exchange status dots */}
-          <div className="flex items-center gap-1 ml-1">
-            <div
-              className={`w-1.5 h-1.5 rounded-full ${
-                exchangeStatus.binance === 'connected' ? 'bg-green-500' :
-                exchangeStatus.binance === 'connecting' ? 'bg-yellow-500 animate-pulse' :
-                'bg-red-500'
-              }`}
-              title={`Binance: ${exchangeStatus.binance}`}
-            />
-            <div
-              className={`w-1.5 h-1.5 rounded-full ${
-                exchangeStatus.okx === 'connected' ? 'bg-green-500' :
-                exchangeStatus.okx === 'connecting' ? 'bg-yellow-500 animate-pulse' :
-                'bg-red-500'
-              }`}
-              title={`OKX: ${exchangeStatus.okx}`}
-            />
-            <div
-              className={`w-1.5 h-1.5 rounded-full ${
-                exchangeStatus.bybit === 'connected' ? 'bg-green-500' :
-                exchangeStatus.bybit === 'connecting' ? 'bg-yellow-500 animate-pulse' :
-                'bg-red-500'
-              }`}
-              title={`Bybit: ${exchangeStatus.bybit}`}
-            />
-          </div>
         </div>
         <div className="flex items-center gap-2 px-2 py-1 rounded border border-terminal-border bg-terminal-bg/50 backdrop-blur-sm">
           <div className={`status-indicator ${isConnected ? 'status-live' : 'status-error'}`} />

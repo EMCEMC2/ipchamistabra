@@ -23,7 +23,8 @@
       "Bash(npm test)",
       "Bash(npm ls:*)",
       "Bash(npx tsc:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []
