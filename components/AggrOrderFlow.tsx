@@ -22,6 +22,22 @@ export const AggrOrderFlow: React.FC = () => {
   useEffect(() => {
     console.log('[AggrOrderFlow] Component mounted, connecting to aggrService...');
 
+    // Set initial empty stats to show UI immediately (instead of loading state)
+    const initialStats: AggrStats = {
+      totalVolume: 0,
+      buyVolume: 0,
+      sellVolume: 0,
+      largeTradeCount: 0,
+      liquidationCount: 0,
+      liquidationVolume: 0,
+      cvd: { timestamp: Date.now(), buyVolume: 0, sellVolume: 0, delta: 0, cumulativeDelta: 0 },
+      pressure: { buyPressure: 50, sellPressure: 50, netPressure: 0, dominantSide: 'neutral', strength: 'weak' },
+      exchanges: [],
+      recentLiquidations: [],
+      recentLargeTrades: []
+    };
+    setStats(initialStats);
+
     // Connect to WebSocket-based service via Worker
     aggrService.connect((updatedStats) => {
       console.log('[AggrOrderFlow] Received stats update:', updatedStats);

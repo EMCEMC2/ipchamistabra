@@ -38,13 +38,17 @@ export class WorkerManager {
   }
 
   public connect(onStatsUpdate?: EventHandler<AggrStats>) {
+    // Always update the callback even if already connected
+    if (onStatsUpdate) this.onStatsUpdate = onStatsUpdate;
+
     if (this.isConnected) {
-      console.warn('[WorkerManager] Already connected, ignoring duplicate connect() call');
+      console.log('[WorkerManager] Already connected, updated callback');
       return;
     }
-    if (onStatsUpdate) this.onStatsUpdate = onStatsUpdate;
+
     this.sendMessage('CONNECT');
     this.isConnected = true;
+    console.log('[WorkerManager] Connected to worker');
   }
 
   public disconnect() {
