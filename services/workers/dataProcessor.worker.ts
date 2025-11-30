@@ -530,9 +530,12 @@ class DataProcessor {
         ws.onmessage = (e) => {
             try {
                 const data = JSON.parse(e.data);
-                if (data.id === 1) return;
+                // Skip subscription confirmation
+                if (data.id === 1 || data.result === null) return;
 
-                if (data.e === 'trade') {
+                // Trade detection: check for timestamp T and ensure it's a MARKET order (not json.e)
+                // Based on aggr-master: json.T && (!json.X || json.X === 'MARKET')
+                if (data.T && data.p && data.q && (!data.X || data.X === 'MARKET')) {
                     const trade: AggrTrade = {
                         exchange: 'Binance',
                         timestamp: data.T,
@@ -544,11 +547,12 @@ class DataProcessor {
                     };
                     this.processTrade(trade);
                 }
-                else if (data.e === 'forceOrder') {
+                // Liquidation detection
+                else if (data.e === 'forceOrder' && data.o) {
                     const o = data.o;
                     const liq: AggrLiquidation = {
                         exchange: 'Binance',
-                        timestamp: data.E,
+                        timestamp: data.o.T || data.E,
                         price: parseFloat(o.p),
                         amount: parseFloat(o.q),
                         side: o.S === 'SELL' ? 'long' : 'short',
@@ -629,7 +633,7 @@ class DataProcessor {
           ws.onopen = () => {
               this.log('Bybit Connected');
               this.emitConnectionStatus('bybit', 'connected');
-              ws.send(JSON.stringify({ op: 'subscribe', args: ['publicTrade.BTCUSDT', 'liquidation.BTCUSDT'] }));
+              ws.send(JSON.stringify({ op: 'subscribe', args: ['publicTrade.BTCUSDT', 'allLiquidation.BTCUSDT'] }));
 
               // Bybit requires keep-alive ping every 20 seconds
               this.startKeepAlive('bybit', ws, { op: 'ping' }, 20000);
@@ -651,7 +655,7 @@ class DataProcessor {
                           this.processTrade(trade);
                       });
                   }
-                  if (data.topic === 'liquidation.BTCUSDT' && data.data) {
+                  if (data.topic === 'allLiquidation.BTCUSDT' && data.data) {
                       const d = data.data;
                       const liq: AggrLiquidation = {
                           exchange: 'Bybit',
