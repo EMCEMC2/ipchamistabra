@@ -5,14 +5,18 @@
 
 import { Position } from '../types';
 
-export type VetoReason = 
+export type VetoReason =
   | 'DAILY_LOSS_LIMIT'
   | 'MAX_EXPOSURE'
   | 'INSUFFICIENT_RR'
   | 'CORRELATED_POSITION'
   | 'HIGH_VOL_OVERSIZED'
   | 'LIQUIDITY_CONCERN'
-  | 'COOLDOWN_ACTIVE';
+  | 'COOLDOWN_ACTIVE'
+  | 'STOP_LOSS_UNDEFINED'
+  | 'STOP_LOSS_INVALID'
+  | 'MAX_POSITION_SIZE'
+  | 'ATR_RISK_EXCEEDED';
 
 export interface VetoRecord {
   id: string;
@@ -80,7 +84,7 @@ export function checkRiskVeto(
   userState: { dailyPnL: number; dailyLossLimit: number; balance: number; positions: Position[] },
   riskState: RiskOfficerState
 ): RiskCheckResult {
-  
+
   // 1. Check Cooldown
   if (riskState.cooldown && riskState.cooldown.active) {
     const now = Date.now();
@@ -93,7 +97,32 @@ export function checkRiskVeto(
     }
   }
 
-  // 2. Daily Loss Limit
+  // 2. CRITICAL: Mandatory Stop Loss - MUST be defined and valid
+  if (!proposal.stopLoss || proposal.stopLoss <= 0) {
+    return {
+      blocked: true,
+      reason: 'STOP_LOSS_UNDEFINED',
+      message: 'Stop loss is required for all trades. No trade without defined risk.'
+    };
+  }
+
+  // Validate stop loss direction
+  if (proposal.type === 'LONG' && proposal.stopLoss >= proposal.entryPrice) {
+    return {
+      blocked: true,
+      reason: 'STOP_LOSS_INVALID',
+      message: `LONG stop loss must be below entry. SL: $${proposal.stopLoss.toFixed(2)} >= Entry: $${proposal.entryPrice.toFixed(2)}`
+    };
+  }
+  if (proposal.type === 'SHORT' && proposal.stopLoss <= proposal.entryPrice) {
+    return {
+      blocked: true,
+      reason: 'STOP_LOSS_INVALID',
+      message: `SHORT stop loss must be above entry. SL: $${proposal.stopLoss.toFixed(2)} <= Entry: $${proposal.entryPrice.toFixed(2)}`
+    };
+  }
+
+  // 3. Daily Loss Limit
   // Note: dailyPnL is usually negative when losing. e.g. -500. Limit is positive e.g. 2500.
   // So if dailyPnL <= -dailyLossLimit, we are done.
   if (userState.dailyPnL <= -userState.dailyLossLimit) {
@@ -104,10 +133,23 @@ export function checkRiskVeto(
     };
   }
 
-  // 3. Max Exposure (Simple check: don't use more than 100% of balance as margin)
+  // 4. CRITICAL: Max Position Size (5% of balance per trade)
+  const MAX_POSITION_PERCENT = 5;
+  const positionValueUSD = proposal.entryPrice * proposal.size;
+  const maxPositionValue = userState.balance * (MAX_POSITION_PERCENT / 100);
+
+  if (positionValueUSD > maxPositionValue) {
+    return {
+      blocked: true,
+      reason: 'MAX_POSITION_SIZE',
+      message: `Position too large. Value: $${positionValueUSD.toFixed(2)} > Max ${MAX_POSITION_PERCENT}% ($${maxPositionValue.toFixed(2)})`
+    };
+  }
+
+  // 5. Max Exposure (Simple check: don't use more than 100% of balance as margin)
   const marginUsed = userState.positions.reduce((sum, p) => sum + (p.entryPrice * p.size / p.leverage), 0);
   const newMargin = (proposal.entryPrice * proposal.size / proposal.leverage);
-  
+
   if (marginUsed + newMargin > userState.balance) {
       return {
           blocked: true,
@@ -116,11 +158,10 @@ export function checkRiskVeto(
       };
   }
 
-  // 4. Risk/Reward
+  // 6. Risk/Reward
   const risk = Math.abs(proposal.entryPrice - proposal.stopLoss);
   const reward = Math.abs(proposal.takeProfit - proposal.entryPrice);
   if (risk > 0 && (reward / risk) < 1.0) {
-      // Soft veto? Or hard? Let's make it hard for "Safe Trading"
       return {
           blocked: true,
           reason: 'INSUFFICIENT_RR',

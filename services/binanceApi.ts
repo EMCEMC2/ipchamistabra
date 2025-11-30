@@ -31,7 +31,9 @@ export const binanceApi = {
         }
 
         let attempt = 0;
-        const maxRetries = method === 'GET' ? 3 : 1; // Only retry GET requests aggressively
+        // CRITICAL: POST/DELETE must NOT retry - could cause double execution
+        // GET can retry safely (idempotent)
+        const maxRetries = method === 'GET' ? 3 : 0;
 
         while (attempt <= maxRetries) {
             try {

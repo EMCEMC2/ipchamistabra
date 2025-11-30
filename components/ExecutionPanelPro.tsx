@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { Target, Shield, AlertTriangle, ChevronDown, ChevronUp, Calculator, Download } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Target, Shield, AlertTriangle, ChevronDown, ChevronUp, Calculator, Download, Loader2 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { checkRiskVeto, TradeProposal } from '../services/riskOfficer';
 import { exportAuditLog } from '../services/auditService';
+import { binanceApi } from '../services/binanceApi';
 
 export const ExecutionPanelPro: React.FC = () => {
   const { 
@@ -28,6 +29,10 @@ export const ExecutionPanelPro: React.FC = () => {
   
   // Audit Log State
   const [showAudit, setShowAudit] = useState(false);
+
+  // Execution State (prevent double-click, show loading)
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [executionError, setExecutionError] = useState<string | null>(null);
 
   // Initialize from setup
   useEffect(() => {
@@ -71,28 +76,68 @@ export const ExecutionPanelPro: React.FC = () => {
   
   const riskCheck = checkRiskVeto(proposal, { dailyPnL, dailyLossLimit, balance, positions }, riskOfficer);
 
-  const handleExecute = () => {
+  const handleExecute = useCallback(async () => {
+    // Prevent double execution
+    if (isExecuting) return;
     if (riskCheck.blocked) return;
     if (showRiskWarning && !riskWarningAck) return;
 
-    const newPosition = {
-      id: Date.now().toString(),
-      pair: 'BTCUSDT',
-      type: (isLong ? 'LONG' : 'SHORT') as 'LONG' | 'SHORT',
-      entryPrice,
-      size: positionSizeBTC,
-      leverage,
-      liquidationPrice: isLong ? entryPrice * (1 - 1/leverage) : entryPrice * (1 + 1/leverage),
-      stopLoss,
-      takeProfit,
-      pnl: 0,
-      pnlPercent: 0,
-      timestamp: Date.now()
-    };
+    setIsExecuting(true);
+    setExecutionError(null);
 
-    addPosition(newPosition);
-    setActiveTradeSetup(null); // Clear setup
-  };
+    try {
+      // CRITICAL: Fresh balance check before execution (live mode only)
+      const { isLiveMode } = useStore.getState();
+      if (isLiveMode) {
+        const freshBalance = await binanceApi.getBalance();
+        const currentBalance = useStore.getState().balance;
+
+        // If balance dropped significantly (>10%), abort
+        if (freshBalance < currentBalance * 0.9) {
+          throw new Error(`Balance changed significantly. Was: $${currentBalance.toFixed(2)}, Now: $${freshBalance.toFixed(2)}. Aborting.`);
+        }
+
+        // Re-check risk with fresh balance
+        const freshRiskCheck = checkRiskVeto(proposal, {
+          dailyPnL: useStore.getState().dailyPnL,
+          dailyLossLimit: useStore.getState().dailyLossLimit,
+          balance: freshBalance,
+          positions: useStore.getState().positions
+        }, useStore.getState().riskOfficer);
+
+        if (freshRiskCheck.blocked) {
+          throw new Error(`Risk check failed with fresh data: ${freshRiskCheck.message}`);
+        }
+      }
+
+      // Generate idempotent order ID using crypto.randomUUID()
+      const orderId = crypto.randomUUID();
+
+      const newPosition = {
+        id: orderId,
+        pair: 'BTCUSDT',
+        type: (isLong ? 'LONG' : 'SHORT') as 'LONG' | 'SHORT',
+        entryPrice,
+        size: positionSizeBTC,
+        leverage,
+        liquidationPrice: isLong ? entryPrice * (1 - 1/leverage) : entryPrice * (1 + 1/leverage),
+        stopLoss,
+        takeProfit,
+        pnl: 0,
+        pnlPercent: 0,
+        timestamp: Date.now()
+      };
+
+      addPosition(newPosition);
+      setActiveTradeSetup(null); // Clear setup
+
+    } catch (error: any) {
+      console.error('[Execution] Failed:', error);
+      setExecutionError(error.message || 'Execution failed');
+    } finally {
+      setIsExecuting(false);
+    }
+  }, [isExecuting, riskCheck, showRiskWarning, riskWarningAck, proposal, isLong, entryPrice, positionSizeBTC, leverage, stopLoss, takeProfit, addPosition, setActiveTradeSetup]);
 
   return (
     <div className="h-full flex flex-col bg-gray-900/50 rounded-lg border border-white/5 overflow-hidden">
@@ -243,19 +288,37 @@ export const ExecutionPanelPro: React.FC = () => {
             </div>
         )}
 
+        {/* Execution Error Banner */}
+        {executionError && (
+            <div className="bg-orange-500/10 border border-orange-500/30 rounded p-2 flex items-start gap-2">
+                <AlertTriangle size={14} className="text-orange-400 mt-0.5 shrink-0" />
+                <div>
+                    <span className="text-xs font-bold text-orange-400 block">Execution Failed</span>
+                    <span className="text-[10px] text-orange-300/80 leading-tight">{executionError}</span>
+                </div>
+            </div>
+        )}
+
         {/* Execute Button */}
         <button
           onClick={handleExecute}
-          disabled={riskCheck.blocked || (showRiskWarning && !riskWarningAck)}
-          className={`w-full py-3 rounded-lg font-bold text-sm tracking-wide transition-all ${
-            riskCheck.blocked || (showRiskWarning && !riskWarningAck)
+          disabled={riskCheck.blocked || (showRiskWarning && !riskWarningAck) || isExecuting}
+          className={`w-full py-3 rounded-lg font-bold text-sm tracking-wide transition-all flex items-center justify-center gap-2 ${
+            riskCheck.blocked || (showRiskWarning && !riskWarningAck) || isExecuting
               ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
               : isLong
                 ? 'bg-green-500 hover:bg-green-400 text-black shadow-[0_0_15px_rgba(34,197,94,0.4)]'
                 : 'bg-red-500 hover:bg-red-400 text-white shadow-[0_0_15px_rgba(239,68,68,0.4)]'
           }`}
         >
-          {isLong ? 'BUY / LONG' : 'SELL / SHORT'}
+          {isExecuting ? (
+            <>
+              <Loader2 size={16} className="animate-spin" />
+              <span>EXECUTING...</span>
+            </>
+          ) : (
+            isLong ? 'BUY / LONG' : 'SELL / SHORT'
+          )}
         </button>
       </div>
     </div>

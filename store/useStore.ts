@@ -286,7 +286,31 @@ export const useStore = create<AppState>()(
         }
       })),
 
-      setIsLiveMode: (isLiveMode) => set({ isLiveMode }),
+      setIsLiveMode: (isLiveMode) => {
+        const state = get();
+
+        // SAFEGUARD: Cannot enable live mode with open positions
+        if (isLiveMode && state.positions.length > 0) {
+          console.warn('[Store] Cannot enable live mode with open positions. Close all positions first.');
+          return;
+        }
+
+        // SAFEGUARD: Cannot enable live mode if circuit breaker is tripped
+        if (isLiveMode && state.isCircuitBreakerTripped) {
+          console.warn('[Store] Cannot enable live mode while circuit breaker is active.');
+          return;
+        }
+
+        // SAFEGUARD: Log mode change for audit
+        const timestamp = new Date().toISOString();
+        if (isLiveMode) {
+          console.log(`[LIVE MODE] ENABLED at ${timestamp} - Balance: $${state.balance.toFixed(2)}`);
+        } else {
+          console.log(`[LIVE MODE] DISABLED at ${timestamp}`);
+        }
+
+        set({ isLiveMode });
+      },
 
       updateBalance: (amount) => set((state) => ({ balance: state.balance + amount })),
       addPosition: (position) => set((state) => ({ positions: [position, ...state.positions] })),

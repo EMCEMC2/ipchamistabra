@@ -190,11 +190,90 @@ export function checkPositionClose(
 }
 
 /**
+ * CRITICAL: Price Sanity Check
+ * Rejects AI signals with entry prices too far from current market price
+ * Prevents hallucinated/stale prices from causing bad trades
+ *
+ * @param entryPrice - Signal entry price
+ * @param currentPrice - Current market price
+ * @param maxDeviationPercent - Max allowed deviation (default 5%)
+ * @returns Object with isValid and deviation info
+ */
+export function checkPriceSanity(
+  entryPrice: number,
+  currentPrice: number,
+  maxDeviationPercent: number = 5
+): { isValid: boolean; deviationPercent: number; message?: string } {
+  if (entryPrice <= 0 || currentPrice <= 0) {
+    return { isValid: false, deviationPercent: 0, message: 'Invalid price values' };
+  }
+
+  const deviationPercent = Math.abs((entryPrice - currentPrice) / currentPrice) * 100;
+
+  if (deviationPercent > maxDeviationPercent) {
+    return {
+      isValid: false,
+      deviationPercent,
+      message: `Entry price $${entryPrice.toFixed(2)} is ${deviationPercent.toFixed(2)}% away from market $${currentPrice.toFixed(2)} (max ${maxDeviationPercent}%)`
+    };
+  }
+
+  return { isValid: true, deviationPercent };
+}
+
+/**
+ * ATR-based position size validation
+ * Ensures stop loss distance is reasonable relative to current volatility
+ *
+ * @param stopDistance - Distance from entry to stop loss (in USD)
+ * @param atr - Current Average True Range
+ * @param minAtrMultiple - Minimum stop distance in ATR units (default 0.5)
+ * @param maxAtrMultiple - Maximum stop distance in ATR units (default 3.0)
+ * @returns Validation result
+ */
+export function validateStopDistanceATR(
+  stopDistance: number,
+  atr: number,
+  minAtrMultiple: number = 0.5,
+  maxAtrMultiple: number = 3.0
+): { isValid: boolean; atrMultiple: number; message?: string } {
+  if (atr <= 0) {
+    return { isValid: true, atrMultiple: 0, message: 'ATR not available, skipping check' };
+  }
+
+  const atrMultiple = stopDistance / atr;
+
+  if (atrMultiple < minAtrMultiple) {
+    return {
+      isValid: false,
+      atrMultiple,
+      message: `Stop too tight: ${atrMultiple.toFixed(2)} ATR (min ${minAtrMultiple}). Risk of noise stop-out.`
+    };
+  }
+
+  if (atrMultiple > maxAtrMultiple) {
+    return {
+      isValid: false,
+      atrMultiple,
+      message: `Stop too wide: ${atrMultiple.toFixed(2)} ATR (max ${maxAtrMultiple}). Risk too large per trade.`
+    };
+  }
+
+  return { isValid: true, atrMultiple };
+}
+
+/**
  * Validate signal data (ensure numbers are real, not hallucinated)
  * @param signal - Signal to validate
+ * @param currentPrice - Current market price for sanity check (optional)
+ * @param atr - Current ATR for stop validation (optional)
  * @returns Validated signal or null if invalid
  */
-export function validateSignal(signal: Partial<TradeSignal>): TradeSignal | null {
+export function validateSignal(
+  signal: Partial<TradeSignal>,
+  currentPrice?: number,
+  atr?: number
+): TradeSignal | null {
   // Parse prices
   const entry = parsePrice(signal.entryZone || '');
   const stop = parsePrice(signal.invalidation || '');
@@ -207,6 +286,15 @@ export function validateSignal(signal: Partial<TradeSignal>): TradeSignal | null
       target: signal.targets?.[0]
     });
     return null;
+  }
+
+  // CRITICAL: Price sanity check (if current price provided)
+  if (currentPrice && currentPrice > 0) {
+    const sanityCheck = checkPriceSanity(entry, currentPrice);
+    if (!sanityCheck.isValid) {
+      console.warn('[Signal Validation] Price sanity check failed:', sanityCheck.message);
+      return null;
+    }
   }
 
   // Validate logic
@@ -226,6 +314,16 @@ export function validateSignal(signal: Partial<TradeSignal>): TradeSignal | null
     }
     if (target >= entry) {
       console.warn('[Signal Validation] SHORT target must be below entry');
+      return null;
+    }
+  }
+
+  // ATR-based stop validation (if ATR provided)
+  if (atr && atr > 0) {
+    const stopDistance = Math.abs(entry - stop);
+    const atrCheck = validateStopDistanceATR(stopDistance, atr);
+    if (!atrCheck.isValid) {
+      console.warn('[Signal Validation] ATR check failed:', atrCheck.message);
       return null;
     }
   }
