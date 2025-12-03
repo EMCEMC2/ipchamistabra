@@ -68,6 +68,7 @@ export interface TradeProposal {
   takeProfit: number;
   size: number; // In BTC
   leverage: number;
+  atr?: number; // Average True Range for volatility-based risk check
 }
 
 export interface RiskCheckResult {
@@ -167,6 +168,21 @@ export function checkRiskVeto(
           reason: 'INSUFFICIENT_RR',
           message: `Risk/Reward ${ (reward/risk).toFixed(2) } is below 1.0 minimum.`
       };
+  }
+
+  // 7. ATR-Based Risk Check
+  // Stop loss should not exceed 2x ATR to avoid excessive volatility exposure
+  if (proposal.atr && proposal.atr > 0) {
+    const stopDistance = Math.abs(proposal.entryPrice - proposal.stopLoss);
+    const maxStopDistance = proposal.atr * 2; // 2x ATR is the max safe stop distance
+
+    if (stopDistance > maxStopDistance) {
+      return {
+        blocked: true,
+        reason: 'ATR_RISK_EXCEEDED',
+        message: `Stop loss too wide for current volatility. Distance: $${stopDistance.toFixed(2)} > 2x ATR ($${maxStopDistance.toFixed(2)}). Consider tighter stop or wait for lower volatility.`
+      };
+    }
   }
 
   return { blocked: false };

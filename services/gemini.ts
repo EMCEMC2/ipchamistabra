@@ -1,105 +1,107 @@
 import { ChatMessage, GroundingSource, TradeSignal, JournalEntry, IntelItem, AgentRole, AgentTaskResult, IntelItemSchema, TradeSignalSchema } from "../types";
 import { z } from 'zod';
 import { validateSignal, calculateRiskReward, parsePrice, classifyMarketRegime } from '../utils/tradingCalculations';
-import { GoogleGenAI } from '@google/genai';
 
-// Get API key from environment
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
+/**
+ * SECURITY: AI calls are routed through the backend proxy.
+ * The API key is stored server-side only, never exposed to the browser.
+ *
+ * Backend endpoint: /api/ai/generate
+ * Required header: x-admin-secret
+ */
 
-// Initialize Gemini client
-let genAI: GoogleGenAI | null = null;
+// Get backend URL and admin secret from environment
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || '';
+const ADMIN_SECRET = import.meta.env.VITE_ADMIN_SECRET || '';
 
-const getGenAI = (): GoogleGenAI => {
-    if (!genAI) {
-        if (!API_KEY) {
-            throw new Error('Gemini API key not configured. Set VITE_GEMINI_API_KEY in environment.');
-        }
-        genAI = new GoogleGenAI({ apiKey: API_KEY });
-    }
-    return genAI;
-};
-
+// Check if AI is available (backend configured)
 export const isAiAvailable = (): boolean => {
-    return !!API_KEY;
+    return !!(BACKEND_URL && ADMIN_SECRET);
 };
 
-// Timeout duration for Gemini API calls (30 seconds)
+// Timeout duration for API calls (30 seconds)
 const GEMINI_TIMEOUT_MS = 30000;
 
 // Helper to create a timeout promise
 const createTimeout = (ms: number): Promise<never> => {
     return new Promise((_, reject) => {
         setTimeout(() => {
-            reject(new Error(`Gemini API request timed out after ${ms / 1000}s. Check your network connection or try again.`));
+            reject(new Error(`AI API request timed out after ${ms / 1000}s. Check your network connection or try again.`));
         }, ms);
     });
 };
 
-// Direct Gemini API call (no proxy) with timeout
+/**
+ * Call AI through backend proxy (SECURE - API key never exposed to client)
+ */
 const callGeminiDirect = async (model: string, contents: string, config?: any): Promise<{ text: string; candidates?: any[] }> => {
     const startTime = performance.now();
 
+    if (!BACKEND_URL) {
+        throw new Error('AI service not configured. Set VITE_BACKEND_URL in environment.');
+    }
+    if (!ADMIN_SECRET) {
+        throw new Error('AI authentication not configured. Set VITE_ADMIN_SECRET in environment.');
+    }
+
     try {
-        const ai = getGenAI();
         if (import.meta.env.DEV) {
-            console.log('[Gemini Direct] Calling model:', model);
+            console.log('[Gemini Proxy] Calling model:', model);
         }
 
-        const generateConfig: any = {};
+        // Call backend proxy instead of direct Gemini API
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
 
-        if (config?.responseMimeType) {
-            generateConfig.responseMimeType = config.responseMimeType;
-        }
-        if (config?.responseSchema) {
-            generateConfig.responseSchema = config.responseSchema;
-        }
-        if (config?.thinkingConfig) {
-            generateConfig.thinkingConfig = config.thinkingConfig;
-        }
-
-        // Race between API call and timeout
-        const response = await Promise.race([
-            ai.models.generateContent({
+        const response = await fetch(`${BACKEND_URL}/api/ai/generate`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-admin-secret': ADMIN_SECRET,
+            },
+            body: JSON.stringify({
                 model,
                 contents,
-                config: {
-                    ...generateConfig,
-                    systemInstruction: config?.systemInstruction,
-                    tools: config?.tools,
-                }
+                config,
             }),
-            createTimeout(GEMINI_TIMEOUT_MS)
-        ]);
+            signal: controller.signal,
+        });
 
-        const text = response.text || '';
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.details || `AI API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const text = data.text || '';
         const duration = performance.now() - startTime;
+
         if (import.meta.env.DEV) {
-            console.log(`[Gemini Direct] Response received in ${(duration / 1000).toFixed(1)}s, length: ${text.length}`);
+            console.log(`[Gemini Proxy] Response received in ${(duration / 1000).toFixed(1)}s, length: ${text.length}`);
         }
 
         return {
             text,
-            candidates: response.candidates
+            candidates: data.candidates
         };
     } catch (error: any) {
         const duration = performance.now() - startTime;
-        console.error(`[Gemini Direct] Error after ${(duration / 1000).toFixed(1)}s:`, error.message);
+        console.error(`[Gemini Proxy] Error after ${(duration / 1000).toFixed(1)}s:`, error.message);
 
-        // Handle timeout specifically
-        if (error.message?.includes('timed out')) {
-            throw error; // Re-throw timeout error as-is (already actionable)
+        // Handle abort (timeout)
+        if (error.name === 'AbortError') {
+            throw new Error(`AI API request timed out after ${GEMINI_TIMEOUT_MS / 1000}s. Check your network connection or try again.`);
         }
 
         // Handle specific error types
         const errorMsg = error.message || '';
-        if (errorMsg.includes('API_KEY_INVALID') || errorMsg.includes('403')) {
-            throw new Error('Invalid API key. Please check your VITE_GEMINI_API_KEY.');
+        if (errorMsg.includes('401') || errorMsg.includes('Unauthorized')) {
+            throw new Error('AI authentication failed. Check VITE_ADMIN_SECRET.');
         }
-        if (errorMsg.includes('PERMISSION_DENIED')) {
-            throw new Error('API key does not have permission for this model.');
-        }
-        if (errorMsg.includes('RESOURCE_EXHAUSTED') || errorMsg.includes('429')) {
-            throw new Error('API rate limit exceeded. Please wait and try again.');
+        if (errorMsg.includes('429') || errorMsg.includes('Rate Limited')) {
+            throw new Error('AI rate limit exceeded. Please wait and try again.');
         }
 
         throw error;
@@ -445,9 +447,18 @@ export const scanMarketForSignals = async (
       // Calculate REAL R:R (TypeScript, not AI)
       const rr = calculateRiskReward(entry, stop, target);
 
+      // SECURITY: Clamp AI confidence to valid range (0-100)
+      // Prevents AI hallucination of extreme values
+      let confidence = Number(rawSignal.confidence);
+      if (!Number.isFinite(confidence)) {
+        confidence = 50; // Default to neutral confidence
+      }
+      confidence = Math.max(0, Math.min(100, Math.round(confidence)));
+
       // Build validated signal with AI source and pending_review status
       const validated = validateSignal({
         ...rawSignal,
+        confidence, // Clamped confidence
         regime, // Our calculation
         riskRewardRatio: rr, // Our calculation
         source: 'ai' as const, // AI-generated signal

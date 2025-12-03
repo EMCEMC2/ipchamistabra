@@ -505,7 +505,7 @@ export interface TradeOutcome {
   // Exit
   exitPrice: number;
   exitTime: number;
-  exitReason: 'TP1' | 'TP2' | 'TP3' | 'TP4' | 'STOP' | 'MANUAL' | 'EXPIRED';
+  exitReason: 'TP1' | 'TP2' | 'TP3' | 'TP4' | 'STOP' | 'MANUAL' | 'EXPIRED' | 'END_OF_DATA';
 
   // Results
   pnlPercent: number;
@@ -837,7 +837,7 @@ export interface BacktestClosedTrade {
   pnl: number;
   pnlPercent: number;
   rMultiple: number;
-  exitReason: 'TP1' | 'TP2' | 'TP3' | 'TP4' | 'STOP' | 'MANUAL' | 'EXPIRED';
+  exitReason: 'TP1' | 'TP2' | 'TP3' | 'TP4' | 'STOP' | 'MANUAL' | 'EXPIRED' | 'END_OF_DATA';
   tp1Hit: boolean;
   tp2Hit: boolean;
   tp3Hit: boolean;

@@ -119,13 +119,45 @@ export const binanceApi = {
             leverage
         });
 
-        return binanceApi.request('/order', 'POST', {
+        const orderResponse = await binanceApi.request('/order', 'POST', {
             symbol,
             side,
             type,
             quantity,
             price
         });
+
+        // CRITICAL: Validate order was accepted by exchange before returning
+        // Order response should have orderId and status
+        if (!orderResponse || !orderResponse.orderId) {
+            throw new Error('Order submitted but no orderId returned - check exchange manually');
+        }
+
+        // Log successful order for audit trail
+        console.log('[BinanceAPI] Order confirmed:', {
+            orderId: orderResponse.orderId,
+            status: orderResponse.status,
+            symbol,
+            side,
+            type,
+            quantity: orderResponse.executedQty || quantity
+        });
+
+        return orderResponse;
+    },
+
+    // Verify order status on exchange (for state sync)
+    getOrderStatus: async (symbol: string, orderId: number): Promise<{ status: string; executedQty: string; avgPrice: string }> => {
+        // This would call a backend endpoint that queries Binance order status
+        // For now, return the order ID check - implement full query if needed
+        const positions = await binanceApi.getPositions();
+        const position = positions.find((p: any) => p.symbol === symbol && parseFloat(p.positionAmt) !== 0);
+
+        return {
+            status: position ? 'FILLED' : 'UNKNOWN',
+            executedQty: position?.positionAmt || '0',
+            avgPrice: position?.entryPrice || '0'
+        };
     },
 
     // Helper to get current price for margin calculation

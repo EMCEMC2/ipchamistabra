@@ -1,7 +1,15 @@
-import fs from 'fs';
-import path from 'path';
-
-const SECRETS_FILE = path.join(process.cwd(), 'secrets.json');
+/**
+ * Key Manager - Environment Variables Only
+ *
+ * SECURITY: All secrets are read from environment variables only.
+ * File-based secret storage has been removed for security.
+ *
+ * Required environment variables:
+ * - BINANCE_TESTNET_KEY
+ * - BINANCE_TESTNET_SECRET
+ * - TRADING_API_KEY
+ * - GEMINI_API_KEY
+ */
 
 interface Secrets {
     BINANCE_TESTNET_KEY?: string;
@@ -10,33 +18,39 @@ interface Secrets {
     GEMINI_API_KEY?: string;
 }
 
-// Ensure secrets file exists
-if (!fs.existsSync(SECRETS_FILE)) {
-    fs.writeFileSync(SECRETS_FILE, JSON.stringify({}, null, 2));
-}
-
 export const keyManager = {
+    /**
+     * Get all configured secrets from environment variables
+     */
     getSecrets: (): Secrets => {
-        try {
-            if (fs.existsSync(SECRETS_FILE)) {
-                return JSON.parse(fs.readFileSync(SECRETS_FILE, 'utf-8'));
-            }
-        } catch (error) {
-            console.error('Failed to read secrets file:', error);
-        }
-        return {};
+        return {
+            BINANCE_TESTNET_KEY: process.env.BINANCE_TESTNET_KEY,
+            BINANCE_TESTNET_SECRET: process.env.BINANCE_TESTNET_SECRET,
+            TRADING_API_KEY: process.env.TRADING_API_KEY,
+            GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+        };
     },
 
-    setSecrets: (newSecrets: Partial<Secrets>) => {
-        const current = keyManager.getSecrets();
-        const updated = { ...current, ...newSecrets };
-        fs.writeFileSync(SECRETS_FILE, JSON.stringify(updated, null, 2));
+    /**
+     * Set secrets - DISABLED for security
+     * Secrets must be configured via environment variables
+     */
+    setSecrets: (_newSecrets: Partial<Secrets>): void => {
+        console.warn('SECURITY: setSecrets is disabled. Configure secrets via environment variables.');
+        // No-op: File-based secret storage removed for security
     },
 
-    // Helper to get a key (Env var takes precedence, then secrets file)
+    /**
+     * Get a specific key from environment variables
+     */
     getKey: (keyName: keyof Secrets): string => {
-        if (process.env[keyName]) return process.env[keyName]!;
-        const secrets = keyManager.getSecrets();
-        return secrets[keyName] || '';
+        return process.env[keyName] || '';
+    },
+
+    /**
+     * Check if a key is configured
+     */
+    hasKey: (keyName: keyof Secrets): boolean => {
+        return !!process.env[keyName];
     }
 };

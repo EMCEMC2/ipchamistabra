@@ -2,24 +2,88 @@ import express from 'express';
 import cors from 'cors';
 import http from 'http';
 import WebSocket from 'ws';
+import { IncomingMessage } from 'http';
 import { config } from './config';
 import { tradingRoutes } from './routes/trading';
 import { macroRoutes } from './routes/macro';
 import { keyRoutes } from './routes/keys';
 import { aiRoutes } from './routes/ai';
 
-const app = express();
-const server = http.createServer(app);
+// WebSocket Security Configuration
+const WS_MAX_CONNECTIONS_PER_IP = 5;
+const WS_RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
+const WS_MAX_CONNECTIONS_TOTAL = 100;
 
-// WebSocket Server for Order Flow Proxy
-const wss = new WebSocket.Server({ server, path: '/ws/orderflow' });
-
-// CORS Configuration
+// Environment Configuration (needed before WebSocket server init)
 const isDev = process.env.NODE_ENV !== 'production';
 const allowedOrigins = isDev
     ? (process.env.CORS_ORIGINS_DEV ? process.env.CORS_ORIGINS_DEV.split(',') : ['http://localhost:5173', 'http://localhost:3000'])
     : (process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : []);
 
+const app = express();
+const server = http.createServer(app);
+
+// WebSocket Server for Order Flow Proxy with verification
+const wss = new WebSocket.Server({
+    server,
+    path: '/ws/orderflow',
+    verifyClient: (info: { origin: string; secure: boolean; req: IncomingMessage }, callback) => {
+        // Get client IP
+        const clientIp = info.req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() ||
+                        info.req.socket.remoteAddress ||
+                        'unknown';
+
+        // Check total connections limit
+        if (wss.clients.size >= WS_MAX_CONNECTIONS_TOTAL) {
+            console.warn(`[WS Security] Rejecting connection: Total limit reached (${WS_MAX_CONNECTIONS_TOTAL})`);
+            callback(false, 503, 'Server at capacity');
+            return;
+        }
+
+        // Check per-IP connection limit
+        const connectionsFromIp = Array.from(wss.clients).filter(client => {
+            const clientData = (client as any)._clientIp;
+            return clientData === clientIp;
+        }).length;
+
+        if (connectionsFromIp >= WS_MAX_CONNECTIONS_PER_IP) {
+            console.warn(`[WS Security] Rejecting connection from ${clientIp}: Per-IP limit reached`);
+            callback(false, 429, 'Too many connections from this IP');
+            return;
+        }
+
+        // Origin validation (in production)
+        const origin = info.origin || info.req.headers.origin;
+        if (!isDev && origin) {
+            if (!allowedOrigins.includes(origin)) {
+                console.warn(`[WS Security] Rejecting connection from unauthorized origin: ${origin}`);
+                callback(false, 403, 'Origin not allowed');
+                return;
+            }
+        }
+
+        // Optional: Token-based authentication via query string
+        const url = new URL(info.req.url || '', `http://${info.req.headers.host}`);
+        const token = url.searchParams.get('token');
+
+        // If WS_AUTH_REQUIRED is set, require token
+        if (process.env.WS_AUTH_REQUIRED === 'true') {
+            const validToken = process.env.WS_AUTH_TOKEN;
+            if (!validToken || token !== validToken) {
+                console.warn(`[WS Security] Rejecting connection: Invalid or missing token`);
+                callback(false, 401, 'Authentication required');
+                return;
+            }
+        }
+
+        // Store client IP for tracking
+        (info.req as any)._clientIp = clientIp;
+
+        callback(true);
+    }
+});
+
+// CORS Middleware
 app.use(cors({
     origin: (origin, callback) => {
         // Allow requests with no origin (like mobile apps or curl) ONLY in Dev
@@ -177,8 +241,12 @@ function connectToExchange(clientWs: WebSocket, exchange: string, url: string, s
     return exchangeWs;
 }
 
-wss.on('connection', (clientWs) => {
-    console.log('[WS Proxy] Client connected');
+wss.on('connection', (clientWs, req) => {
+    // Store client IP from verification phase for tracking
+    const clientIp = (req as any)._clientIp || 'unknown';
+    (clientWs as any)._clientIp = clientIp;
+
+    console.log(`[WS Proxy] Client connected from ${clientIp}`);
 
     const connections: WebSocket[] = [];
 

@@ -1,11 +1,42 @@
 import express from 'express';
 import axios from 'axios';
 import rateLimit from 'express-rate-limit';
+import * as crypto from 'crypto';
 import { config } from '../config';
 import { binanceSigner } from '../services/binanceSigner';
 import { auditService } from '../services/auditService';
 
 const router = express.Router();
+
+// SECURITY: Allowed values for order parameters
+const VALID_SIDES = ['BUY', 'SELL'] as const;
+const VALID_ORDER_TYPES = ['MARKET', 'LIMIT', 'STOP_MARKET', 'TAKE_PROFIT_MARKET'] as const;
+const VALID_TIME_IN_FORCE = ['GTC', 'IOC', 'FOK'] as const;
+const VALID_SYMBOL_PATTERN = /^[A-Z]{2,10}USDT?$/; // e.g., BTCUSDT, ETHUSDT
+const MAX_QUANTITY = 100; // Max 100 BTC per order (safety limit)
+
+/**
+ * SECURITY: Generate correlation ID for error tracking
+ * Returns sanitized error without exposing internal details
+ */
+function sanitizeError(error: any, context: string): { correlationId: string; message: string } {
+    const correlationId = crypto.randomBytes(8).toString('hex');
+    const timestamp = new Date().toISOString();
+
+    // Log detailed error server-side with correlation ID
+    console.error(`[${timestamp}] [${correlationId}] ${context}:`, {
+        message: error.message || 'Unknown error',
+        code: error.code,
+        response: error.response?.data,
+        stack: error.stack
+    });
+
+    // Return sanitized error to client
+    return {
+        correlationId,
+        message: 'An error occurred processing your request'
+    };
+}
 
 // Rate limiters for different endpoint types
 const orderRateLimiter = rateLimit({
@@ -80,30 +111,72 @@ router.post('/order', orderRateLimiter, async (req, res) => {
     try {
         const { symbol, side, type, quantity, price, timeInForce } = req.body;
 
-        // Validation
-        if (!symbol || !side || !type || !quantity) {
-            return res.status(400).json({ error: 'Missing required fields' });
-        }
-        if (quantity <= 0) {
-            return res.status(400).json({ error: 'Quantity must be positive' });
-        }
-        if (type === 'LIMIT' && (!price || price <= 0)) {
-            return res.status(400).json({ error: 'Price is required for LIMIT orders' });
+        // SECURITY: Strict input validation with whitelisting
+        if (!symbol || !side || !type || quantity === undefined) {
+            return res.status(400).json({ error: 'Missing required fields: symbol, side, type, quantity' });
         }
 
-        const params: any = { symbol, side, type, quantity };
-        if (price) params.price = price;
-        if (timeInForce) params.timeInForce = timeInForce;
+        // Validate symbol format
+        const upperSymbol = String(symbol).toUpperCase();
+        if (!VALID_SYMBOL_PATTERN.test(upperSymbol)) {
+            return res.status(400).json({ error: 'Invalid symbol format. Expected: BTCUSDT, ETHUSDT, etc.' });
+        }
+
+        // Validate side
+        const upperSide = String(side).toUpperCase();
+        if (!VALID_SIDES.includes(upperSide as any)) {
+            return res.status(400).json({ error: `Invalid side. Must be one of: ${VALID_SIDES.join(', ')}` });
+        }
+
+        // Validate type
+        const upperType = String(type).toUpperCase();
+        if (!VALID_ORDER_TYPES.includes(upperType as any)) {
+            return res.status(400).json({ error: `Invalid order type. Must be one of: ${VALID_ORDER_TYPES.join(', ')}` });
+        }
+
+        // Validate quantity
+        const numQuantity = Number(quantity);
+        if (!Number.isFinite(numQuantity) || numQuantity <= 0) {
+            return res.status(400).json({ error: 'Quantity must be a positive number' });
+        }
+        if (numQuantity > MAX_QUANTITY) {
+            return res.status(400).json({ error: `Quantity exceeds maximum limit of ${MAX_QUANTITY}` });
+        }
+
+        // Validate price for LIMIT orders
+        if (upperType === 'LIMIT') {
+            const numPrice = Number(price);
+            if (!Number.isFinite(numPrice) || numPrice <= 0) {
+                return res.status(400).json({ error: 'Price is required and must be positive for LIMIT orders' });
+            }
+        }
+
+        // Validate timeInForce if provided
+        if (timeInForce) {
+            const upperTIF = String(timeInForce).toUpperCase();
+            if (!VALID_TIME_IN_FORCE.includes(upperTIF as any)) {
+                return res.status(400).json({ error: `Invalid timeInForce. Must be one of: ${VALID_TIME_IN_FORCE.join(', ')}` });
+            }
+        }
+
+        const params: any = {
+            symbol: upperSymbol,
+            side: upperSide,
+            type: upperType,
+            quantity: numQuantity
+        };
+        if (price) params.price = Number(price);
+        if (timeInForce) params.timeInForce = String(timeInForce).toUpperCase();
 
         const result = await binanceRequest('POST', '/fapi/v1/order', params);
-        
+
         // Audit Log: Success
         auditService.logOrderAction({
             action: 'ORDER_PLACED',
-            symbol,
-            side,
-            quantity,
-            price,
+            symbol: upperSymbol,
+            side: upperSide,
+            quantity: numQuantity,
+            price: params.price,
             orderId: result.orderId,
             status: 'SUCCESS'
         });
@@ -118,10 +191,16 @@ router.post('/order', orderRateLimiter, async (req, res) => {
             quantity: req.body.quantity,
             price: req.body.price,
             status: 'FAILURE',
-            error: error.message || JSON.stringify(error)
+            error: error.message || 'Unknown error'
         });
 
-        res.status(500).json({ error: 'Order Failed', details: error });
+        // SECURITY: Return sanitized error without internal details
+        const sanitized = sanitizeError(error, 'Order Failed');
+        res.status(500).json({
+            error: 'Order Failed',
+            correlationId: sanitized.correlationId,
+            message: sanitized.message
+        });
     }
 });
 
@@ -129,12 +208,23 @@ router.post('/order', orderRateLimiter, async (req, res) => {
 router.delete('/order', orderRateLimiter, async (req, res) => {
     try {
         const { symbol, orderId } = req.body;
-        const result = await binanceRequest('DELETE', '/fapi/v1/order', { symbol, orderId });
+
+        // Validate inputs
+        if (!symbol || !orderId) {
+            return res.status(400).json({ error: 'Missing required fields: symbol, orderId' });
+        }
+
+        const upperSymbol = String(symbol).toUpperCase();
+        if (!VALID_SYMBOL_PATTERN.test(upperSymbol)) {
+            return res.status(400).json({ error: 'Invalid symbol format' });
+        }
+
+        const result = await binanceRequest('DELETE', '/fapi/v1/order', { symbol: upperSymbol, orderId });
 
         // Audit Log: Success
         auditService.logOrderAction({
             action: 'ORDER_CANCELLED',
-            symbol,
+            symbol: upperSymbol,
             orderId,
             status: 'SUCCESS'
         });
@@ -147,10 +237,16 @@ router.delete('/order', orderRateLimiter, async (req, res) => {
             symbol: req.body.symbol,
             orderId: req.body.orderId,
             status: 'FAILURE',
-            error: error.message || JSON.stringify(error)
+            error: error.message || 'Unknown error'
         });
 
-        res.status(500).json({ error: 'Cancel Failed', details: error });
+        // SECURITY: Return sanitized error
+        const sanitized = sanitizeError(error, 'Cancel Failed');
+        res.status(500).json({
+            error: 'Cancel Failed',
+            correlationId: sanitized.correlationId,
+            message: sanitized.message
+        });
     }
 });
 
@@ -160,7 +256,12 @@ router.get('/positions', readRateLimiter, async (req, res) => {
         const result = await binanceRequest('GET', '/fapi/v2/positionRisk');
         res.json(result);
     } catch (error) {
-        res.status(500).json({ error: 'Fetch Positions Failed', details: error });
+        const sanitized = sanitizeError(error, 'Fetch Positions Failed');
+        res.status(500).json({
+            error: 'Fetch Positions Failed',
+            correlationId: sanitized.correlationId,
+            message: sanitized.message
+        });
     }
 });
 
@@ -170,7 +271,12 @@ router.get('/balance', readRateLimiter, async (req, res) => {
         const result = await binanceRequest('GET', '/fapi/v2/balance');
         res.json(result);
     } catch (error) {
-        res.status(500).json({ error: 'Fetch Balance Failed', details: error });
+        const sanitized = sanitizeError(error, 'Fetch Balance Failed');
+        res.status(500).json({
+            error: 'Fetch Balance Failed',
+            correlationId: sanitized.correlationId,
+            message: sanitized.message
+        });
     }
 });
 
@@ -183,31 +289,28 @@ router.post('/listenKey', async (req, res) => {
         });
         res.json(response.data);
     } catch (error: any) {
-        res.status(500).json({ error: 'ListenKey Failed', details: error.response?.data || error.message });
+        const sanitized = sanitizeError(error, 'ListenKey Failed');
+        res.status(500).json({
+            error: 'ListenKey Failed',
+            correlationId: sanitized.correlationId,
+            message: sanitized.message
+        });
     }
 });
 
 router.put('/listenKey', async (req, res) => {
     try {
-        const { listenKey } = req.body; // Usually passed in body or query? Check docs. usually body or query.
-        // Binance FAPI PUT /fapi/v1/listenKey takes no params, just the header? No, usually no params for creating, but keeping alive might need it?
-        // Actually for Futures, it's POST to create, PUT to keepalive.
-        // Wait, for Keepalive, usually you don't need to send the key if it's user stream? 
-        // Docs: PUT /fapi/v1/listenKey. "Keepalive a user data stream to prevent a time out."
-        // Parameters: None? Or listenKey?
-        // "listenKey" is NOT a parameter in the URL? 
-        // Actually, usually you send it as a parameter if you have multiple?
-        // Let's check standard implementation.
-        // For Binance Futures: PUT /fapi/v1/listenKey
-        // It seems it extends the validity of the stream.
-        // It usually requires the API Key.
-        
         await axios.put(`${config.binance.baseUrl}/fapi/v1/listenKey`, null, {
             headers: { 'X-MBX-APIKEY': config.binance.apiKey }
         });
         res.json({ status: 'success' });
     } catch (error: any) {
-        res.status(500).json({ error: 'KeepAlive Failed', details: error.response?.data || error.message });
+        const sanitized = sanitizeError(error, 'KeepAlive Failed');
+        res.status(500).json({
+            error: 'KeepAlive Failed',
+            correlationId: sanitized.correlationId,
+            message: sanitized.message
+        });
     }
 });
 

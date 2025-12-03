@@ -16,12 +16,12 @@ const adminAuth = (req: express.Request, res: express.Response, next: express.Ne
     next();
 };
 
-// Check if keys are configured (Public - no secret needed to check status)
-router.get('/check', (req, res) => {
+// Check if keys are configured (Protected - requires admin secret)
+router.get('/check', adminAuth, (req, res) => {
     const apiKey = keyManager.getKey('BINANCE_TESTNET_KEY');
     const apiSecret = keyManager.getKey('BINANCE_TESTNET_SECRET');
     const geminiKey = keyManager.getKey('GEMINI_API_KEY');
-    
+
     res.json({
         configured: !!(apiKey && apiSecret),
         binanceKeyConfigured: !!apiKey,
@@ -30,23 +30,15 @@ router.get('/check', (req, res) => {
     });
 });
 
-// Set Keys (Protected)
+// Set Keys (Protected) - DISABLED for security
+// Keys must be configured via environment variables
 router.post('/', adminAuth, (req, res) => {
-    const { apiKey, apiSecret, tradingKey, geminiKey } = req.body;
-
-    if (!apiKey && !apiSecret && !tradingKey && !geminiKey) {
-        return res.status(400).json({ error: 'No keys provided' });
-    }
-
-    const updates: any = {};
-    if (apiKey) updates.BINANCE_TESTNET_KEY = apiKey;
-    if (apiSecret) updates.BINANCE_TESTNET_SECRET = apiSecret;
-    if (tradingKey) updates.TRADING_API_KEY = tradingKey;
-    if (geminiKey) updates.GEMINI_API_KEY = geminiKey;
-
-    keyManager.setSecrets(updates);
-
-    res.json({ status: 'success', message: 'Keys updated successfully' });
+    // SECURITY: File-based secret storage has been disabled
+    // All secrets must be configured via environment variables
+    res.status(403).json({
+        error: 'Disabled',
+        details: 'Runtime key updates are disabled for security. Configure secrets via environment variables: BINANCE_TESTNET_KEY, BINANCE_TESTNET_SECRET, TRADING_API_KEY, GEMINI_API_KEY'
+    });
 });
 
 export const keyRoutes = router;

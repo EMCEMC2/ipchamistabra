@@ -757,7 +757,7 @@ class DataSyncAgent {
         // Schema validation failed - collect errors but don't block
         e.issues.forEach((issue) => {
           const field = issue.path.join('.');
-          if (issue.code === 'invalid_type' || issue.code === 'invalid_enum_value') {
+          if (issue.code === 'invalid_type' || issue.code === 'invalid_union' || issue.code === 'invalid_value') {
             result.errors.push({ field, message: issue.message, value: issue.path.reduce((obj: any, key) => obj?.[key], stats) });
           } else {
             result.warnings.push({ field, message: issue.message });

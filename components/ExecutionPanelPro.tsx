@@ -1,9 +1,18 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Target, Shield, AlertTriangle, ChevronDown, ChevronUp, Calculator, Download, Loader2 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { checkRiskVeto, TradeProposal } from '../services/riskOfficer';
 import { exportAuditLog } from '../services/auditService';
 import { binanceApi } from '../services/binanceApi';
+import {
+  TradingMachineState,
+  INITIAL_MACHINE_STATE,
+  transition,
+  canStartTrade,
+  checkTimeout,
+  getStatusMessage,
+  isTerminal
+} from '../services/tradingStateMachine';
 
 export const ExecutionPanelPro: React.FC = () => {
   const { 
@@ -30,9 +39,47 @@ export const ExecutionPanelPro: React.FC = () => {
   // Audit Log State
   const [showAudit, setShowAudit] = useState(false);
 
-  // Execution State (prevent double-click, show loading)
-  const [isExecuting, setIsExecuting] = useState(false);
-  const [executionError, setExecutionError] = useState<string | null>(null);
+  // Trading State Machine
+  const [machineState, setMachineState] = useState<TradingMachineState>(INITIAL_MACHINE_STATE);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Derived execution state from state machine
+  const isExecuting = !canStartTrade(machineState) && !isTerminal(machineState.state);
+  const executionError = machineState.state === 'FAILED' ? machineState.context.error : null;
+
+  // State machine dispatch helper
+  const dispatch = useCallback((event: Parameters<typeof transition>[1]) => {
+    setMachineState(prev => transition(prev, event));
+  }, []);
+
+  // Timeout checker effect
+  useEffect(() => {
+    if (timeoutRef.current) {
+      clearInterval(timeoutRef.current);
+    }
+
+    timeoutRef.current = setInterval(() => {
+      if (checkTimeout(machineState)) {
+        dispatch({ type: 'TIMEOUT' });
+      }
+    }, 1000);
+
+    return () => {
+      if (timeoutRef.current) {
+        clearInterval(timeoutRef.current);
+      }
+    };
+  }, [machineState, dispatch]);
+
+  // Reset state machine when in terminal state after delay
+  useEffect(() => {
+    if (isTerminal(machineState.state)) {
+      const timer = setTimeout(() => {
+        dispatch({ type: 'RESET' });
+      }, 5000); // Auto-reset after 5 seconds
+      return () => clearTimeout(timer);
+    }
+  }, [machineState.state, dispatch]);
 
   // Initialize from setup
   useEffect(() => {
@@ -77,24 +124,31 @@ export const ExecutionPanelPro: React.FC = () => {
   const riskCheck = checkRiskVeto(proposal, { dailyPnL, dailyLossLimit, balance, positions }, riskOfficer);
 
   const handleExecute = useCallback(async () => {
-    // Prevent double execution
-    if (isExecuting) return;
+    // State machine prevents double execution
+    if (!canStartTrade(machineState)) return;
     if (riskCheck.blocked) return;
     if (showRiskWarning && !riskWarningAck) return;
 
-    setIsExecuting(true);
-    setExecutionError(null);
+    // Generate idempotent order ID
+    const orderId = crypto.randomUUID();
+
+    // Step 1: Start trade (IDLE -> VALIDATING)
+    dispatch({ type: 'START_TRADE', orderId });
 
     try {
-      // CRITICAL: Fresh balance check before execution (live mode only)
+      // Step 2: Run validation (live mode checks)
       const { isLiveMode } = useStore.getState();
       if (isLiveMode) {
         const freshBalance = await binanceApi.getBalance();
         const currentBalance = useStore.getState().balance;
 
-        // If balance dropped significantly (>10%), abort
+        // If balance dropped significantly (>10%), fail validation
         if (freshBalance < currentBalance * 0.9) {
-          throw new Error(`Balance changed significantly. Was: $${currentBalance.toFixed(2)}, Now: $${freshBalance.toFixed(2)}. Aborting.`);
+          dispatch({
+            type: 'VALIDATION_FAILED',
+            reason: `Balance changed significantly. Was: $${currentBalance.toFixed(2)}, Now: $${freshBalance.toFixed(2)}`
+          });
+          return;
         }
 
         // Re-check risk with fresh balance
@@ -106,12 +160,23 @@ export const ExecutionPanelPro: React.FC = () => {
         }, useStore.getState().riskOfficer);
 
         if (freshRiskCheck.blocked) {
-          throw new Error(`Risk check failed with fresh data: ${freshRiskCheck.message}`);
+          dispatch({
+            type: 'VALIDATION_FAILED',
+            reason: freshRiskCheck.message || 'Risk check failed'
+          });
+          return;
         }
       }
 
-      // Generate idempotent order ID using crypto.randomUUID()
-      const orderId = crypto.randomUUID();
+      // Step 3: Validation passed (VALIDATING -> AWAITING_CONFIRMATION)
+      dispatch({ type: 'VALIDATION_PASSED' });
+
+      // For now, auto-confirm (future: show confirmation dialog)
+      // Step 4: User confirmed (AWAITING_CONFIRMATION -> EXECUTING)
+      dispatch({ type: 'USER_CONFIRMED' });
+
+      // Step 5: Start execution (EXECUTING -> CONFIRMING_FILL)
+      dispatch({ type: 'EXECUTION_STARTED' });
 
       const newPosition = {
         id: orderId,
@@ -129,15 +194,19 @@ export const ExecutionPanelPro: React.FC = () => {
       };
 
       addPosition(newPosition);
-      setActiveTradeSetup(null); // Clear setup
+      setActiveTradeSetup(null);
+
+      // Step 6: Order filled (CONFIRMING_FILL -> COMPLETED)
+      dispatch({ type: 'ORDER_FILLED', exchangeOrderId: orderId });
 
     } catch (error: any) {
       console.error('[Execution] Failed:', error);
-      setExecutionError(error.message || 'Execution failed');
-    } finally {
-      setIsExecuting(false);
+      dispatch({
+        type: 'ORDER_REJECTED',
+        reason: error.message || 'Execution failed'
+      });
     }
-  }, [isExecuting, riskCheck, showRiskWarning, riskWarningAck, proposal, isLong, entryPrice, positionSizeBTC, leverage, stopLoss, takeProfit, addPosition, setActiveTradeSetup]);
+  }, [machineState, riskCheck, showRiskWarning, riskWarningAck, proposal, isLong, entryPrice, positionSizeBTC, leverage, stopLoss, takeProfit, addPosition, setActiveTradeSetup, dispatch]);
 
   return (
     <div className="h-full flex flex-col bg-gray-900/50 rounded-lg border border-white/5 overflow-hidden">
@@ -274,6 +343,34 @@ export const ExecutionPanelPro: React.FC = () => {
                     <Download size={10} />
                     <span>Export Full Audit Log (JSON)</span>
                 </button>
+            </div>
+        )}
+
+        {/* State Machine Status */}
+        {machineState.state !== 'IDLE' && (
+            <div className={`rounded p-2 flex items-start gap-2 ${
+              machineState.state === 'COMPLETED' ? 'bg-green-500/10 border border-green-500/30' :
+              machineState.state === 'FAILED' ? 'bg-red-500/10 border border-red-500/30' :
+              machineState.state === 'CANCELLED' ? 'bg-gray-500/10 border border-gray-500/30' :
+              'bg-blue-500/10 border border-blue-500/30'
+            }`}>
+                <Loader2 size={14} className={`mt-0.5 shrink-0 ${
+                  isTerminal(machineState.state) ? '' : 'animate-spin'
+                } ${
+                  machineState.state === 'COMPLETED' ? 'text-green-400' :
+                  machineState.state === 'FAILED' ? 'text-red-400' :
+                  machineState.state === 'CANCELLED' ? 'text-gray-400' :
+                  'text-blue-400'
+                }`} />
+                <div>
+                    <span className={`text-xs font-bold block ${
+                      machineState.state === 'COMPLETED' ? 'text-green-400' :
+                      machineState.state === 'FAILED' ? 'text-red-400' :
+                      machineState.state === 'CANCELLED' ? 'text-gray-400' :
+                      'text-blue-400'
+                    }`}>{machineState.state}</span>
+                    <span className="text-[10px] text-gray-300/80 leading-tight">{getStatusMessage(machineState)}</span>
+                </div>
             </div>
         )}
 
