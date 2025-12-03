@@ -621,41 +621,41 @@ export const ChartPanel: React.FC = () => {
           {/* TACTICAL V2 TOGGLE */}
           <button
             onClick={() => setShowTactical(!showTactical)}
-            className={`flex items-center gap-1 px-2 py-1 rounded-sm transition-all duration-200 border ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-sm transition-all duration-200 border whitespace-nowrap ${
               showTactical
-                ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-                : 'bg-transparent text-gray-500 border-transparent hover:text-amber-400'
+                ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                : 'bg-transparent text-gray-500 border-transparent hover:text-amber-400 hover:bg-amber-500/10'
             }`}
             title="Toggle BitMind Tactical v2 Indicators"
           >
             <Layers size={12} />
-            <span className="text-[10px] font-medium uppercase hidden sm:inline">TACTICAL</span>
+            <span className="text-[10px] font-medium uppercase">TACTICAL</span>
           </button>
 
           <button
             onClick={() => setShowSignals(!showSignals)}
-            className={`flex items-center gap-1 px-2 py-1 rounded-sm transition-all duration-200 border ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-sm transition-all duration-200 border whitespace-nowrap ${
               showSignals
-                ? 'bg-blue-500/10 text-blue-400 border-blue-500/30'
-                : 'bg-transparent text-gray-500 border-transparent hover:text-blue-400'
+                ? 'bg-blue-500/20 text-blue-400 border-blue-500/40'
+                : 'bg-transparent text-gray-500 border-transparent hover:text-blue-400 hover:bg-blue-500/10'
             }`}
             title="Toggle AI Signal Overlay"
           >
             {showSignals ? <Eye size={12} /> : <EyeOff size={12} />}
-            <span className="text-[10px] font-medium uppercase hidden sm:inline">SIGNALS</span>
+            <span className="text-[10px] font-medium uppercase">SIGNALS</span>
           </button>
 
           <button
             onClick={() => setShowPositions(!showPositions)}
-            className={`flex items-center gap-1 px-2 py-1 rounded-sm transition-all duration-200 border ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-sm transition-all duration-200 border whitespace-nowrap ${
               showPositions
-                ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'
-                : 'bg-transparent text-gray-500 border-transparent hover:text-cyan-400'
+                ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40'
+                : 'bg-transparent text-gray-500 border-transparent hover:text-cyan-400 hover:bg-cyan-500/10'
             }`}
             title="Toggle Position Overlay (Entry/SL/TP)"
           >
             <Target size={12} />
-            <span className="text-[10px] font-medium uppercase hidden sm:inline">POS</span>
+            <span className="text-[10px] font-medium uppercase">POS</span>
           </button>
 
           <button
