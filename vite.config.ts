@@ -14,7 +14,9 @@ export default defineConfig(({ mode }) => {
     preview: {
       allowedHosts: [
         'ipchamistabra-production.up.railway.app',
-        '.railway.app'
+        '.railway.app',
+        'text2fun.com',
+        'www.text2fun.com'
       ],
       host: '0.0.0.0',
       port: parseInt(process.env.PORT || '8080'),
