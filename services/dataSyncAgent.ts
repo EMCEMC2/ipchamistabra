@@ -89,6 +89,98 @@ const MacroDataSchema = z.object({
   btcd: z.number().nonnegative().max(100)
 });
 
+// ==================== ORDER FLOW SCHEMAS ====================
+
+const CVDDataSchema = z.object({
+  timestamp: z.number().positive(),
+  buyVolume: z.number().nonnegative(),
+  sellVolume: z.number().nonnegative(),
+  delta: z.number(),
+  cumulativeDelta: z.number()
+});
+
+const MarketPressureSchema = z.object({
+  buyPressure: z.number().min(0).max(100),
+  sellPressure: z.number().min(0).max(100),
+  netPressure: z.number().min(-100).max(100),
+  dominantSide: z.enum(['buy', 'sell', 'neutral']),
+  strength: z.enum(['weak', 'moderate', 'strong', 'extreme'])
+});
+
+const ExchangeFlowSchema = z.object({
+  exchange: z.string().min(1),
+  buyVolume: z.number().nonnegative(),
+  sellVolume: z.number().nonnegative(),
+  netFlow: z.number(),
+  dominance: z.number().min(0).max(100)
+});
+
+const OpenInterestDataSchema = z.object({
+  openInterest: z.number().nonnegative(),
+  openInterestUsd: z.number().nonnegative(),
+  change1h: z.number(),
+  timestamp: z.number().positive()
+}).optional();
+
+const LongShortRatioSchema = z.object({
+  longRatio: z.number().min(0).max(100),
+  shortRatio: z.number().min(0).max(100),
+  longShortRatio: z.number().nonnegative(),
+  topTraderRatio: z.number().nonnegative(),
+  timestamp: z.number().positive()
+}).optional();
+
+const FundingDataSchema = z.object({
+  rate: z.number(),
+  predictedRate: z.number(),
+  nextFundingTime: z.number().positive(),
+  annualizedRate: z.number()
+}).optional();
+
+const AggrLiquidationSchema = z.object({
+  exchange: z.string().min(1),
+  timestamp: z.number().positive(),
+  price: z.number().positive(),
+  amount: z.number().nonnegative(),
+  side: z.enum(['long', 'short']),
+  usdValue: z.number().nonnegative()
+});
+
+const AggrTradeSchema = z.object({
+  exchange: z.string().min(1),
+  timestamp: z.number().positive(),
+  price: z.number().positive(),
+  amount: z.number().nonnegative(),
+  side: z.enum(['buy', 'sell']),
+  isLiquidation: z.boolean(),
+  usdValue: z.number().nonnegative()
+});
+
+const BanStatusSchema = z.object({
+  isBanned: z.boolean(),
+  expiryTime: z.number().positive(),
+  remainingMinutes: z.number().nonnegative()
+}).optional();
+
+const AggrStatsSchema = z.object({
+  totalVolume: z.number().nonnegative(),
+  buyVolume: z.number().nonnegative(),
+  sellVolume: z.number().nonnegative(),
+  largeTradeCount: z.number().nonnegative().int(),
+  liquidationCount: z.number().nonnegative().int(),
+  liquidationVolume: z.number().nonnegative(),
+  cvd: CVDDataSchema,
+  pressure: MarketPressureSchema,
+  exchanges: z.array(ExchangeFlowSchema),
+  recentLiquidations: z.array(AggrLiquidationSchema),
+  recentLargeTrades: z.array(AggrTradeSchema),
+  openInterest: OpenInterestDataSchema,
+  longShortRatio: LongShortRatioSchema,
+  funding: FundingDataSchema,
+  banned: BanStatusSchema,
+  lastUpdate: z.number().positive().optional()
+}).passthrough(); // Allow unknown fields for forward compatibility
+
 // ==================== DATA SOURCE CONFIGS ====================
 
 const DATA_SOURCE_CONFIGS: Record<DataSourceId, { maxStaleness: number; priority: number }> = {
@@ -651,21 +743,68 @@ class DataSyncAgent {
 
   // ==================== ORDER FLOW SYNC ====================
 
+  /**
+   * Validate order flow stats against Zod schema.
+   * Returns validation result with any errors/warnings.
+   */
+  validateOrderFlowStats(stats: AggrStats): ValidationResult {
+    const result: ValidationResult = { isValid: true, errors: [], warnings: [] };
+
+    try {
+      AggrStatsSchema.parse(stats);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        // Schema validation failed - collect errors but don't block
+        e.issues.forEach((issue) => {
+          const field = issue.path.join('.');
+          if (issue.code === 'invalid_type' || issue.code === 'invalid_enum_value') {
+            result.errors.push({ field, message: issue.message, value: issue.path.reduce((obj: any, key) => obj?.[key], stats) });
+          } else {
+            result.warnings.push({ field, message: issue.message });
+          }
+        });
+      }
+    }
+
+    // Additional semantic validations
+    if (stats.totalVolume < 0 || stats.buyVolume < 0 || stats.sellVolume < 0) {
+      result.errors.push({ field: 'volume', message: 'Volume cannot be negative', value: { total: stats.totalVolume, buy: stats.buyVolume, sell: stats.sellVolume } });
+    }
+
+    // Check volume consistency (buy + sell should equal total within 10%)
+    const volumeSum = stats.buyVolume + stats.sellVolume;
+    if (stats.totalVolume > 0 && Math.abs(volumeSum - stats.totalVolume) > stats.totalVolume * 0.1) {
+      result.warnings.push({ field: 'totalVolume', message: `Volume mismatch: buy(${stats.buyVolume}) + sell(${stats.sellVolume}) != total(${stats.totalVolume})` });
+    }
+
+    // Check pressure consistency (should sum to ~100)
+    if (stats.pressure) {
+      const pressureSum = stats.pressure.buyPressure + stats.pressure.sellPressure;
+      if (Math.abs(pressureSum - 100) > 1) {
+        result.warnings.push({ field: 'pressure', message: `Pressure sum (${pressureSum.toFixed(1)}%) deviates from 100%` });
+      }
+    }
+
+    result.isValid = result.errors.length === 0;
+    return result;
+  }
+
   updateOrderFlowStats(stats: AggrStats): void {
+    // Validate using Zod schema
+    const validation = this.validateOrderFlowStats(stats);
+
+    if (!validation.isValid) {
+      this.createAlert('VALIDATION_ERROR', 'medium', `Invalid order flow data: ${validation.errors.map(e => e.message).join(', ')}`, 'ORDER_FLOW');
+      this.log('warn', 'Order flow validation failed', validation.errors);
+    }
+
+    if (validation.warnings.length > 0) {
+      this.log('debug', 'Order flow validation warnings', validation.warnings);
+    }
+
+    // Store stats even if validation has warnings (only block on critical errors)
     this.lastOrderFlowStats = stats;
     this.markDataUpdated('ORDER_FLOW');
-
-    if (stats.totalVolume < 0 || stats.buyVolume < 0 || stats.sellVolume < 0) {
-      this.createAlert('VALIDATION_ERROR', 'medium', 'Invalid order flow volumes', 'ORDER_FLOW');
-    }
-
-    const volumeSum = stats.buyVolume + stats.sellVolume;
-    if (Math.abs(volumeSum - stats.totalVolume) > stats.totalVolume * 0.1) {
-      this.log('warn', 'Order flow volume mismatch', {
-        total: stats.totalVolume,
-        buyPlusSell: volumeSum
-      });
-    }
   }
 
   getOrderFlowStats(): AggrStats | null {

@@ -63,6 +63,22 @@ export interface FundingData {
   annualizedRate: number; // Annualized %
 }
 
+export interface ExchangePriceData {
+  exchange: string;
+  price: number;
+  volume: number;
+  timestamp: number;
+}
+
+export interface PriceValidationData {
+  consensusPrice: number;
+  deviation: number;
+  outliers: string[];
+  reliability: 'HIGH' | 'MEDIUM' | 'LOW';
+  arbitrageSpread: number;
+  exchangePrices: ExchangePriceData[];
+}
+
 export interface AggrStats {
   // Last 60 seconds
   totalVolume: number;
@@ -84,6 +100,9 @@ export interface AggrStats {
   // Recent Events
   recentLiquidations: AggrLiquidation[];
   recentLargeTrades: AggrTrade[];
+
+  // Cross-Exchange Price Validation (6 exchanges)
+  priceValidation?: PriceValidationData;
 
   // Enhanced Intelligence (from REST API)
   openInterest?: OpenInterestData;

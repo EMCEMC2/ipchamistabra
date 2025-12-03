@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   MessageSquare,
   Activity,
@@ -8,11 +8,17 @@ import {
   BarChart3,
   Target,
   TrendingUp,
-  Sparkles
+  Sparkles,
+  Zap,
+  AlertTriangle,
+  Clock,
+  DollarSign,
+  ChevronRight
 } from 'lucide-react';
 import { tacticalAI } from '../services/tacticalAI';
-import { TacticalChatMessage } from '../types';
+import { TacticalChatMessage, TradeSignal } from '../types';
 import { useStore } from '../store/useStore';
+import { usePriceData, useTechnicals, useSignalsData } from '../store/selectors';
 import ReactMarkdown from 'react-markdown';
 
 // Removed tab navigation - single chat panel only

@@ -354,6 +354,92 @@ export function calculatePatternConfidenceAdjustment(
 }
 
 /**
+ * Purge trade outcomes older than specified days
+ * Returns a new state with only recent outcomes and recalculated stats
+ */
+export function purgeOldOutcomes(
+  state: PatternLearningState,
+  maxAgeDays: number = 90
+): PatternLearningState {
+  const cutoffTime = Date.now() - (maxAgeDays * 24 * 60 * 60 * 1000);
+  const recentOutcomes = state.outcomes.filter(o => o.timestamp >= cutoffTime);
+
+  // If nothing was purged, return original state
+  if (recentOutcomes.length === state.outcomes.length) {
+    return state;
+  }
+
+  console.log(`[PatternLearning] Purged ${state.outcomes.length - recentOutcomes.length} outcomes older than ${maxAgeDays} days`);
+
+  // Return rebuilt state with only recent outcomes
+  return rebuildPatternLearningStats(recentOutcomes);
+}
+
+/**
+ * Rebuild pattern learning state from outcomes array
+ * Used after purging or when loading from storage
+ */
+export function rebuildPatternLearningStats(
+  outcomes: TradeOutcome[]
+): PatternLearningState {
+  if (outcomes.length === 0) {
+    return { ...EMPTY_PATTERN_LEARNING, lastUpdated: Date.now() };
+  }
+
+  const wins = outcomes.filter(o => o.rMultipleAchieved > 0);
+  const losses = outcomes.filter(o => o.rMultipleAchieved <= 0);
+
+  const totalTrades = outcomes.length;
+  const winRate = totalTrades > 0 ? wins.length / totalTrades : 0;
+
+  const avgWinR = wins.length > 0
+    ? wins.reduce((s, o) => s + o.rMultipleAchieved, 0) / wins.length
+    : 0;
+  const avgLossR = losses.length > 0
+    ? Math.abs(losses.reduce((s, o) => s + o.rMultipleAchieved, 0) / losses.length)
+    : 0;
+
+  const grossProfit = wins.reduce((s, o) => s + o.rMultipleAchieved, 0);
+  const grossLoss = Math.abs(losses.reduce((s, o) => s + o.rMultipleAchieved, 0));
+  const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0;
+
+  const expectancy = totalTrades > 0
+    ? outcomes.reduce((s, o) => s + o.rMultipleAchieved, 0) / totalTrades
+    : 0;
+
+  // Recent stats (last 20)
+  const recent = outcomes.slice(-20);
+  const recentWins = recent.filter(o => o.rMultipleAchieved > 0).length;
+  const recentWinRate = recent.length > 0 ? recentWins / recent.length : 0;
+  const recentExpectancy = recent.length > 0
+    ? recent.reduce((s, o) => s + o.rMultipleAchieved, 0) / recent.length
+    : 0;
+
+  // Stats by category
+  const statsByRegime = calculateStatsByCategory(outcomes, o => o.regime);
+  const statsByTrendType = calculateStatsByCategory(outcomes, o => o.fingerprint.trendType);
+  const statsBySignalType = calculateStatsByCategory(outcomes, o => o.fingerprint.signalType);
+  const statsByCvdDivergence = calculateStatsByCategory(outcomes, o => o.fingerprint.cvdDivergence);
+
+  return {
+    outcomes,
+    totalTrades,
+    winRate,
+    avgWinR,
+    avgLossR,
+    profitFactor,
+    expectancy,
+    statsByRegime,
+    statsByTrendType,
+    statsBySignalType,
+    statsByCvdDivergence,
+    recentWinRate,
+    recentExpectancy,
+    lastUpdated: Date.now()
+  };
+}
+
+/**
  * Add completed trade outcome to learning state
  */
 export function addTradeOutcome(
@@ -361,8 +447,11 @@ export function addTradeOutcome(
   outcome: TradeOutcome,
   maxOutcomes: number = 500
 ): PatternLearningState {
+  // First, purge any outcomes older than 90 days
+  const purgedState = purgeOldOutcomes(state);
+
   // Add new outcome
-  const outcomes = [...state.outcomes, outcome];
+  const outcomes = [...purgedState.outcomes, outcome];
 
   // Prune if too many (keep recent)
   if (outcomes.length > maxOutcomes) {

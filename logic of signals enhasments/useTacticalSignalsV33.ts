@@ -22,6 +22,7 @@ import {
   PatternLearningState,
   EMPTY_PATTERN_LEARNING,
   addTradeOutcome,
+  purgeOldOutcomes,
   TradeOutcome,
   EnhancedTradeSignal,
   PatternMatch,
@@ -151,7 +152,14 @@ function loadPatternLearning(): PatternLearningState {
   try {
     const stored = localStorage.getItem(PATTERN_LEARNING_KEY);
     if (stored) {
-      return JSON.parse(stored);
+      const loaded: PatternLearningState = JSON.parse(stored);
+      // Automatically purge outcomes older than 90 days on load
+      const purged = purgeOldOutcomes(loaded, 90);
+      // If purging removed any outcomes, save the cleaned state
+      if (purged.totalTrades !== loaded.totalTrades) {
+        savePatternLearning(purged);
+      }
+      return purged;
     }
   } catch (e) {
     console.warn('[V33] Failed to load pattern learning:', e);

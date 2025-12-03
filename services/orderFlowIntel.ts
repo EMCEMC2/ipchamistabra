@@ -19,6 +19,8 @@ import {
   LongShortRatio,
   FundingData
 } from '../types/aggrTypes';
+import { useStore } from '../store/useStore';
+import { dataSyncAgent } from './dataSyncAgent';
 
 // Direct Binance API (public endpoints work from browser)
 const BINANCE_FUTURES = 'https://fapi.binance.com';
@@ -28,6 +30,15 @@ const WHALE_THRESHOLD = 500000;
 
 // Liquidation history retention (10 minutes)
 const LIQUIDATION_HISTORY_MS = 10 * 60 * 1000;
+
+// CVD persistence constants
+const CVD_STORAGE_KEY = 'ipcha-cvd-snapshot';
+const CVD_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours max inactivity
+
+interface CVDSnapshot {
+  cumulativeDelta: number;
+  timestamp: number;
+}
 
 class OrderFlowIntelService {
   private lastStats: AggrStats | null = null;
@@ -44,8 +55,55 @@ class OrderFlowIntelService {
   // Whale trade history cache (persists across polls for 10 mins)
   private whaleHistory: AggrTrade[] = [];
 
+  // Persisted CVD baseline
+  private cvdBaseline: number = 0;
+
   constructor() {
     console.log('[OrderFlowIntel] Service initialized');
+    this.loadCVDSnapshot();
+  }
+
+  /**
+   * Load persisted CVD snapshot from localStorage
+   * Resets if older than 24 hours
+   */
+  private loadCVDSnapshot(): void {
+    try {
+      const stored = localStorage.getItem(CVD_STORAGE_KEY);
+      if (stored) {
+        const snapshot: CVDSnapshot = JSON.parse(stored);
+        const age = Date.now() - snapshot.timestamp;
+
+        if (age < CVD_MAX_AGE_MS) {
+          this.cvdBaseline = snapshot.cumulativeDelta;
+          console.log(`[OrderFlowIntel] Loaded CVD baseline: ${(this.cvdBaseline / 1000000).toFixed(2)}M (age: ${Math.round(age / 60000)}min)`);
+        } else {
+          console.log('[OrderFlowIntel] CVD snapshot expired (>24h), starting fresh');
+          this.cvdBaseline = 0;
+          localStorage.removeItem(CVD_STORAGE_KEY);
+        }
+      }
+    } catch (e) {
+      console.warn('[OrderFlowIntel] Failed to load CVD snapshot:', e);
+      this.cvdBaseline = 0;
+    }
+  }
+
+  /**
+   * Save current CVD to localStorage
+   */
+  private saveCVDSnapshot(): void {
+    if (!this.lastStats?.cvd) return;
+
+    try {
+      const snapshot: CVDSnapshot = {
+        cumulativeDelta: this.lastStats.cvd.cumulativeDelta,
+        timestamp: Date.now()
+      };
+      localStorage.setItem(CVD_STORAGE_KEY, JSON.stringify(snapshot));
+    } catch (e) {
+      console.warn('[OrderFlowIntel] Failed to save CVD snapshot:', e);
+    }
   }
 
   async connect(onStatsUpdate?: (stats: AggrStats) => void): Promise<void> {
@@ -70,6 +128,10 @@ class OrderFlowIntelService {
 
   disconnect(): void {
     console.log('[OrderFlowIntel] Disconnecting...');
+
+    // Save CVD snapshot before disconnecting
+    this.saveCVDSnapshot();
+
     this.isConnected = false;
 
     if (this.pollInterval) {
@@ -334,14 +396,21 @@ class OrderFlowIntelService {
 
     const totalVolume = buyVolume + sellVolume;
 
-    // Calculate CVD
+    // Calculate CVD with persistence baseline
+    // On first run, use persisted baseline from localStorage
+    const previousCVD = this.lastStats?.cvd?.cumulativeDelta ?? this.cvdBaseline;
     const cvd: CVDData = {
       timestamp: now,
       buyVolume,
       sellVolume,
       delta: buyVolume - sellVolume,
-      cumulativeDelta: (this.lastStats?.cvd?.cumulativeDelta || 0) + (buyVolume - sellVolume)
+      cumulativeDelta: previousCVD + (buyVolume - sellVolume)
     };
+
+    // Periodically save CVD snapshot (every 5 updates, ~50 seconds)
+    if (this.lastStats && Math.random() < 0.2) {
+      this.saveCVDSnapshot();
+    }
 
     // Calculate pressure
     const buyPressure = totalVolume > 0 ? (buyVolume / totalVolume) * 100 : 50;
@@ -430,9 +499,31 @@ class OrderFlowIntelService {
   }
 
   private broadcastStats(stats: AggrStats): void {
+    // Add timestamp for freshness tracking
+    const statsWithTimestamp: AggrStats = {
+      ...stats,
+      lastUpdate: Date.now()
+    };
+
+    // SINGLE SOURCE OF TRUTH: Update Zustand store first
+    try {
+      useStore.getState().setOrderFlowStats(statsWithTimestamp);
+    } catch (error) {
+      console.error('[OrderFlowIntel] Failed to update store:', error);
+    }
+
+    // Sync with DataSyncAgent for validation and health tracking
+    try {
+      dataSyncAgent.updateOrderFlowStats(statsWithTimestamp);
+      dataSyncAgent.markDataUpdated('ORDER_FLOW');
+    } catch (error) {
+      console.error('[OrderFlowIntel] Failed to sync with DataSyncAgent:', error);
+    }
+
+    // Legacy callbacks for backward compatibility
     for (const callback of this.updateCallbacks) {
       try {
-        callback(stats);
+        callback(statsWithTimestamp);
       } catch (error) {
         console.error('[OrderFlowIntel] Callback error:', error);
       }

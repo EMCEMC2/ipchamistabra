@@ -90,6 +90,28 @@ export const useEnhancedMetrics = () => useStore(state => state.enhancedMetrics)
 
 export const useVolumeTag = () => useStore(state => state.enhancedMetrics.volumeTag);
 
+// ============== ORDER FLOW SELECTORS (Single Source of Truth) ==============
+
+export const useOrderFlowStats = () => useStore(state => state.orderFlowStats);
+export const useOrderFlowLastUpdate = () => useStore(state => state.orderFlowLastUpdate);
+
+export const useOrderFlowData = () => useStore(
+  useShallow(state => ({
+    stats: state.orderFlowStats,
+    lastUpdate: state.orderFlowLastUpdate,
+  }))
+);
+
+export const useCVD = () => useStore(state => state.orderFlowStats?.cvd);
+export const useMarketPressure = () => useStore(state => state.orderFlowStats?.pressure);
+export const useLiquidations = () => useStore(state => state.orderFlowStats?.recentLiquidations);
+export const useWhaleTrades = () => useStore(state => state.orderFlowStats?.recentLargeTrades);
+export const useOrderFlowOI = () => useStore(state => state.orderFlowStats?.openInterest);
+export const useOrderFlowFunding = () => useStore(state => state.orderFlowStats?.funding);
+export const useOrderFlowLS = () => useStore(state => state.orderFlowStats?.longShortRatio);
+
+export const useSetOrderFlowStats = () => useStore(state => state.setOrderFlowStats);
+
 // ============== POSITION SELECTORS ==============
 
 export const usePositions = () => useStore(state => state.positions);

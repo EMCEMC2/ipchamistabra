@@ -22,6 +22,11 @@ import {
   calculateStdev
 } from '../utils/technicalAnalysis';
 import { useChartState, usePositions } from '../store/selectors';
+import {
+  subscribeToBacktest,
+  getTradeMarkersForChart
+} from '../services/backtestIntegration';
+import { BacktestResults } from '../services/backtestEngine';
 
 // Helper: Parse Price
 const parsePrice = (priceStr: string): number | null => {
@@ -55,6 +60,28 @@ export const ChartPanel: React.FC = () => {
   const [showSignals, setShowSignals] = useState(true);
   const [showPositions, setShowPositions] = useState(true);
   const [showTactical, setShowTactical] = useState(true);
+  const [showBacktestTrades, setShowBacktestTrades] = useState(false);
+  const [backtestMarkers, setBacktestMarkers] = useState<Array<{
+    time: number;
+    price: number;
+    type: 'ENTRY_LONG' | 'ENTRY_SHORT' | 'EXIT_WIN' | 'EXIT_LOSS' | 'EXIT_BE';
+    pnlR?: number;
+  }>>([]);
+
+  // Subscribe to backtest results for trade markers
+  useEffect(() => {
+    const unsubscribe = subscribeToBacktest((results: BacktestResults | null) => {
+      if (results && results.trades && results.trades.length > 0) {
+        setBacktestMarkers(getTradeMarkersForChart());
+        setShowBacktestTrades(true);
+      } else {
+        setBacktestMarkers([]);
+        setShowBacktestTrades(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const timeframes = [
     { label: '1m', value: '1m' },
@@ -305,6 +332,62 @@ export const ChartPanel: React.FC = () => {
         }
       }
 
+      // Add backtest trade markers if enabled
+      if (showBacktestTrades && backtestMarkers.length > 0) {
+        for (const btMarker of backtestMarkers) {
+          // Find the closest candle to the backtest trade
+          const closestCandle = safeData.find(d => Math.abs((d.time as number) - btMarker.time) < tolerance);
+
+          if (closestCandle) {
+            let color = '#6b7280'; // Gray default
+            let shape: 'arrowUp' | 'arrowDown' | 'circle' | 'square' = 'circle';
+            let position: 'aboveBar' | 'belowBar' | 'inBar' = 'inBar';
+            let text = '';
+
+            switch (btMarker.type) {
+              case 'ENTRY_LONG':
+                color = '#3b82f6'; // Blue for backtest entries
+                shape = 'arrowUp';
+                position = 'belowBar';
+                text = 'BT';
+                break;
+              case 'ENTRY_SHORT':
+                color = '#f59e0b'; // Amber for backtest short entries
+                shape = 'arrowDown';
+                position = 'aboveBar';
+                text = 'BT';
+                break;
+              case 'EXIT_WIN':
+                color = '#22c55e'; // Green for winning exits
+                shape = 'circle';
+                position = 'aboveBar';
+                text = btMarker.pnlR ? `+${btMarker.pnlR.toFixed(1)}R` : 'W';
+                break;
+              case 'EXIT_LOSS':
+                color = '#ef4444'; // Red for losing exits
+                shape = 'circle';
+                position = 'belowBar';
+                text = btMarker.pnlR ? `${btMarker.pnlR.toFixed(1)}R` : 'L';
+                break;
+              case 'EXIT_BE':
+                color = '#6b7280'; // Gray for breakeven
+                shape = 'circle';
+                position = 'inBar';
+                text = 'BE';
+                break;
+            }
+
+            newMarkers.push({
+              time: closestCandle.time as Time,
+              position,
+              color,
+              shape,
+              text
+            });
+          }
+        }
+      }
+
       return {
         adaptiveFastData: adaptiveFast,
         adaptiveSlowData: adaptiveSlow,
@@ -313,7 +396,7 @@ export const ChartPanel: React.FC = () => {
         clusterLines: newClusterLines,
         currentRegime: latestRegime
       };
-    }, [safeData, showTactical, signals, timeframe]);
+    }, [safeData, showTactical, signals, timeframe, showBacktestTrades, backtestMarkers]);
 
     // 3. Update Series (Effect)
     useEffect(() => {
@@ -657,6 +740,23 @@ export const ChartPanel: React.FC = () => {
             <Target size={12} />
             <span className="text-[10px] font-medium uppercase">POS</span>
           </button>
+
+          {/* BACKTEST TRADES TOGGLE */}
+          {backtestMarkers.length > 0 && (
+            <button
+              onClick={() => setShowBacktestTrades(!showBacktestTrades)}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-sm transition-all duration-200 border whitespace-nowrap ${
+                showBacktestTrades
+                  ? 'bg-purple-500/20 text-purple-400 border-purple-500/40'
+                  : 'bg-transparent text-gray-500 border-transparent hover:text-purple-400 hover:bg-purple-500/10'
+              }`}
+              title="Toggle Backtest Trade Markers"
+            >
+              <Activity size={12} />
+              <span className="text-[10px] font-medium uppercase">BT</span>
+              <span className="text-[9px] text-purple-400/70">({Math.floor(backtestMarkers.length / 2)})</span>
+            </button>
+          )}
 
           <button
             onClick={() => setIsScriptModalOpen(true)}

@@ -44,6 +44,22 @@ interface ExchangeFlow {
   dominance: number;
 }
 
+interface ExchangePriceData {
+  exchange: string;
+  price: number;
+  volume: number;
+  timestamp: number;
+}
+
+interface PriceValidationData {
+  consensusPrice: number;
+  deviation: number;
+  outliers: string[];
+  reliability: 'HIGH' | 'MEDIUM' | 'LOW';
+  arbitrageSpread: number;
+  exchangePrices: ExchangePriceData[];
+}
+
 interface AggrStats {
   totalVolume: number;
   buyVolume: number;
@@ -57,6 +73,7 @@ interface AggrStats {
   recentLiquidations: AggrLiquidation[];
   recentLargeTrades: AggrTrade[];
   lastUpdate?: number; // Unix timestamp of last data update
+  priceValidation?: PriceValidationData; // Cross-exchange price validation
 }
 
 interface CascadeEvent {
@@ -188,7 +205,10 @@ class DataProcessor {
   private largeTrades: AggrTrade[] = []; // Dedicated array for whales
   private liquidations: AggrLiquidation[] = [];
   private cvdWindow: RollingWindow = new RollingWindow(60);
-  
+
+  // Per-exchange price tracking for cross-validation
+  private exchangePrices: Map<string, { price: number; volume: number; timestamp: number }> = new Map();
+
   // Cascade detection
   private cascadeStartTime: number = 0;
   private cascadeVolume: number = 0;
@@ -210,10 +230,15 @@ class DataProcessor {
   }
 
   public connect() {
-    this.log('Starting connections...');
+    this.log('Starting connections to 6 exchanges...');
+    // Primary exchanges (high volume, futures)
     this.connectBinance();
     this.connectOKX();
     this.connectBybit();
+    // Additional exchanges from aggr-master (spot + derivatives for cross-validation)
+    this.connectKraken();
+    this.connectCoinbase();
+    this.connectDeribit();
 
     if (this.updateInterval) clearInterval(this.updateInterval);
     this.updateInterval = setInterval(() => this.broadcastStats(), 1000);
@@ -297,6 +322,9 @@ class DataProcessor {
     // Use the dedicated largeTrades array, filtered for last 10 minutes
     const recentLargeTrades = this.largeTrades.filter(t => t.timestamp > tenMinAgo);
 
+    // Cross-exchange price validation
+    const priceValidation = this.calculatePriceValidation();
+
     return {
       totalVolume,
       buyVolume,
@@ -309,7 +337,8 @@ class DataProcessor {
       exchanges,
       recentLiquidations: recentLiquidations.slice(-10),
       recentLargeTrades: recentLargeTrades.slice(-10),
-      lastUpdate: now
+      lastUpdate: now,
+      priceValidation
     };
   }
 
@@ -355,6 +384,93 @@ class DataProcessor {
       });
     }
     return flows.sort((a, b) => b.dominance - a.dominance);
+  }
+
+  /**
+   * Calculate cross-exchange price validation
+   * Detects anomalies and provides consensus price
+   */
+  private calculatePriceValidation(): PriceValidationData {
+    const now = Date.now();
+    const STALE_THRESHOLD = 30000; // 30 seconds
+
+    // Get fresh prices from all exchanges
+    const exchangePrices: ExchangePriceData[] = [];
+    for (const [exchange, data] of this.exchangePrices) {
+      if (now - data.timestamp < STALE_THRESHOLD && data.price > 0) {
+        exchangePrices.push({
+          exchange,
+          price: data.price,
+          volume: data.volume,
+          timestamp: data.timestamp
+        });
+      }
+    }
+
+    // Default if not enough data
+    if (exchangePrices.length < 2) {
+      return {
+        consensusPrice: exchangePrices[0]?.price || 0,
+        deviation: 0,
+        outliers: [],
+        reliability: exchangePrices.length === 0 ? 'LOW' : 'MEDIUM',
+        arbitrageSpread: 0,
+        exchangePrices
+      };
+    }
+
+    // Calculate volume-weighted average price (VWAP)
+    let totalVolume = 0;
+    let weightedSum = 0;
+    for (const ep of exchangePrices) {
+      weightedSum += ep.price * ep.volume;
+      totalVolume += ep.volume;
+    }
+    const consensusPrice = totalVolume > 0 ? weightedSum / totalVolume : 0;
+
+    // Find outliers and calculate deviation
+    const outliers: string[] = [];
+    let maxDeviation = 0;
+    let minPrice = Infinity;
+    let maxPrice = 0;
+
+    for (const ep of exchangePrices) {
+      const deviation = Math.abs((ep.price - consensusPrice) / consensusPrice) * 100;
+      maxDeviation = Math.max(maxDeviation, deviation);
+
+      if (deviation > 1) { // >1% deviation = outlier
+        outliers.push(ep.exchange);
+      }
+
+      minPrice = Math.min(minPrice, ep.price);
+      maxPrice = Math.max(maxPrice, ep.price);
+    }
+
+    const arbitrageSpread = minPrice > 0 ? ((maxPrice - minPrice) / minPrice) * 100 : 0;
+
+    // Determine reliability based on exchange count and deviation
+    let reliability: 'HIGH' | 'MEDIUM' | 'LOW' = 'HIGH';
+    if (exchangePrices.length < 3) {
+      reliability = 'MEDIUM';
+    } else if (outliers.length >= 2 || maxDeviation > 2) {
+      reliability = 'LOW';
+    } else if (outliers.length === 1 || maxDeviation > 0.5) {
+      reliability = 'MEDIUM';
+    }
+
+    // Log if significant anomaly detected
+    if (maxDeviation > 2) {
+      this.log(`[PRICE VALIDATION] ANOMALY: ${maxDeviation.toFixed(2)}% deviation. Outliers: ${outliers.join(', ')}`);
+    }
+
+    return {
+      consensusPrice,
+      deviation: maxDeviation,
+      outliers,
+      reliability,
+      arbitrageSpread,
+      exchangePrices
+    };
   }
 
   // --- WebSocket Connection Logic ---
@@ -528,8 +644,180 @@ class DataProcessor {
       this.reconnectTimeouts.set(key, timeout);
   }
 
+  // --- ADDITIONAL EXCHANGES FROM AGGR-MASTER ---
+
+  private connectKraken() {
+      const connect = () => {
+          this.log('Connecting to Kraken...');
+          const ws = new WebSocket('wss://ws.kraken.com/');
+          ws.onopen = () => {
+              this.log('Kraken Connected');
+              ws.send(JSON.stringify({
+                  event: 'subscribe',
+                  pair: ['XBT/USD'],
+                  subscription: { name: 'trade' }
+              }));
+          };
+          ws.onmessage = (e) => {
+              try {
+                  const data = JSON.parse(e.data);
+                  // Kraken trade format: [channelID, [[price, volume, time, side, orderType, misc], ...], "trade", "XBT/USD"]
+                  if (Array.isArray(data) && data.length >= 4 && data[2] === 'trade') {
+                      const trades = data[1];
+                      if (Array.isArray(trades)) {
+                          trades.forEach((t: any) => {
+                              const price = parseFloat(t[0]);
+                              const amount = parseFloat(t[1]);
+                              const trade: AggrTrade = {
+                                  exchange: 'Kraken',
+                                  timestamp: parseFloat(t[2]) * 1000,
+                                  price,
+                                  amount,
+                                  side: t[3] === 'b' ? 'buy' : 'sell',
+                                  isLiquidation: false,
+                                  usdValue: price * amount
+                              };
+                              this.processTrade(trade);
+                          });
+                      }
+                  }
+              } catch (err) {}
+          };
+          ws.onclose = () => {
+              this.log('Kraken Closed');
+              this.reconnectWithBackoff('kraken', connect);
+          };
+          ws.onerror = () => this.log('Kraken Error');
+          this.wsConnections.set('kraken', ws);
+      };
+      connect();
+  }
+
+  private connectCoinbase() {
+      const connect = () => {
+          this.log('Connecting to Coinbase...');
+          const ws = new WebSocket('wss://advanced-trade-ws.coinbase.com');
+          ws.onopen = () => {
+              this.log('Coinbase Connected');
+              ws.send(JSON.stringify({
+                  type: 'subscribe',
+                  channel: 'market_trades',
+                  product_ids: ['BTC-USD']
+              }));
+          };
+          ws.onmessage = (e) => {
+              try {
+                  const data = JSON.parse(e.data);
+                  if (data && data.channel === 'market_trades' && data.events) {
+                      data.events.forEach((event: any) => {
+                          if (event.type === 'update' && event.trades) {
+                              event.trades.forEach((t: any) => {
+                                  const price = parseFloat(t.price);
+                                  const amount = parseFloat(t.size);
+                                  const trade: AggrTrade = {
+                                      exchange: 'Coinbase',
+                                      timestamp: new Date(t.time).getTime(),
+                                      price,
+                                      amount,
+                                      side: t.side === 'BUY' ? 'sell' : 'buy', // Coinbase inverts
+                                      isLiquidation: false,
+                                      usdValue: price * amount
+                                  };
+                                  this.processTrade(trade);
+                              });
+                          }
+                      });
+                  }
+              } catch (err) {}
+          };
+          ws.onclose = () => {
+              this.log('Coinbase Closed');
+              this.reconnectWithBackoff('coinbase', connect);
+          };
+          ws.onerror = () => this.log('Coinbase Error');
+          this.wsConnections.set('coinbase', ws);
+      };
+      connect();
+  }
+
+  private connectDeribit() {
+      const connect = () => {
+          this.log('Connecting to Deribit...');
+          const ws = new WebSocket('wss://www.deribit.com/ws/api/v2');
+          ws.onopen = () => {
+              this.log('Deribit Connected');
+              ws.send(JSON.stringify({
+                  method: 'public/subscribe',
+                  params: {
+                      channels: ['trades.BTC-PERPETUAL.100ms']
+                  }
+              }));
+          };
+          ws.onmessage = (e) => {
+              try {
+                  const data = JSON.parse(e.data);
+                  if (data?.params?.data && Array.isArray(data.params.data)) {
+                      data.params.data.forEach((t: any) => {
+                          const price = parseFloat(t.price);
+                          const amount = parseFloat(t.amount);
+                          const trade: AggrTrade = {
+                              exchange: 'Deribit',
+                              timestamp: t.timestamp,
+                              price,
+                              amount,
+                              side: t.direction === 'buy' ? 'buy' : 'sell',
+                              isLiquidation: !!t.liquidation,
+                              usdValue: price * amount
+                          };
+                          this.processTrade(trade);
+
+                          // Deribit liquidations
+                          if (t.liquidation) {
+                              const liq: AggrLiquidation = {
+                                  exchange: 'Deribit',
+                                  timestamp: t.timestamp,
+                                  price,
+                                  amount,
+                                  side: t.direction === 'sell' ? 'long' : 'short',
+                                  usdValue: price * amount
+                              };
+                              this.processLiquidation(liq);
+                          }
+                      });
+                  }
+              } catch (err) {}
+          };
+          ws.onclose = () => {
+              this.log('Deribit Closed');
+              this.reconnectWithBackoff('deribit', connect);
+          };
+          ws.onerror = () => this.log('Deribit Error');
+          this.wsConnections.set('deribit', ws);
+
+          // Deribit requires keepalive pings
+          const pingInterval = setInterval(() => {
+              if (ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify({ method: 'public/ping' }));
+              } else {
+                  clearInterval(pingInterval);
+              }
+          }, 45000);
+      };
+      connect();
+  }
+
   private processTrade(trade: AggrTrade) {
       this.trades.push(trade);
+
+      // Update per-exchange price tracking for cross-validation
+      const existing = this.exchangePrices.get(trade.exchange);
+      const volumeWindow = 60000; // 1 minute rolling volume
+      const existingVolume = existing && (Date.now() - existing.timestamp < volumeWindow) ? existing.volume : 0;
+      this.exchangePrices.set(trade.exchange, {
+        price: trade.price,
+        volume: existingVolume + trade.usdValue,
+        timestamp: Date.now()
+      });
 
       // CRITICAL FIX: Update CVD with individual trade delta (not aggregated)
       const tradeDelta = trade.side === 'buy' ? trade.usdValue : -trade.usdValue;

@@ -10,7 +10,7 @@ import {
 import { fetchMacroData, fetchDerivativesMetrics } from './macroDataService';
 import { captureError, addBreadcrumb } from './errorMonitor';
 import { dataSyncAgent } from './dataSyncAgent';
-import { aggrService } from './aggrService';
+// NOTE: aggrService removed - now using store.orderFlowStats (Single Source of Truth)
 
 // Singleton Worker Instance
 let tradingWorker: Worker | null = null;
@@ -168,8 +168,8 @@ export const fetchSignals = async () => {
         const { price, vix, btcd, sentimentScore, technicals, chartData } = useStore.getState();
 
         // HYBRID APPROACH: Tactical v2 (rule-based) + AI validation + ORDER FLOW
-        // Step 1: Get current order flow stats (REAL-TIME)
-        const orderFlowStats = aggrService.getStats();
+        // Step 1: Get current order flow stats from STORE (Single Source of Truth)
+        const orderFlowStats = useStore.getState().orderFlowStats;
 
         // Step 2: Offload to Web Worker (Singleton)
         // CRITICAL: Worker is stateless - we pass lastSignalBar IN and receive it OUT

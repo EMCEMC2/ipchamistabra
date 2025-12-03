@@ -15,6 +15,7 @@ import {
   TacticalConfigV33,
   DEFAULT_CONFIG_V33
 } from '../types';
+import { AggrStats } from '../types/aggrTypes';
 import { EnhancedBTCMetrics } from '../services/macroDataService';
 import { FeedState, getInitialFeedState } from '../services/feedRegistry';
 import { RiskOfficerState, INITIAL_RISK_STATE } from '../services/riskOfficer';
@@ -166,6 +167,9 @@ interface MarketState {
   signalHistory: SignalHistoryState;
   patternLearning: PatternLearningState;
   tacticalConfig: TacticalConfigV33;
+  // UNIFIED: Order Flow Stats (Single Source of Truth)
+  orderFlowStats: AggrStats | null;
+  orderFlowLastUpdate: number;
 }
 
 interface UserState {
@@ -208,6 +212,9 @@ export interface AppState extends MarketState, UserState, AgentSwarmState {
 
   // NEW: Feed Actions
   updateFeedStatus: (id: string, updates: Partial<FeedState>) => void;
+
+  // UNIFIED: Order Flow Actions (Single Source of Truth)
+  setOrderFlowStats: (stats: AggrStats | null) => void;
 
   // V3.3.1: Pattern Learning Actions
   setSignalHistory: (history: SignalHistoryState) => void;
@@ -271,6 +278,9 @@ export const useStore = create<AppState>()(
       signalHistory: EMPTY_SIGNAL_HISTORY,
       patternLearning: EMPTY_PATTERN_LEARNING,
       tacticalConfig: DEFAULT_CONFIG_V33,
+      // UNIFIED: Order Flow Stats (Single Source of Truth)
+      orderFlowStats: null,
+      orderFlowLastUpdate: 0,
 
       // User State (PERSISTED - survives refresh)
       balance: 50000,
@@ -322,6 +332,12 @@ export const useStore = create<AppState>()(
           [id]: { ...state.feeds[id], ...updates }
         }
       })),
+
+      // UNIFIED: Order Flow Stats (Single Source of Truth)
+      setOrderFlowStats: (stats) => set({
+        orderFlowStats: stats,
+        orderFlowLastUpdate: Date.now()
+      }),
 
       // V3.3.1: Pattern Learning Actions
       setSignalHistory: (signalHistory) => set({ signalHistory }),

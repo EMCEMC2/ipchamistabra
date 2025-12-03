@@ -1,9 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Brain, TrendingUp, TrendingDown, Minus, Activity } from 'lucide-react';
+import { Brain, TrendingUp, TrendingDown, Minus, Activity, Target, BarChart3 } from 'lucide-react';
 import { useChartWithVix } from '../store/selectors';
 import { ChartDataPoint } from '../types';
 import { LinearRegression, KMeans } from '../utils/ml';
 import { analyzeMarketRegime, calculateVolatility, calculateTrendStrength } from '../services/mlService';
+import {
+  subscribeToBacktest,
+  buildPatternVisualizationData,
+  PatternVisualizationData
+} from '../services/backtestIntegration';
+import { BacktestResults } from '../services/backtestEngine';
 
 // Local helper functions removed in favor of shared mlService
 
@@ -51,6 +57,129 @@ const RegimeScatter: React.FC<{ data: { vol: number; trend: number; regime: stri
                 />
             )}
         </svg>
+    );
+};
+
+// Learning Curve Chart - shows win rate evolution over trades
+const LearningCurveChart: React.FC<{ data: PatternVisualizationData['learningCurve'] }> = ({ data }) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas || data.length === 0) return;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const width = canvas.width;
+        const height = canvas.height;
+        const padding = 30;
+
+        // Clear
+        ctx.fillStyle = '#09090b';
+        ctx.fillRect(0, 0, width, height);
+
+        // Grid
+        ctx.strokeStyle = '#27272a';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 4; i++) {
+            const y = padding + (height - 2 * padding) * i / 4;
+            ctx.beginPath();
+            ctx.moveTo(padding, y);
+            ctx.lineTo(width - padding, y);
+            ctx.stroke();
+        }
+
+        // 50% reference line
+        const y50 = height - padding - 0.5 * (height - 2 * padding);
+        ctx.strokeStyle = '#f59e0b';
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(padding, y50);
+        ctx.lineTo(width - padding, y50);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Cumulative win rate line (blue)
+        ctx.strokeStyle = '#3b82f6';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        data.forEach((point, i) => {
+            const x = padding + (width - 2 * padding) * i / (data.length - 1);
+            const y = height - padding - point.cumulativeWinRate * (height - 2 * padding);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        // Rolling win rate line (green)
+        ctx.strokeStyle = '#22c55e';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        data.forEach((point, i) => {
+            const x = padding + (width - 2 * padding) * i / (data.length - 1);
+            const y = height - padding - point.rollingWinRate * (height - 2 * padding);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        // Labels
+        ctx.fillStyle = '#52525b';
+        ctx.font = '10px monospace';
+        ctx.fillText('100%', 5, padding + 5);
+        ctx.fillText('50%', 5, y50 + 4);
+        ctx.fillText('0%', 5, height - padding + 12);
+
+        // Legend
+        ctx.fillStyle = '#3b82f6';
+        ctx.fillRect(width - 100, 10, 10, 10);
+        ctx.fillStyle = '#52525b';
+        ctx.fillText('Cumulative', width - 85, 18);
+
+        ctx.fillStyle = '#22c55e';
+        ctx.fillRect(width - 100, 25, 10, 10);
+        ctx.fillStyle = '#52525b';
+        ctx.fillText('Rolling 20', width - 85, 33);
+
+    }, [data]);
+
+    return <canvas ref={canvasRef} width={600} height={200} className="w-full h-full" />;
+};
+
+// Regime Performance Bar Chart
+const RegimePerformanceChart: React.FC<{ clusters: PatternVisualizationData['regimeClusters'] }> = ({ clusters }) => {
+    if (clusters.length === 0) {
+        return (
+            <div className="h-full flex items-center justify-center text-terminal-muted text-xs font-mono">
+                No regime data available
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-2">
+            {clusters.map((cluster, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                    <div className="w-20 text-xs font-mono text-terminal-muted truncate">
+                        {cluster.regime}
+                    </div>
+                    <div className="flex-1 h-4 bg-terminal-bg rounded overflow-hidden">
+                        <div
+                            className="h-full rounded transition-all"
+                            style={{
+                                width: `${cluster.winRate * 100}%`,
+                                backgroundColor: cluster.color
+                            }}
+                        />
+                    </div>
+                    <div className="w-24 text-xs font-mono text-right">
+                        <span style={{ color: cluster.color }}>{(cluster.winRate * 100).toFixed(0)}%</span>
+                        <span className="text-terminal-muted ml-1">({cluster.count})</span>
+                    </div>
+                </div>
+            ))}
+        </div>
     );
 };
 
@@ -121,6 +250,35 @@ export const MLCortex: React.FC = () => {
     const [regimeHistory, setRegimeHistory] = useState<{ vol: number; trend: number; regime: string; color: string }[]>([]);
     const [currentRegime, setCurrentRegime] = useState({ regime: 'LOADING...', color: '#6b7280' });
     const [currentStats, setCurrentStats] = useState({ vol: 0, trend: 0 });
+
+    // Backtest integration state
+    const [patternVizData, setPatternVizData] = useState<PatternVisualizationData | null>(null);
+    const [backtestSummary, setBacktestSummary] = useState<{
+        totalTrades: number;
+        winRate: number;
+        profitFactor: number;
+        expectancy: number;
+    } | null>(null);
+
+    // Subscribe to backtest results
+    useEffect(() => {
+        const unsubscribe = subscribeToBacktest((results: BacktestResults | null) => {
+            if (results) {
+                setBacktestSummary({
+                    totalTrades: results.totalTrades,
+                    winRate: results.winRate,
+                    profitFactor: results.profitFactor,
+                    expectancy: results.expectancy
+                });
+                setPatternVizData(buildPatternVisualizationData());
+            } else {
+                setBacktestSummary(null);
+                setPatternVizData(null);
+            }
+        });
+
+        return () => unsubscribe();
+    }, []);
 
     useEffect(() => {
         if (safeChartData.length < 50) return;
@@ -235,12 +393,120 @@ export const MLCortex: React.FC = () => {
             </div>
 
             {/* Regime Scatter Plot */}
-            <div className="col-span-12 bg-terminal-card border border-terminal-border rounded-lg p-4 h-[300px]">
+            <div className="col-span-6 bg-terminal-card border border-terminal-border rounded-lg p-4 h-[300px]">
                 <h3 className="font-mono text-sm text-terminal-muted mb-2">REGIME CLASSIFICATION MAP</h3>
                 <div className="w-full h-[calc(100%-2rem)]">
                     <RegimeScatter data={regimeHistory} />
                 </div>
             </div>
+
+            {/* Backtest Integration - Regime Performance */}
+            <div className="col-span-6 bg-terminal-card border border-terminal-border rounded-lg p-4 h-[300px]">
+                <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-mono text-sm text-terminal-muted flex items-center gap-2">
+                        <Target size={14} className="text-purple-400" />
+                        REGIME PERFORMANCE (BACKTEST)
+                    </h3>
+                    {backtestSummary && (
+                        <span className="text-xs font-mono px-2 py-0.5 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded">
+                            {backtestSummary.totalTrades} trades
+                        </span>
+                    )}
+                </div>
+                {patternVizData ? (
+                    <RegimePerformanceChart clusters={patternVizData.regimeClusters} />
+                ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-terminal-muted">
+                        <BarChart3 size={32} className="mb-2 opacity-30" />
+                        <span className="text-xs font-mono">Run backtest to see regime analysis</span>
+                    </div>
+                )}
+            </div>
+
+            {/* Pattern Learning Curve */}
+            {patternVizData && patternVizData.learningCurve.length > 0 && (
+                <div className="col-span-8 bg-terminal-card border border-terminal-border rounded-lg p-4 h-[280px]">
+                    <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-mono text-sm text-terminal-muted">LEARNING CURVE (WIN RATE EVOLUTION)</h3>
+                        {backtestSummary && (
+                            <div className="flex gap-4 text-xs font-mono">
+                                <span className="text-blue-400">Cumulative: {(backtestSummary.winRate * 100).toFixed(1)}%</span>
+                                <span className="text-green-400">
+                                    Rolling: {(patternVizData.learningCurve[patternVizData.learningCurve.length - 1].rollingWinRate * 100).toFixed(1)}%
+                                </span>
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex-1 h-[calc(100%-2rem)]">
+                        <LearningCurveChart data={patternVizData.learningCurve} />
+                    </div>
+                </div>
+            )}
+
+            {/* Best/Worst Patterns */}
+            {patternVizData && (patternVizData.bestPatterns.length > 0 || patternVizData.worstPatterns.length > 0) && (
+                <div className="col-span-4 bg-terminal-card border border-terminal-border rounded-lg p-4 h-[280px]">
+                    <h3 className="font-mono text-sm text-terminal-muted mb-3">PATTERN PERFORMANCE</h3>
+                    <div className="space-y-4 overflow-y-auto h-[calc(100%-2rem)]">
+                        {patternVizData.bestPatterns.length > 0 && (
+                            <div>
+                                <div className="text-xs font-mono text-green-400 mb-2">BEST PATTERNS</div>
+                                {patternVizData.bestPatterns.map((pattern, idx) => (
+                                    <div key={idx} className="text-xs font-mono text-terminal-muted py-1 border-l-2 border-green-500/50 pl-2 mb-1">
+                                        {pattern}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {patternVizData.worstPatterns.length > 0 && (
+                            <div>
+                                <div className="text-xs font-mono text-red-400 mb-2">AVOID PATTERNS</div>
+                                {patternVizData.worstPatterns.map((pattern, idx) => (
+                                    <div key={idx} className="text-xs font-mono text-terminal-muted py-1 border-l-2 border-red-500/50 pl-2 mb-1">
+                                        {pattern}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Backtest Summary Stats */}
+            {backtestSummary && (
+                <div className="col-span-12 bg-purple-500/5 border border-purple-500/20 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                        <Brain size={16} className="text-purple-400" />
+                        <span className="text-sm font-mono font-bold text-purple-400">BACKTEST INTEGRATION ACTIVE</span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-4">
+                        <div className="text-center">
+                            <div className="text-xs font-mono text-terminal-muted">WIN RATE</div>
+                            <div className={`text-xl font-bold font-mono ${backtestSummary.winRate >= 0.5 ? 'text-green-400' : 'text-red-400'}`}>
+                                {(backtestSummary.winRate * 100).toFixed(1)}%
+                            </div>
+                        </div>
+                        <div className="text-center">
+                            <div className="text-xs font-mono text-terminal-muted">PROFIT FACTOR</div>
+                            <div className={`text-xl font-bold font-mono ${backtestSummary.profitFactor >= 1.5 ? 'text-green-400' : backtestSummary.profitFactor >= 1 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                {backtestSummary.profitFactor.toFixed(2)}
+                            </div>
+                        </div>
+                        <div className="text-center">
+                            <div className="text-xs font-mono text-terminal-muted">EXPECTANCY</div>
+                            <div className={`text-xl font-bold font-mono ${backtestSummary.expectancy >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {backtestSummary.expectancy.toFixed(2)}R
+                            </div>
+                        </div>
+                        <div className="text-center">
+                            <div className="text-xs font-mono text-terminal-muted">TOTAL TRADES</div>
+                            <div className="text-xl font-bold font-mono text-blue-400">
+                                {backtestSummary.totalTrades}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

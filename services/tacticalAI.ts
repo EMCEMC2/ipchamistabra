@@ -12,9 +12,13 @@
 import { TacticalChatMessage, IntelligenceQuery, TradeSignal, IntelItem, GroundingSource } from '../types';
 import { generateMarketAnalysis, AiResponse } from './gemini';
 import { btcNewsAgent } from './btcNewsAgent';
-import { orderFlowIntel } from './orderFlowIntel';
+import { orderFlowIntel } from './orderFlowIntel'; // Fallback only
 import { useStore } from '../store/useStore';
 import { AggrStats } from '../types/aggrTypes';
+import { buildBacktestContextForAI, buildPatternVisualizationData } from './backtestIntegration';
+
+// NOTE: Order flow data now comes from store (Single Source of Truth)
+// orderFlowIntel is kept as fallback if store hasn't received data yet
 
 /**
  * Format a number with appropriate precision and locale formatting.
@@ -262,10 +266,14 @@ ${newsLines.join('\n')}`;
   }
 
   /**
-   * Build order flow context string from orderFlowIntel.
+   * Build order flow context string from store (Single Source of Truth).
+   * Falls back to orderFlowIntel service if store data is unavailable.
    */
   private buildOrderFlowContext(): string {
-    const stats: AggrStats | null = orderFlowIntel.getStats();
+    // SINGLE SOURCE OF TRUTH: Read from store first
+    const storeStats = useStore.getState().orderFlowStats;
+    // Fallback to service if store hasn't received data yet
+    const stats: AggrStats | null = storeStats || orderFlowIntel.getStats();
 
     if (!stats) {
       return '**ORDER FLOW:** Data unavailable.';
@@ -345,6 +353,73 @@ ${newsLines.join('\n')}`;
   }
 
   /**
+   * Build backtest context string from integration service.
+   */
+  private buildBacktestContext(): string {
+    const btContext = buildBacktestContextForAI();
+
+    if (!btContext.hasResults) {
+      return '**BACKTEST ANALYSIS:** No results available. Run a backtest to see strategy performance.';
+    }
+
+    let context = `**BACKTEST ANALYSIS:**\n${btContext.summary}`;
+
+    if (btContext.keyMetrics) {
+      context += `\n\nKey Metrics:`;
+      context += `\n- Win Rate: ${(btContext.keyMetrics.winRate * 100).toFixed(1)}%`;
+      context += `\n- Profit Factor: ${btContext.keyMetrics.profitFactor.toFixed(2)}`;
+      context += `\n- Expectancy: ${btContext.keyMetrics.expectancy.toFixed(2)}R`;
+      context += `\n- Max Drawdown: ${btContext.keyMetrics.maxDrawdown.toFixed(1)}%`;
+      context += `\n- Sharpe Ratio: ${btContext.keyMetrics.sharpeRatio.toFixed(2)}`;
+    }
+
+    if (btContext.patternInsights.length > 0) {
+      context += `\n\nPattern Insights:\n${btContext.patternInsights.map(p => `- ${p}`).join('\n')}`;
+    }
+
+    if (btContext.regimePerformance.length > 0) {
+      context += `\n\nRegime Performance:\n${btContext.regimePerformance.map(r => `- ${r}`).join('\n')}`;
+    }
+
+    if (btContext.recommendations.length > 0) {
+      context += `\n\nRecommendations:\n${btContext.recommendations.map(r => `- ${r}`).join('\n')}`;
+    }
+
+    return context;
+  }
+
+  /**
+   * Build pattern learning visualization context.
+   */
+  private buildPatternLearningContext(): string {
+    const vizData = buildPatternVisualizationData();
+
+    if (!vizData) {
+      return '**PATTERN LEARNING:** Not enough data for pattern analysis.';
+    }
+
+    let context = '**PATTERN LEARNING INSIGHTS:**';
+
+    if (vizData.bestPatterns.length > 0) {
+      context += `\n\nBest Performing Patterns:\n${vizData.bestPatterns.map(p => `- ${p}`).join('\n')}`;
+    }
+
+    if (vizData.worstPatterns.length > 0) {
+      context += `\n\nWorst Performing Patterns:\n${vizData.worstPatterns.map(p => `- ${p}`).join('\n')}`;
+    }
+
+    if (vizData.learningCurve.length > 0) {
+      const latest = vizData.learningCurve[vizData.learningCurve.length - 1];
+      context += `\n\nLearning Progress:`;
+      context += `\n- Total Patterns: ${vizData.learningCurve.length}`;
+      context += `\n- Cumulative WR: ${(latest.cumulativeWinRate * 100).toFixed(1)}%`;
+      context += `\n- Rolling WR (20): ${(latest.rollingWinRate * 100).toFixed(1)}%`;
+    }
+
+    return context;
+  }
+
+  /**
    * Build comprehensive context for AI prompt.
    */
   private buildFullContext(query: IntelligenceQuery): string {
@@ -359,10 +434,16 @@ ${newsLines.join('\n')}`;
     // 3. Recent News from btcNewsAgent
     parts.push(this.buildNewsContext());
 
-    // 4. Order Flow from orderFlowIntel
+    // 4. Order Flow from store (Single Source of Truth)
     parts.push(this.buildOrderFlowContext());
 
-    // 5. Swarm Consensus if provided
+    // 5. Backtest Analysis (NEW)
+    parts.push(this.buildBacktestContext());
+
+    // 6. Pattern Learning Insights (NEW)
+    parts.push(this.buildPatternLearningContext());
+
+    // 7. Swarm Consensus if provided
     if (query.context.swarmConsensus) {
       parts.push(`**AGENT SWARM CONSENSUS:**\n${query.context.swarmConsensus}`);
     }

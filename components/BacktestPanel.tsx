@@ -19,6 +19,7 @@ import {
 import { fetchHistoricalCandles } from '../services/backtestingService';
 import { BacktestEngine, BacktestResults, DEFAULT_BACKTEST_CONFIG } from '../services/backtestEngine';
 import { DEFAULT_CONFIG_V33 } from '../types';
+import { setBacktestResults } from '../services/backtestIntegration';
 
 export const BacktestPanel: React.FC = () => {
   const [results, setResults] = useState<BacktestResults | null>(null);
@@ -70,6 +71,14 @@ export const BacktestPanel: React.FC = () => {
       // Run backtest
       const btResults = engine.run();
       setResults(btResults);
+
+      // Store results in integration service for cross-component access
+      setBacktestResults(btResults, {
+        days,
+        timeframe,
+        riskPercent,
+        minConfidence
+      });
 
       console.log(`[Backtest V3.3.1] Completed: ${btResults.totalTrades} trades, ${(btResults.winRate * 100).toFixed(1)}% win rate`);
     } catch (error) {
