@@ -1,6 +1,10 @@
 import { ChartDataPoint } from '../types';
 
 export const calculateEMA = (data: number[], period: number): number[] => {
+    // CRITICAL FIX: Guard against empty or invalid data
+    if (!data || data.length === 0 || !Number.isFinite(data[0])) {
+        return [];
+    }
     const k = 2 / (period + 1);
     const emaArray = [data[0]];
     for (let i = 1; i < data.length; i++) {

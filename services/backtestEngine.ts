@@ -387,17 +387,28 @@ export class BacktestEngine {
    */
   private openPosition(signal: EnhancedTradeSignal, index: number): void {
     const candle = this.chartData[index];
+    const isLong = signal.type === 'LONG';
 
-    // CRITICAL FIX: Safe parseFloat handling
+    // CRITICAL FIX: Safe parseFloat handling with direction-aware fallback
     const parsedEntry = parseFloat(signal.entryZone);
     const parsedStop = parseFloat(signal.invalidation);
     const entryPrice = Number.isFinite(parsedEntry) ? parsedEntry : candle.close;
-    const stopPrice = Number.isFinite(parsedStop) ? parsedStop : entryPrice * 0.98;
+    // FIX: Use correct direction for stop fallback (2% away from entry)
+    const stopPrice = Number.isFinite(parsedStop)
+      ? parsedStop
+      : isLong ? entryPrice * 0.98 : entryPrice * 1.02;
 
     // Calculate position size based on risk
     const riskAmount = this.state.equity * (this.config.riskPerTrade / 100);
     const riskPerUnit = Math.abs(entryPrice - stopPrice);
-    const units = riskPerUnit > 0 ? riskAmount / riskPerUnit : 0;
+
+    // CRITICAL FIX: Skip if stop is too close (< 0.01% of entry) to prevent Infinity position size
+    if (riskPerUnit < entryPrice * 0.0001) {
+      console.warn('[Backtest] Skipping trade: stop too close to entry');
+      return;
+    }
+
+    const units = riskAmount / riskPerUnit;
     const positionSize = units * entryPrice;
 
     // Apply entry fee
@@ -719,7 +730,8 @@ export class BacktestEngine {
       largestWin: wins.length > 0 ? Math.max(...wins.map(t => t.pnlUsd)) : 0,
       largestLoss: losses.length > 0 ? Math.min(...losses.map(t => t.pnlUsd)) : 0,
 
-      profitFactor: grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0,
+      // CRITICAL FIX: Cap profit factor to prevent Infinity breaking JSON serialization
+      profitFactor: grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? 999.99 : 0,
       expectancy: trades.length > 0 ? trades.reduce((s, t) => s + t.rMultiple, 0) / trades.length : 0,
       expectancyDollar: trades.length > 0 ? totalPnL / trades.length : 0,
       payoffRatio: avgLoss > 0 ? avgWin / avgLoss : 0,

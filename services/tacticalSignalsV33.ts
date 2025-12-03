@@ -342,8 +342,8 @@ export function calculatePatternConfidenceAdjustment(
   let adjustment = (winRateDelta * 20) + (avgRDelta * 5);
 
   // CRITICAL FIX: Apply sample size decay to prevent overconfidence with small samples
-  // Minimum 10 matches for full weight, scales down linearly below that
-  const sampleSizeDecay = Math.min(1, matches.length / 10);
+  // Use config.minPatternsForLearning for consistency (default 20)
+  const sampleSizeDecay = Math.min(1, matches.length / config.minPatternsForLearning);
   adjustment *= sampleSizeDecay;
 
   // Clamp to config limits

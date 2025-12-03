@@ -154,7 +154,7 @@ export const BacktestPanel: React.FC = () => {
             <input
               type="number"
               value={days}
-              onChange={(e) => setDays(parseInt(e.target.value))}
+              onChange={(e) => setDays(parseInt(e.target.value, 10) || 30)}
               min={7}
               max={90}
               className="w-full bg-black/40 border border-white/10 rounded px-2 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-green-500/50"
@@ -192,7 +192,7 @@ export const BacktestPanel: React.FC = () => {
             <input
               type="number"
               value={minConfidence}
-              onChange={(e) => setMinConfidence(parseInt(e.target.value))}
+              onChange={(e) => setMinConfidence(parseInt(e.target.value, 10) || 50)}
               min={30}
               max={80}
               className="w-full bg-black/40 border border-white/10 rounded px-2 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-green-500/50"

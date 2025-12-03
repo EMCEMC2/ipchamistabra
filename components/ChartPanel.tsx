@@ -364,7 +364,8 @@ export const ChartPanel: React.FC = () => {
     // TP colors for multi-target display (gradient from light to dark green)
     const tpColors = ['#4ade80', '#22c55e', '#16a34a', '#15803d']; // TP1, TP2, TP3, TP4
 
-    signals.filter(s => s.status === 'ACTIVE').forEach(signal => {
+    // DEFENSIVE FIX: Guard against null/undefined signals array
+    (signals || []).filter(s => s.status === 'ACTIVE').forEach(signal => {
       const entryPrice = parsePrice(signal.entryZone);
       const stopPrice = parsePrice(signal.invalidation);
 
