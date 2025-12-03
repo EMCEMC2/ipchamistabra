@@ -57,10 +57,14 @@ export const ChartPanel: React.FC = () => {
   const [showTactical, setShowTactical] = useState(true);
 
   const timeframes = [
+    { label: '1m', value: '1m' },
+    { label: '5m', value: '5m' },
     { label: '15m', value: '15m' },
     { label: '1H', value: '1h' },
     { label: '4H', value: '4h' },
     { label: '1D', value: '1d' },
+    { label: '1W', value: '1w' },
+    { label: '1M', value: '1M' },
   ];
 
   // Regime display helper
@@ -264,12 +268,14 @@ export const ChartPanel: React.FC = () => {
       // Convert store signals to chart markers (single source of truth)
       // Timeframe-adaptive tolerance for signal marker placement
       const toleranceMap: Record<string, number> = {
-        '1m': 120,     // 2 minutes (2 candles)
-        '5m': 600,     // 10 minutes (2 candles)
-        '15m': 1800,   // 30 minutes (2 candles)
-        '1h': 7200,    // 2 hours (2 candles)
-        '4h': 28800,   // 8 hours (2 candles)
-        '1d': 172800   // 2 days (2 candles)
+        '1m': 120,      // 2 minutes (2 candles)
+        '5m': 600,      // 10 minutes (2 candles)
+        '15m': 1800,    // 30 minutes (2 candles)
+        '1h': 7200,     // 2 hours (2 candles)
+        '4h': 28800,    // 8 hours (2 candles)
+        '1d': 172800,   // 2 days (2 candles)
+        '1w': 1209600,  // 2 weeks (2 candles)
+        '1M': 5184000   // ~2 months (2 candles)
       };
       const tolerance = toleranceMap[timeframe] || 3600; // Default 1 hour
 
