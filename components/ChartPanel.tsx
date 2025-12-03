@@ -353,7 +353,7 @@ export const ChartPanel: React.FC = () => {
 
     }, [safeData, showTactical, adaptiveFastData, adaptiveSlowData, ema200Data, markers, clusterLines]);
 
-  // --- AI OVERLAY (EXISTING) ---
+  // --- AI OVERLAY (V3.3.1 MULTI-TARGET SUPPORT) ---
   useEffect(() => {
     if (!candleSeriesRef.current) return;
     activePriceLinesRef.current.forEach(line => candleSeriesRef.current?.removePriceLine(line));
@@ -361,24 +361,86 @@ export const ChartPanel: React.FC = () => {
 
     if (!showSignals) return;
 
+    // TP colors for multi-target display (gradient from light to dark green)
+    const tpColors = ['#4ade80', '#22c55e', '#16a34a', '#15803d']; // TP1, TP2, TP3, TP4
+
     signals.filter(s => s.status === 'ACTIVE').forEach(signal => {
       const entryPrice = parsePrice(signal.entryZone);
       const stopPrice = parsePrice(signal.invalidation);
-      const targetPrice = parsePrice(signal.targets[0]);
 
+      // Entry line
       if (entryPrice) {
         activePriceLinesRef.current.push(candleSeriesRef.current!.createPriceLine({
-          price: entryPrice, color: '#3b82f6', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: `ENTRY`
+          price: entryPrice, color: '#3b82f6', lineWidth: 2, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: `ENTRY`
         }));
       }
+
+      // Stop Loss line
       if (stopPrice) {
         activePriceLinesRef.current.push(candleSeriesRef.current!.createPriceLine({
-          price: stopPrice, color: '#ef4444', lineWidth: 1, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: `STOP`
+          price: stopPrice, color: '#ef4444', lineWidth: 2, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: `SL`
         }));
       }
-      if (targetPrice) {
+
+      // V3.3.1 Multi-Target TPs - check for targetLevels first (enhanced signals)
+      const enhancedSignal = signal as any;
+      if (enhancedSignal.targetLevels && Array.isArray(enhancedSignal.targetLevels)) {
+        enhancedSignal.targetLevels.forEach((target: any, idx: number) => {
+          if (target && typeof target.price === 'number' && target.price > 0) {
+            const tpLabel = `TP${idx + 1}`;
+            const tpColor = tpColors[idx] || '#10b981';
+            const lineStyle = target.status === 'HIT' ? LineStyle.Solid : LineStyle.Dashed;
+            const lineWidth = target.status === 'HIT' ? 2 : 1;
+
+            activePriceLinesRef.current.push(candleSeriesRef.current!.createPriceLine({
+              price: target.price,
+              color: tpColor,
+              lineWidth,
+              lineStyle,
+              axisLabelVisible: true,
+              title: `${tpLabel} (${target.rMultiple || idx + 1}R)`
+            }));
+          }
+        });
+      } else {
+        // Fallback to legacy single/multi target format
+        signal.targets.forEach((targetStr, idx) => {
+          const targetPrice = parsePrice(targetStr);
+          if (targetPrice) {
+            const tpLabel = signal.targets.length > 1 ? `TP${idx + 1}` : 'TP';
+            const tpColor = tpColors[idx] || '#10b981';
+
+            activePriceLinesRef.current.push(candleSeriesRef.current!.createPriceLine({
+              price: targetPrice,
+              color: tpColor,
+              lineWidth: 1,
+              lineStyle: LineStyle.Dashed,
+              axisLabelVisible: true,
+              title: tpLabel
+            }));
+          }
+        });
+      }
+
+      // Display nearest S/R levels from enhanced signal
+      if (enhancedSignal.nearestSupport && enhancedSignal.nearestSupport > 0) {
         activePriceLinesRef.current.push(candleSeriesRef.current!.createPriceLine({
-          price: targetPrice, color: '#10b981', lineWidth: 1, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: `TP`
+          price: enhancedSignal.nearestSupport,
+          color: '#06b6d4', // cyan
+          lineWidth: 1,
+          lineStyle: LineStyle.Dotted,
+          axisLabelVisible: false,
+          title: ''
+        }));
+      }
+      if (enhancedSignal.nearestResistance && enhancedSignal.nearestResistance > 0) {
+        activePriceLinesRef.current.push(candleSeriesRef.current!.createPriceLine({
+          price: enhancedSignal.nearestResistance,
+          color: '#f59e0b', // amber
+          lineWidth: 1,
+          lineStyle: LineStyle.Dotted,
+          axisLabelVisible: false,
+          title: ''
         }));
       }
     });

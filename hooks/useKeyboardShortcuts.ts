@@ -22,14 +22,18 @@ export const useKeyboardShortcuts = ({ setActiveView }: ShortcutOptions) => {
       if (e.shiftKey && (e.key === 'L' || e.key === 'l')) {
         e.preventDefault();
         setExecutionSide('LONG');
-        console.log('[Shortcut] Set Side: LONG');
+        if (import.meta.env.DEV) {
+          console.log('[Shortcut] Set Side: LONG');
+        }
       }
 
       // Shift + S: Set Short
       if (e.shiftKey && (e.key === 'S' || e.key === 's')) {
         e.preventDefault();
         setExecutionSide('SHORT');
-        console.log('[Shortcut] Set Side: SHORT');
+        if (import.meta.env.DEV) {
+          console.log('[Shortcut] Set Side: SHORT');
+        }
       }
 
       // Alt + Number: Switch Views
@@ -67,29 +71,33 @@ export const useKeyboardShortcuts = ({ setActiveView }: ShortcutOptions) => {
       if (e.ctrlKey && (e.key === 'c' || e.key === 'C') && e.shiftKey) {
         e.preventDefault();
         const posCount = positions.length;
-        if (posCount > 0 && window.confirm(`⚠️ CLOSE ALL ${posCount} POSITIONS? This cannot be undone.`)) {
+        if (posCount > 0 && window.confirm(`[WARNING] CLOSE ALL ${posCount} POSITIONS? This cannot be undone.`)) {
           positions.forEach(pos => {
             closePosition(pos.id, pos.pnl);
           });
           addBreadcrumb(`Emergency close: ${posCount} positions closed`, 'keyboard');
-          console.log(`[Shortcut] EMERGENCY: Closed all ${posCount} positions`);
+          if (import.meta.env.DEV) {
+            console.log(`[Shortcut] EMERGENCY: Closed all ${posCount} positions`);
+          }
         }
       }
 
       // Ctrl + R: Reset Daily P&L (requires confirmation)
       if (e.ctrlKey && (e.key === 'r' || e.key === 'R') && e.shiftKey) {
         e.preventDefault();
-        if (window.confirm('⚠️ RESET DAILY P&L? This will reset your daily loss limit tracker.')) {
+        if (window.confirm('[WARNING] RESET DAILY P&L? This will reset your daily loss limit tracker.')) {
           resetDailyPnL();
           addBreadcrumb('Daily P&L reset manually', 'keyboard');
-          console.log('[Shortcut] Daily P&L reset');
+          if (import.meta.env.DEV) {
+            console.log('[Shortcut] Daily P&L reset');
+          }
         }
       }
 
       // F1: Show keyboard shortcuts help
       if (e.key === 'F1') {
         e.preventDefault();
-        alert(`⌨️ KEYBOARD SHORTCUTS:
+        alert(`KEYBOARD SHORTCUTS:
 
 VIEW SWITCHING:
 Alt + 1: Terminal View

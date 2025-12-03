@@ -56,6 +56,7 @@ interface AggrStats {
   exchanges: ExchangeFlow[];
   recentLiquidations: AggrLiquidation[];
   recentLargeTrades: AggrTrade[];
+  lastUpdate?: number; // Unix timestamp of last data update
 }
 
 interface CascadeEvent {
@@ -258,7 +259,8 @@ class DataProcessor {
             pressure: { buyPressure: 50, sellPressure: 50, netPressure: 0, dominantSide: 'neutral', strength: 'weak' },
             exchanges: [],
             recentLiquidations: [],
-            recentLargeTrades: []
+            recentLargeTrades: [],
+            lastUpdate: now
         };
     }
 
@@ -303,7 +305,8 @@ class DataProcessor {
       pressure,
       exchanges,
       recentLiquidations: recentLiquidations.slice(-10),
-      recentLargeTrades: recentLargeTrades.slice(-10)
+      recentLargeTrades: recentLargeTrades.slice(-10),
+      lastUpdate: now
     };
   }
 

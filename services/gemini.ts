@@ -41,7 +41,9 @@ const callGeminiDirect = async (model: string, contents: string, config?: any): 
 
     try {
         const ai = getGenAI();
-        console.log('[Gemini Direct] Calling model:', model);
+        if (import.meta.env.DEV) {
+            console.log('[Gemini Direct] Calling model:', model);
+        }
 
         const generateConfig: any = {};
 
@@ -71,7 +73,9 @@ const callGeminiDirect = async (model: string, contents: string, config?: any): 
 
         const text = response.text || '';
         const duration = performance.now() - startTime;
-        console.log(`[Gemini Direct] Response received in ${(duration / 1000).toFixed(1)}s, length: ${text.length}`);
+        if (import.meta.env.DEV) {
+            console.log(`[Gemini Direct] Response received in ${(duration / 1000).toFixed(1)}s, length: ${text.length}`);
+        }
 
         return {
             text,
@@ -441,11 +445,13 @@ export const scanMarketForSignals = async (
       // Calculate REAL R:R (TypeScript, not AI)
       const rr = calculateRiskReward(entry, stop, target);
 
-      // Build validated signal
+      // Build validated signal with AI source and pending_review status
       const validated = validateSignal({
         ...rawSignal,
         regime, // Our calculation
         riskRewardRatio: rr, // Our calculation
+        source: 'ai' as const, // AI-generated signal
+        approvalStatus: 'pending_review' as const, // Requires human approval
       });
 
       if (validated) {
@@ -453,7 +459,9 @@ export const scanMarketForSignals = async (
       }
     }
 
-    console.log(`[Signal Scan] Generated ${validatedSignals.length} validated signals (from ${rawData.length} raw)`);
+    if (import.meta.env.DEV) {
+      console.log(`[Signal Scan] Generated ${validatedSignals.length} validated signals (from ${rawData.length} raw)`);
+    }
     return validatedSignals;
 
   } catch (error: any) {
@@ -525,9 +533,11 @@ export const runAgentSimulation = async (role: AgentRole, context: any): Promise
   }
 
   try {
-    console.log(`[runAgentSimulation] Starting for role: ${role}`);
-    console.log(`[runAgentSimulation] Model: ${FAST_MODEL_ID}`);
-    console.log(`[runAgentSimulation] Context:`, context);
+    if (import.meta.env.DEV) {
+      console.log(`[runAgentSimulation] Starting for role: ${role}`);
+      console.log(`[runAgentSimulation] Model: ${FAST_MODEL_ID}`);
+      console.log(`[runAgentSimulation] Context:`, context);
+    }
 
     const response = await callGeminiDirect(
       FAST_MODEL_ID,
@@ -547,7 +557,9 @@ export const runAgentSimulation = async (role: AgentRole, context: any): Promise
     );
 
     const text = response.text;
-    console.log(`[runAgentSimulation] Response received for ${role}:`, text);
+    if (import.meta.env.DEV) {
+      console.log(`[runAgentSimulation] Response received for ${role}:`, text);
+    }
 
     if (!text) {
       console.error(`[runAgentSimulation] No response text from agent ${role}`);
@@ -555,7 +567,9 @@ export const runAgentSimulation = async (role: AgentRole, context: any): Promise
     }
 
     const result = JSON.parse(text) as AgentTaskResult;
-    console.log(`[runAgentSimulation] Parsed result for ${role}:`, result);
+    if (import.meta.env.DEV) {
+      console.log(`[runAgentSimulation] Parsed result for ${role}:`, result);
+    }
     return result;
   } catch (e: any) {
     console.error(`[runAgentSimulation] ERROR for ${role}:`, e);
@@ -648,7 +662,9 @@ export const scanGlobalIntel = async (): Promise<IntelItem[]> => {
     try {
       const validated = z.array(IntelItemSchema).safeParse(arrayData);
       if (validated.success) {
-        console.log("✅ Intel fetched:", validated.data.length, "BTC-related items");
+        if (import.meta.env.DEV) {
+          console.log("[OK] Intel fetched:", validated.data.length, "BTC-related items");
+        }
         return validated.data as IntelItem[];
       } else {
         console.warn("[Intel] Schema validation failed");

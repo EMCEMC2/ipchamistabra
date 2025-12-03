@@ -78,9 +78,43 @@ export const binanceApi = {
     },
 
     // Trading Actions
-    placeOrder: async (symbol: string, side: 'BUY' | 'SELL', type: 'MARKET' | 'LIMIT', quantity: number, price?: number) => {
+    placeOrder: async (symbol: string, side: 'BUY' | 'SELL', type: 'MARKET' | 'LIMIT', quantity: number, price?: number, leverage: number = 10) => {
+        // Input validation
         if (quantity <= 0) throw new Error('Quantity must be greater than 0');
         if (type === 'LIMIT' && (!price || price <= 0)) throw new Error('Price is required for LIMIT orders');
+
+        // CRITICAL: Fresh balance check BEFORE placing order
+        // Never rely on stale cached balance - always fetch real-time
+        const freshBalance = await binanceApi.getBalance();
+
+        // Calculate required margin for this order
+        // For futures: margin = (quantity * price) / leverage
+        // Use current market price for MARKET orders, specified price for LIMIT
+        const effectivePrice = price || (await binanceApi.getCurrentPrice(symbol));
+        const orderValue = quantity * effectivePrice;
+        const requiredMargin = orderValue / leverage;
+
+        // Safety buffer: require 10% extra to account for price slippage and fees
+        const SAFETY_BUFFER = 1.10;
+        const marginWithBuffer = requiredMargin * SAFETY_BUFFER;
+
+        // Check if balance is sufficient BEFORE making the API call
+        if (freshBalance < marginWithBuffer) {
+            const errorMsg = `Insufficient balance for order. ` +
+                `Required: $${marginWithBuffer.toFixed(2)} (with 10% buffer), ` +
+                `Available: $${freshBalance.toFixed(2)}, ` +
+                `Order value: $${orderValue.toFixed(2)} at ${leverage}x leverage`;
+            console.error('[BinanceAPI] Order rejected:', errorMsg);
+            throw new Error(errorMsg);
+        }
+
+        // Balance check passed - proceed with order
+        console.log('[BinanceAPI] Balance check passed:', {
+            freshBalance: freshBalance.toFixed(2),
+            requiredMargin: marginWithBuffer.toFixed(2),
+            orderValue: orderValue.toFixed(2),
+            leverage
+        });
 
         return binanceApi.request('/order', 'POST', {
             symbol,
@@ -89,6 +123,27 @@ export const binanceApi = {
             quantity,
             price
         });
+    },
+
+    // Helper to get current price for margin calculation
+    getCurrentPrice: async (symbol: string): Promise<number> => {
+        try {
+            // Use Binance public API for current price
+            const response = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch price: ${response.status}`);
+            }
+            const data = await response.json();
+            return parseFloat(data.price) || 0;
+        } catch (error) {
+            console.error('[BinanceAPI] Failed to get current price:', error);
+            // Fallback to store price if API fails
+            const storePrice = useStore.getState().price;
+            if (storePrice > 0) {
+                return storePrice;
+            }
+            throw new Error('Unable to determine current price for margin calculation');
+        }
     },
 
     cancelOrder: async (symbol: string, orderId: number) => {

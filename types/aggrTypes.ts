@@ -96,6 +96,9 @@ export interface AggrStats {
     expiryTime: number;
     remainingMinutes: number;
   };
+
+  // Data Freshness Timestamp
+  lastUpdate?: number; // Unix timestamp of last data update
 }
 
 export interface CascadeEvent {

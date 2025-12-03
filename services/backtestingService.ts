@@ -44,7 +44,9 @@ export async function fetchHistoricalCandles(
   const limit = Math.min(1000, days * 96); // 96 15-min candles per day
   const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
 
-  console.log(`[Backtest] Fetching ${limit} candles (${days} days) for ${symbol}...`);
+  if (import.meta.env.DEV) {
+    console.log(`[Backtest] Fetching ${limit} candles (${days} days) for ${symbol}...`);
+  }
 
   try {
     const response = await fetch(url);
@@ -63,10 +65,12 @@ export async function fetchHistoricalCandles(
       volume: parseFloat(d[5])
     }));
 
-    console.log(`[Backtest] ✅ Fetched ${candles.length} candles`);
+    if (import.meta.env.DEV) {
+      console.log(`[Backtest] Fetched ${candles.length} candles`);
+    }
     return candles;
   } catch (error) {
-    console.error('[Backtest] ❌ Failed to fetch historical data:', error);
+    console.error('[Backtest] Failed to fetch historical data:', error);
     return [];
   }
 }
@@ -90,8 +94,10 @@ export function backtestTacticalV2(
     throw new Error('Insufficient data for backtesting (need at least 200 candles)');
   }
 
-  console.log(`[Backtest] Running Tactical v2 on ${data.length} candles...`);
-  console.log(`[Backtest] Params: SL=${params.stopLossPercent}%, TP=${params.takeProfitPercent}%, MaxHold=${params.maxHoldBars} bars`);
+  if (import.meta.env.DEV) {
+    console.log(`[Backtest] Running Tactical v2 on ${data.length} candles...`);
+    console.log(`[Backtest] Params: SL=${params.stopLossPercent}%, TP=${params.takeProfitPercent}%, MaxHold=${params.maxHoldBars} bars`);
+  }
 
   const closes = data.map(d => d.close);
   const highs = data.map(d => d.high);
@@ -324,13 +330,15 @@ export function backtestTacticalV2(
     equity: equityCurve
   };
 
-  console.log(`[Backtest] ✅ Complete:`, {
-    trades: results.totalTrades,
-    winRate: `${results.winRate.toFixed(1)}%`,
-    totalPnL: `$${results.totalPnL.toFixed(2)}`,
-    sharpe: results.sharpeRatio.toFixed(2),
-    maxDD: `${results.maxDrawdown.toFixed(2)}%`
-  });
+  if (import.meta.env.DEV) {
+    console.log(`[Backtest] Complete:`, {
+      trades: results.totalTrades,
+      winRate: `${results.winRate.toFixed(1)}%`,
+      totalPnL: `$${results.totalPnL.toFixed(2)}`,
+      sharpe: results.sharpeRatio.toFixed(2),
+      maxDD: `${results.maxDrawdown.toFixed(2)}%`
+    });
+  }
 
   return results;
 }

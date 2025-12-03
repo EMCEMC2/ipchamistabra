@@ -21,6 +21,8 @@ import { usePositionMonitor } from './hooks/usePositionMonitor';
 import { aggrService } from './services/aggrService';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { captureError } from './services/errorMonitor';
+import { checkRiskVeto, TradeProposal } from './services/riskOfficer';
+import { safeParseFloat } from './utils/safeParseFloat';
 
 type ViewMode = 'TERMINAL' | 'SWARM' | 'CORTEX' | 'JOURNAL' | 'BACKTEST' | 'LIVEFEED';
 
@@ -62,21 +64,17 @@ function App() {
   // Refs
   const binanceWS = useRef(new BinancePriceFeed());
 
-  // Expire stale signals on mount
+  // Auto-invalidate stale signals on mount and periodically
   useEffect(() => {
-    const currentTime = Date.now();
-    const SIGNAL_EXPIRY = 4 * 60 * 60 * 1000; // 4 hours
-    const signals = useStore.getState().signals || [];
-    if (signals && signals.length > 0) {
-      const validSignals = signals.filter(s => currentTime - s.timestamp < SIGNAL_EXPIRY);
+    // Run immediately on mount
+    useStore.getState().invalidateStaleSignals();
 
-      if (validSignals.length < signals.length) {
-        useStore.setState({ signals: validSignals });
-        if (import.meta.env.DEV) {
-          console.log(`[Signals] Expired ${signals.length - validSignals.length} stale signals`);
-        }
-      }
-    }
+    // Run every 30 seconds to check for expired/invalidated signals
+    const interval = setInterval(() => {
+      useStore.getState().invalidateStaleSignals();
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, []);
 
   // Start Market Data Sync
@@ -135,12 +133,137 @@ function App() {
     return 'NEUTRAL';
   };
 
-  // Signal Execution Handler
+  // Signal Execution Handler with Risk Gate
+  // CRITICAL: Risk check runs BEFORE setActiveTradeSetup to prevent blocked trades
   const handleSignalExecute = useCallback((signal: TradeSignal) => {
+    // Get current state for risk evaluation
+    const state = useStore.getState();
+    const {
+      balance,
+      positions,
+      dailyPnL,
+      dailyLossLimit,
+      riskOfficer,
+      price,
+      isCircuitBreakerTripped
+    } = state;
+
+    // CRITICAL: AI Signal Approval Gate - block pending_review signals
+    if (signal.approvalStatus === 'pending_review') {
+      console.warn('[RiskGate] Trade blocked: AI signal requires human approval', {
+        signalId: signal.id,
+        source: signal.source,
+        approvalStatus: signal.approvalStatus
+      });
+      captureError(
+        new Error('AI signal requires human approval'),
+        'Signal Execution Blocked',
+        { signalId: signal.id, reason: 'PENDING_HUMAN_APPROVAL', source: signal.source }
+      );
+      return; // Do NOT set trade setup - user must approve first
+    }
+
+    // CRITICAL: Circuit breaker check - immediately block if tripped
+    if (isCircuitBreakerTripped) {
+      console.warn('[RiskGate] Trade blocked: Circuit breaker is tripped');
+      captureError(
+        new Error('Trade blocked by circuit breaker'),
+        'Signal Execution Blocked',
+        { signalId: signal.id, reason: 'CIRCUIT_BREAKER_TRIPPED' }
+      );
+      return; // Do NOT set trade setup
+    }
+
+    // Safely parse signal values - prevents NaN propagation
+    const stopLoss = safeParseFloat(signal.invalidation, 0);
+    const takeProfit = safeParseFloat(signal.targets[0], 0);
+    const entryPrice = safeParseFloat(signal.entryZone, price); // Fallback to current price
+
+    // Validate parsed values - reject if critical values are invalid
+    if (stopLoss <= 0) {
+      console.warn('[RiskGate] Trade blocked: Invalid stop loss value', {
+        raw: signal.invalidation,
+        parsed: stopLoss
+      });
+      captureError(
+        new Error('Invalid stop loss value'),
+        'Signal Execution Blocked',
+        { signalId: signal.id, reason: 'INVALID_STOP_LOSS', rawValue: signal.invalidation }
+      );
+      return; // Do NOT set trade setup
+    }
+
+    if (takeProfit <= 0) {
+      console.warn('[RiskGate] Trade blocked: Invalid take profit value', {
+        raw: signal.targets[0],
+        parsed: takeProfit
+      });
+      captureError(
+        new Error('Invalid take profit value'),
+        'Signal Execution Blocked',
+        { signalId: signal.id, reason: 'INVALID_TAKE_PROFIT', rawValue: signal.targets[0] }
+      );
+      return; // Do NOT set trade setup
+    }
+
+    // Build trade proposal for risk check
+    // Default size: 1% of balance / entry price (conservative)
+    const defaultSize = (balance * 0.01) / entryPrice;
+    const proposal: TradeProposal = {
+      type: signal.type,
+      entryPrice: entryPrice,
+      stopLoss: stopLoss,
+      takeProfit: takeProfit,
+      size: defaultSize, // Will be refined in execution panel
+      leverage: 10 // Default leverage, can be adjusted
+    };
+
+    // Execute risk check
+    const riskResult = checkRiskVeto(
+      proposal,
+      {
+        dailyPnL,
+        dailyLossLimit,
+        balance,
+        positions
+      },
+      riskOfficer
+    );
+
+    // CRITICAL: If risk check blocks, do NOT set trade setup
+    if (riskResult.blocked) {
+      console.warn('[RiskGate] Trade blocked by Risk Officer:', riskResult.reason, riskResult.message);
+      captureError(
+        new Error(`Trade blocked: ${riskResult.reason}`),
+        'Signal Execution Blocked',
+        {
+          signalId: signal.id,
+          reason: riskResult.reason,
+          message: riskResult.message,
+          proposal: {
+            type: proposal.type,
+            entryPrice: proposal.entryPrice,
+            stopLoss: proposal.stopLoss,
+            takeProfit: proposal.takeProfit
+          }
+        }
+      );
+      return; // Do NOT set trade setup
+    }
+
+    // Risk check passed - proceed with trade setup
+    console.log('[RiskGate] Trade approved:', {
+      signalId: signal.id,
+      type: signal.type,
+      stopLoss,
+      takeProfit,
+      entryPrice
+    });
+
     setActiveTradeSetup({
       type: signal.type,
-      stopLoss: parseFloat(signal.invalidation),
-      takeProfit: parseFloat(signal.targets[0])
+      stopLoss: stopLoss,
+      takeProfit: takeProfit
     });
   }, [setActiveTradeSetup]);
 

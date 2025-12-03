@@ -1,6 +1,20 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, PersistStorage, StorageValue } from 'zustand/middleware';
-import { ChartDataPoint, TradeSignal, Position, JournalEntry, AgentState, AgentRole, IntelItem } from '../types';
+import {
+  ChartDataPoint,
+  TradeSignal,
+  Position,
+  JournalEntry,
+  AgentState,
+  AgentRole,
+  IntelItem,
+  SignalHistoryState,
+  PatternLearningState,
+  EMPTY_SIGNAL_HISTORY,
+  EMPTY_PATTERN_LEARNING,
+  TacticalConfigV33,
+  DEFAULT_CONFIG_V33
+} from '../types';
 import { EnhancedBTCMetrics } from '../services/macroDataService';
 import { FeedState, getInitialFeedState } from '../services/feedRegistry';
 import { RiskOfficerState, INITIAL_RISK_STATE } from '../services/riskOfficer';
@@ -148,6 +162,10 @@ interface MarketState {
   enhancedMetrics: EnhancedBTCMetrics;
   // NEW: Feed Status Registry
   feeds: Record<string, FeedState>;
+  // V3.3.1: Pattern Learning State
+  signalHistory: SignalHistoryState;
+  patternLearning: PatternLearningState;
+  tacticalConfig: TacticalConfigV33;
 }
 
 interface UserState {
@@ -187,9 +205,14 @@ export interface AppState extends MarketState, UserState, AgentSwarmState {
   setActiveTradeSetup: (setup: Partial<Position> | null) => void;
   setExecutionSide: (side: 'LONG' | 'SHORT') => void;
   setEnhancedMetrics: (metrics: EnhancedBTCMetrics) => void;
-  
+
   // NEW: Feed Actions
   updateFeedStatus: (id: string, updates: Partial<FeedState>) => void;
+
+  // V3.3.1: Pattern Learning Actions
+  setSignalHistory: (history: SignalHistoryState) => void;
+  setPatternLearning: (learning: PatternLearningState) => void;
+  setTacticalConfig: (config: Partial<TacticalConfigV33>) => void;
 
   // Phase 2: Live Trading (Testnet)
   isLiveMode: boolean;
@@ -244,6 +267,10 @@ export const useStore = create<AppState>()(
       lastPriceUpdate: 0,
       enhancedMetrics: defaultEnhancedMetrics,
       feeds: getInitialFeedState(),
+      // V3.3.1: Pattern Learning State
+      signalHistory: EMPTY_SIGNAL_HISTORY,
+      patternLearning: EMPTY_PATTERN_LEARNING,
+      tacticalConfig: DEFAULT_CONFIG_V33,
 
       // User State (PERSISTED - survives refresh)
       balance: 50000,
@@ -294,6 +321,13 @@ export const useStore = create<AppState>()(
           ...state.feeds,
           [id]: { ...state.feeds[id], ...updates }
         }
+      })),
+
+      // V3.3.1: Pattern Learning Actions
+      setSignalHistory: (signalHistory) => set({ signalHistory }),
+      setPatternLearning: (patternLearning) => set({ patternLearning }),
+      setTacticalConfig: (config) => set((state) => ({
+        tacticalConfig: { ...state.tacticalConfig, ...config }
       })),
 
       setIsLiveMode: (isLiveMode) => {
@@ -537,7 +571,11 @@ export const useStore = create<AppState>()(
         dailyPnL: state.dailyPnL,
         lastResetDate: state.lastResetDate,
         isCircuitBreakerTripped: state.isCircuitBreakerTripped,
-        executionSide: state.executionSide
+        executionSide: state.executionSide,
+        // V3.3.1: Pattern Learning (persisted)
+        signalHistory: state.signalHistory,
+        patternLearning: state.patternLearning,
+        tacticalConfig: state.tacticalConfig
       }),
       // Sync confluence weights on rehydrate
       onRehydrateStorage: () => (state) => {

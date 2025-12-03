@@ -16,7 +16,9 @@ class BTCNewsAgent {
   private isRunning: boolean = false;
 
   constructor() {
-    console.log('[BTC News Agent] Initialized');
+    if (import.meta.env.DEV) {
+      console.log('[BTC News Agent] Initialized');
+    }
   }
 
   /**
@@ -24,27 +26,37 @@ class BTCNewsAgent {
    */
   async start(callback: (news: IntelItem[]) => void): Promise<void> {
     if (this.isRunning) {
-      console.log('[BTC News Agent] Already running, adding callback');
+      if (import.meta.env.DEV) {
+        console.log('[BTC News Agent] Already running, adding callback');
+      }
       this.callbacks.add(callback);
       callback(this.latestNews); // Send current news immediately
       return;
     }
 
-    console.log('[BTC News Agent] 🚀 Starting...');
+    if (import.meta.env.DEV) {
+      console.log('[BTC News Agent] Starting...');
+    }
     this.isRunning = true;
     this.callbacks.add(callback);
 
     // Fetch news immediately
-    console.log('[BTC News Agent] Fetching initial news...');
+    if (import.meta.env.DEV) {
+      console.log('[BTC News Agent] Fetching initial news...');
+    }
     await this.fetchNews();
 
     // Setup auto-refresh every 1 minute for testing (change to 5 later)
     this.updateInterval = setInterval(async () => {
-      console.log('[BTC News Agent] ⏰ Auto-refresh triggered');
+      if (import.meta.env.DEV) {
+        console.log('[BTC News Agent] Auto-refresh triggered');
+      }
       await this.fetchNews();
     }, 1 * 60 * 1000); // 1 minute for testing
 
-    console.log('[BTC News Agent] ✅ Started with 1-minute auto-refresh');
+    if (import.meta.env.DEV) {
+      console.log('[BTC News Agent] Started with 1-minute auto-refresh');
+    }
   }
 
   /**
@@ -56,7 +68,9 @@ class BTCNewsAgent {
     }
 
     if (this.callbacks.size === 0) {
-      console.log('[BTC News Agent] No more listeners, stopping...');
+      if (import.meta.env.DEV) {
+        console.log('[BTC News Agent] No more listeners, stopping...');
+      }
       if (this.updateInterval) {
         clearInterval(this.updateInterval);
         this.updateInterval = null;
@@ -69,12 +83,16 @@ class BTCNewsAgent {
    * Fetch latest BTC news using Gemini with Google Search
    */
   private async fetchNews(): Promise<void> {
-    console.log('[BTC News Agent] 📰 fetchNews() called');
+    if (import.meta.env.DEV) {
+      console.log('[BTC News Agent] fetchNews() called');
+    }
     try {
       // 1) Try real RSS sources first (fast, keyless, low-latency)
       const rssNews = await this.fetchFromRssSources();
       if (rssNews.length > 0) {
-        console.log(`[BTC News Agent] ✅ RSS fetch success: ${rssNews.length} items`);
+        if (import.meta.env.DEV) {
+          console.log(`[BTC News Agent] RSS fetch success: ${rssNews.length} items`);
+        }
         this.latestNews = rssNews;
         this.broadcastNews(rssNews);
         return;
@@ -84,7 +102,7 @@ class BTCNewsAgent {
       console.warn('[BTC News Agent] RSS fetch returned no items.');
 
     } catch (error: any) {
-      console.error('[BTC News Agent] ❌ Error fetching news:', error.message);
+      console.error('[BTC News Agent] Error fetching news:', error.message);
       console.error('[BTC News Agent] Full error:', error);
     }
   }
@@ -208,7 +226,9 @@ class BTCNewsAgent {
    * Manually trigger news refresh
    */
   async refresh(): Promise<void> {
-    console.log('[BTC News Agent] Manual refresh triggered');
+    if (import.meta.env.DEV) {
+      console.log('[BTC News Agent] Manual refresh triggered');
+    }
     await this.fetchNews();
   }
 

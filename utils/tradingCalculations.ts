@@ -344,7 +344,10 @@ export function validateSignal(
     regime: signal.regime || 'NORMAL',
     reasoning: signal.reasoning || 'AI-generated signal',
     status: signal.status || 'ACTIVE',
-    timestamp: signal.timestamp || Date.now()
+    timestamp: signal.timestamp || Date.now(),
+    // AI Safety Gate: Preserve source/approval or default to AI pending
+    source: signal.source || 'ai',
+    approvalStatus: signal.approvalStatus || 'pending_review'
   };
 }
 
