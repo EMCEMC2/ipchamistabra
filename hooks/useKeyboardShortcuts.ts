@@ -9,7 +9,9 @@ interface ShortcutOptions {
 }
 
 export const useKeyboardShortcuts = ({ setActiveView }: ShortcutOptions) => {
-  const { setExecutionSide, positions, closePosition, resetDailyPnL } = useStore();
+  // CRITICAL FIX: Only get action functions from the hook (stable references)
+  // Use getState() inside handlers to get fresh data and avoid stale closures
+  const { setExecutionSide, closePosition, resetDailyPnL } = useStore();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -67,12 +69,14 @@ export const useKeyboardShortcuts = ({ setActiveView }: ShortcutOptions) => {
         }
       }
 
-      // Ctrl + C: Close All Positions (EMERGENCY)
+      // Ctrl + Shift + C: Close All Positions (EMERGENCY)
       if (e.ctrlKey && (e.key === 'c' || e.key === 'C') && e.shiftKey) {
         e.preventDefault();
-        const posCount = positions.length;
+        // CRITICAL FIX: Get fresh positions data to avoid stale closure
+        const freshPositions = useStore.getState().positions;
+        const posCount = freshPositions.length;
         if (posCount > 0 && window.confirm(`[WARNING] CLOSE ALL ${posCount} POSITIONS? This cannot be undone.`)) {
-          positions.forEach(pos => {
+          freshPositions.forEach(pos => {
             closePosition(pos.id, pos.pnl);
           });
           addBreadcrumb(`Emergency close: ${posCount} positions closed`, 'keyboard');
@@ -121,5 +125,6 @@ F1: Show this help`);
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [setExecutionSide, setActiveView, positions, closePosition, resetDailyPnL]);
+    // CRITICAL FIX: Removed `positions` from deps - we now use getState() for fresh data
+  }, [setExecutionSide, setActiveView, closePosition, resetDailyPnL]);
 };

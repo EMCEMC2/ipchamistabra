@@ -75,6 +75,9 @@ export const binanceApi = {
                 await sleep(backoff);
             }
         }
+        // CRITICAL FIX: This line should never be reached due to throw above,
+        // but TypeScript needs explicit return type handling
+        throw new Error(`[API] Unreachable: All retries exhausted for ${endpoint}`);
     },
 
     // Trading Actions

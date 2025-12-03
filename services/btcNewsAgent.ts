@@ -61,20 +61,23 @@ class BTCNewsAgent {
 
   /**
    * Stop the news agent
+   * @param callback - Optional: remove specific callback. If omitted, forces full stop.
    */
   stop(callback?: (news: IntelItem[]) => void): void {
     if (callback) {
       this.callbacks.delete(callback);
     }
 
-    if (this.callbacks.size === 0) {
+    // CRITICAL FIX: If no callback specified, force stop (used by HMR cleanup)
+    if (!callback || this.callbacks.size === 0) {
       if (import.meta.env.DEV) {
-        console.log('[BTC News Agent] No more listeners, stopping...');
+        console.log('[BTC News Agent] Stopping all...');
       }
       if (this.updateInterval) {
         clearInterval(this.updateInterval);
         this.updateInterval = null;
       }
+      this.callbacks.clear();
       this.isRunning = false;
     }
   }
@@ -242,3 +245,14 @@ class BTCNewsAgent {
 
 // Singleton instance
 export const btcNewsAgent = new BTCNewsAgent();
+
+// CRITICAL FIX: HMR cleanup to prevent interval duplication during hot reload
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    // Stop the agent and clear interval before module is replaced
+    btcNewsAgent.stop();
+    if (import.meta.env.DEV) {
+      console.log('[BTC News Agent] HMR: Module disposed, interval cleared');
+    }
+  });
+}

@@ -95,9 +95,12 @@ class RollingWindow {
   private checkOverflow(): void {
     if (Math.abs(this.cumulativeSum) > RollingWindow.OVERFLOW_THRESHOLD) {
       console.warn('[CVD] Normalizing accumulator to prevent overflow');
-      // Reset to session delta only
+      // CRITICAL FIX: Actually normalize by resetting both values together
+      // Store current session delta before resetting
+      const sessionDelta = this.cumulativeSum - this.sessionStartCVD;
+      // Reset both to normalized values (preserving session delta)
       this.sessionStartCVD = 0;
-      this.cumulativeSum = this.cumulativeSum - this.sessionStartCVD;
+      this.cumulativeSum = sessionDelta;
     }
   }
 
@@ -547,10 +550,11 @@ class DataProcessor {
           this.largeTrades.push(trade); // Add to dedicated array
           self.postMessage({ type: 'LARGE_TRADE_EVENT', payload: { trade } });
       }
-      
-      // Clean up large trades (keep 10 mins)
+
+      // CRITICAL FIX: Always filter the entire array, not just check first element
+      // Old logic only cleaned up if first trade was old, which failed during whale activity bursts
       const largeCutoff = Date.now() - 600000;
-      if (this.largeTrades.length > 0 && this.largeTrades[0].timestamp < largeCutoff) {
+      if (this.largeTrades.length > 100 || (this.largeTrades.length > 0 && this.largeTrades[0].timestamp < largeCutoff)) {
            this.largeTrades = this.largeTrades.filter(t => t.timestamp > largeCutoff);
       }
   }
